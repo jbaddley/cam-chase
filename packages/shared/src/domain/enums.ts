@@ -20,8 +20,11 @@ export const GAME_STATES = [
 ] as const;
 export type GameState = (typeof GAME_STATES)[number];
 
-/** Round 2 photo-assignment strategies available in Phase 1. */
-export const GAME_TYPES = ['round_robin', 'random'] as const;
+/**
+ * Round 2 photo-assignment strategies. round_robin/random ship in Phase 1;
+ * relay (per-member participation) and decoy (bluffing) are added in Phase 4.
+ */
+export const GAME_TYPES = ['round_robin', 'random', 'relay', 'decoy'] as const;
 export type GameType = (typeof GAME_TYPES)[number];
 
 /** Monetization tiers. Only the host's tier gates advanced features. */
