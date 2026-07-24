@@ -7,3 +7,4 @@ export * from './growth-repo.js';
 export * from './growth-handlers.js';
 export * from './tournament-repo.js';
 export * from './tournament-handlers.js';
+export * from './dynamodb-repository.js';
