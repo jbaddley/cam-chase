@@ -35,7 +35,7 @@ export interface Referral {
   revoked?: boolean;
 }
 
-export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 /** Attribute an invitee to a referrer at signup. Rejects self-referral. */
 export function createAttribution(input: {

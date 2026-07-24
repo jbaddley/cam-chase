@@ -29,7 +29,7 @@ export interface ShareCard {
   status: 'active' | 'taken_down';
 }
 
-export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 /** Deep link that carries the referral code through install (deferred link). */
 export function shareUrlFor(referralCode: string, gameId: string): string {
