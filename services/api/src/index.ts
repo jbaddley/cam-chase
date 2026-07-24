@@ -12,3 +12,4 @@ export * from './container.js';
 export * from './lambda.js';
 export * from './repo-contracts.js';
 export * from './dynamodb-supporting-repos.js';
+export * from './dynamodb-referral-repository.js';

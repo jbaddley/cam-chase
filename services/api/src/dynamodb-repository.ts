@@ -67,7 +67,10 @@ export function makeDynamoDocumentClient(opts: { endpoint?: string; region?: str
   return DynamoDBDocumentClient.from(base, { marshallOptions: { removeUndefinedValues: true } });
 }
 
-/** Single-table definition (pk/sk, on-demand) — mirrors the CDK table. */
+/**
+ * Single-table definition (pk/sk, on-demand) — mirrors the CDK table. Includes a
+ * sparse GSI1 (GSI1PK/GSI1SK) used by the referral repository's monthly-cap query.
+ */
 export function gameTableDefinition(tableName: string): CreateTableCommandInput {
   return {
     TableName: tableName,
@@ -75,10 +78,22 @@ export function gameTableDefinition(tableName: string): CreateTableCommandInput 
     AttributeDefinitions: [
       { AttributeName: 'pk', AttributeType: 'S' },
       { AttributeName: 'sk', AttributeType: 'S' },
+      { AttributeName: 'GSI1PK', AttributeType: 'S' },
+      { AttributeName: 'GSI1SK', AttributeType: 'S' },
     ],
     KeySchema: [
       { AttributeName: 'pk', KeyType: 'HASH' },
       { AttributeName: 'sk', KeyType: 'RANGE' },
+    ],
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: 'GSI1',
+        KeySchema: [
+          { AttributeName: 'GSI1PK', KeyType: 'HASH' },
+          { AttributeName: 'GSI1SK', KeyType: 'RANGE' },
+        ],
+        Projection: { ProjectionType: 'KEYS_ONLY' },
+      },
     ],
   };
 }

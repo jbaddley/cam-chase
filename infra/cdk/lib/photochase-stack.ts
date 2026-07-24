@@ -36,6 +36,13 @@ export class PhotoChaseStack extends cdk.Stack {
       pointInTimeRecovery: envName === 'prod',
       removalPolicy: envName === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
+    // Sparse GSI for the referral repository's monthly-cap count query.
+    table.addGlobalSecondaryIndex({
+      indexName: 'GSI1',
+      partitionKey: { name: 'GSI1PK', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'GSI1SK', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.KEYS_ONLY,
+    });
 
     // Private photo storage; access is granted via short-lived presigned URLs.
     const photos = new s3.Bucket(this, 'PhotoBucket', {
