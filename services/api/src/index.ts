@@ -5,3 +5,5 @@ export * from './entitlements-repo.js';
 export * from './billing-handlers.js';
 export * from './growth-repo.js';
 export * from './growth-handlers.js';
+export * from './tournament-repo.js';
+export * from './tournament-handlers.js';
