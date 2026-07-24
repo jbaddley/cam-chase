@@ -6,6 +6,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction, OutputFormat } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
 import type { Construct } from 'constructs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -91,6 +92,22 @@ export class PhotoChaseStack extends cdk.Stack {
     });
     table.grantReadWriteData(apiFn);
     photos.grantReadWrite(apiFn);
+
+    // Resize Lambda: writes a ≤1024px thumbnail for each uploaded original.
+    const resizeFn = new NodejsFunction(this, 'ResizeFn', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(moduleDir, '../../../services/api/src/image-handler.ts'),
+      handler: 'resizeHandler',
+      bundling: { format: OutputFormat.ESM, target: 'node20', minify: true },
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 1024,
+      environment: { PHOTO_BUCKET: photos.bucketName },
+    });
+    photos.grantReadWrite(resizeFn);
+    // Trigger on new originals (under games/), not on our own thumbs/ output.
+    photos.addEventNotification(s3.EventType.OBJECT_CREATED, new s3n.LambdaDestination(resizeFn), {
+      prefix: 'games/',
+    });
 
     const api = new HttpApi(this, 'HttpApi', { apiName: `photochase-${envName}` });
     api.addRoutes({
