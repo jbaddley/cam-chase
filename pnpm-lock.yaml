@@ -46,6 +46,15 @@ importers:
         specifier: ^3.23.2
         version: 3.23.2
 
+  services/api:
+    dependencies:
+      '@photochase/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+
 packages:
 
   '@ampproject/remapping@2.3.0':
