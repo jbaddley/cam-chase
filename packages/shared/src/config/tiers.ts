@@ -29,7 +29,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   },
   game_pack: {
     maxTeams: 6,
-    allowedGameTypes: ['round_robin', 'random'],
+    allowedGameTypes: ['round_robin', 'random', 'relay', 'decoy'],
     maxJudgeWeight: 5,
     allowSpecialCategories: true,
     allowGeofencing: true,
@@ -39,7 +39,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
   },
   unlimited: {
     maxTeams: 6,
-    allowedGameTypes: ['round_robin', 'random'],
+    allowedGameTypes: ['round_robin', 'random', 'relay', 'decoy'],
     maxJudgeWeight: 5,
     allowSpecialCategories: true,
     allowGeofencing: true,

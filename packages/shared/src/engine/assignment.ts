@@ -81,5 +81,14 @@ export function planAssignments(
   if (teams.length < 2) {
     throw new Error('Assignment requires at least 2 teams.');
   }
-  return gameType === 'round_robin' ? roundRobin(teams) : random(teams, seed);
+  // relay distributes like round robin (per-member participation is enforced at
+  // the gameplay layer); decoy distributes like random.
+  switch (gameType) {
+    case 'round_robin':
+    case 'relay':
+      return roundRobin(teams);
+    case 'random':
+    case 'decoy':
+      return random(teams, seed);
+  }
 }
