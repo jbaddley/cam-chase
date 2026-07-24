@@ -15,6 +15,7 @@ export * from './sim/harness.js';
 export * from './billing/entitlements.js';
 export * from './billing/pricing.js';
 export * from './ai/judge.js';
+export * from './ai/recap.js';
 export * from './growth/referrals.js';
 export * from './growth/share-card.js';
 export * from './tournament/standings.js';
