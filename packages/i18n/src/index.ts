@@ -2,13 +2,14 @@ import { de } from './locales/de.js';
 import { en, type MessageKey } from './locales/en.js';
 import { es } from './locales/es.js';
 import { fr } from './locales/fr.js';
+import { pt } from './locales/pt.js';
 
 export type { MessageKey };
 
-export const LOCALES = ['en', 'es', 'fr', 'de'] as const;
+export const LOCALES = ['en', 'es', 'fr', 'de', 'pt'] as const;
 export type Locale = (typeof LOCALES)[number];
 
-export const CATALOGS: Record<Locale, Record<MessageKey, string>> = { en, es, fr, de };
+export const CATALOGS: Record<Locale, Record<MessageKey, string>> = { en, es, fr, de, pt };
 
 export type MessageParams = Record<string, string | number>;
 
