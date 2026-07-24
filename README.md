@@ -18,6 +18,55 @@ Primary platform: **mobile (iOS / Android)**. Secondary: **web** (join, spectate
 | [08 – Growth & Referrals](docs/08-growth-referrals.md) | Referral codes, share incentives, social posting |
 | [09 – Roadmap](docs/09-roadmap.md) | Phased delivery plan with exit criteria |
 
+## Codebase
+
+A pnpm + Turborepo monorepo. The entire game ruleset lives as dependency-free
+TypeScript in `packages/shared` and is exhaustively tested.
+
+```
+packages/shared   Pure-TS game engine: state machine, Round 2 assignment,
+                  scoring, geofencing, finals/decoy scoring, entitlements,
+                  pricing/margin model, AI judging & recap, referrals,
+                  share cards, tournament standings, full-game simulation.
+packages/i18n     Message catalogs (en, es, fr, de, pt, ja) with enforced key parity.
+services/api      Handlers over the engine behind repository ports (in-memory
+                  now; DynamoDB later): games, entitlements, billing webhooks,
+                  AI/referrals/share, tournaments/recap.
+apps/web          Next.js marketing + big-screen spectator scaffold.
+apps/mobile       Expo (React Native) scaffold (Join + Lobby screens).
+infra/cdk         AWS CDK stack (DynamoDB, S3, Cognito, HTTP API + Lambda).
+```
+
+### Develop
+
+```bash
+pnpm install
+pnpm test        # ~150 unit/property/simulation tests
+pnpm typecheck
+pnpm lint
+```
+
+CI (`.github/workflows/ci.yml`) runs install, lint, typecheck, and tests on
+every push and PR.
+
+### Delivery status
+
+Built across four phase branches (each merged to `main`), tracked as GitHub
+epics with PRD-style sub-issues:
+
+- **Phase 1 — Foundation & MVP engine** (#1): monorepo, game engine, full-game
+  simulation, API skeleton, CDK, app scaffolds, CI.
+- **Phase 2 — Monetization & configuration** (#10): entitlements, pricing/margin
+  model, geofencing & return-time scoring, finals tallying, es/fr/de.
+- **Phase 3 — AI judging & growth** (#17): AI judging (budget cap, kill switch),
+  referrals, share-card consent gate, pt-BR.
+- **Phase 4 — Depth & expansion** (#23): tournament standings, Decoy game type,
+  AI recap, Japanese.
+
+External integrations that can't run headless (live StoreKit/Play/Stripe/AdMob,
+LLM/Rekognition calls, Cast SDKs, AWS deploys) are implemented as tested pure
+logic behind provider/repository seams, ready to wire to real services.
+
 ## Decision log
 
 | Decision | Choice | Why |
