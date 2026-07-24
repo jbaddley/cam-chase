@@ -4,8 +4,13 @@ import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import { NodejsFunction, OutputFormat } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import type { Construct } from 'constructs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 export interface PhotoChaseStackProps extends cdk.StackProps {
   /** Deployment environment name: dev | staging | prod. */
@@ -55,13 +60,13 @@ export class PhotoChaseStack extends cdk.Stack {
       supportedIdentityProviders: [cognito.UserPoolClientIdentityProvider.COGNITO],
     });
 
-    const apiFn = new lambda.Function(this, 'ApiFn', {
+    // Bundles services/api's Lambda entrypoint (esbuild). The handler reads
+    // TABLE_NAME to select the DynamoDB GameRepository (see container.ts).
+    const apiFn = new NodejsFunction(this, 'ApiFn', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'index.handler',
-      // Placeholder; the real bundle is built from services/api by the pipeline.
-      code: lambda.Code.fromInline(
-        'exports.handler = async () => ({ statusCode: 200, body: "PhotoChase API" });',
-      ),
+      entry: path.join(moduleDir, '../../../services/api/src/lambda.ts'),
+      handler: 'handler',
+      bundling: { format: OutputFormat.ESM, target: 'node20', minify: true },
       environment: {
         TABLE_NAME: table.tableName,
         PHOTO_BUCKET: photos.bucketName,
