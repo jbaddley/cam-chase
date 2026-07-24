@@ -13,3 +13,5 @@ export * from './lambda.js';
 export * from './repo-contracts.js';
 export * from './dynamodb-supporting-repos.js';
 export * from './dynamodb-referral-repository.js';
+export * from './media.js';
+export * from './media-handlers.js';

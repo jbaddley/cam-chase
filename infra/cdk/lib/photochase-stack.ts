@@ -52,6 +52,15 @@ export class PhotoChaseStack extends cdk.Stack {
       enforceSSL: true,
       lifecycleRules: [{ expiration: cdk.Duration.days(envName === 'prod' ? 365 : 30) }],
       removalPolicy: envName === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+      // Allow browser presigned-POST uploads and presigned GET reads.
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.POST, s3.HttpMethods.PUT, s3.HttpMethods.GET, s3.HttpMethods.HEAD],
+          allowedOrigins: ['*'],
+          allowedHeaders: ['*'],
+          maxAge: 3000,
+        },
+      ],
     });
 
     const userPool = new cognito.UserPool(this, 'UserPool', {
