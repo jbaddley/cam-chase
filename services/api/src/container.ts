@@ -1,4 +1,10 @@
 import { DynamoDBGameRepository, makeDynamoDocumentClient } from './dynamodb-repository.js';
+import { DynamoDBReferralRepository } from './dynamodb-referral-repository.js';
+import {
+  DynamoDBAiJudgingRepository,
+  DynamoDBEntitlementRepository,
+  DynamoDBTournamentRepository,
+} from './dynamodb-supporting-repos.js';
 import { InMemoryEntitlementRepository, type EntitlementRepository } from './entitlements-repo.js';
 import {
   InMemoryAiJudgingRepository,
@@ -19,25 +25,28 @@ export interface Container {
 }
 
 /**
- * Composition root. Selects the game repository from the environment: the
- * DynamoDB implementation when `TABLE_NAME` is set (with an optional
- * `DYNAMODB_ENDPOINT` for local emulators), otherwise the in-memory one.
- *
- * The other repositories are in-memory for now — a documented follow-up gives
- * entitlements/referrals/AI/tournaments their own DynamoDB implementations. Note
- * that in-memory state does not survive Lambda cold starts, so only games are
- * durably persisted today.
+ * Composition root. When `TABLE_NAME` is set, every repository is backed by the
+ * DynamoDB single table (sharing one document client; optional
+ * `DYNAMODB_ENDPOINT` targets a local emulator). Otherwise everything is
+ * in-memory (local dev / tests).
  */
 export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container {
-  const games: GameRepository = env.TABLE_NAME
-    ? new DynamoDBGameRepository({
-        tableName: env.TABLE_NAME,
-        client: makeDynamoDocumentClient({ endpoint: env.DYNAMODB_ENDPOINT, region: env.AWS_REGION }),
-      })
-    : new InMemoryGameRepository();
+  if (env.TABLE_NAME) {
+    const cfg = {
+      tableName: env.TABLE_NAME,
+      client: makeDynamoDocumentClient({ endpoint: env.DYNAMODB_ENDPOINT, region: env.AWS_REGION }),
+    };
+    return {
+      games: new DynamoDBGameRepository(cfg),
+      entitlements: new DynamoDBEntitlementRepository(cfg),
+      referrals: new DynamoDBReferralRepository(cfg),
+      ai: new DynamoDBAiJudgingRepository(cfg),
+      tournaments: new DynamoDBTournamentRepository(cfg),
+    };
+  }
 
   return {
-    games,
+    games: new InMemoryGameRepository(),
     entitlements: new InMemoryEntitlementRepository(),
     referrals: new InMemoryReferralRepository(),
     ai: new InMemoryAiJudgingRepository(),
