@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["react"],
+    "noEmit": true,
+    "verbatimModuleSyntax": false,
+    "lib": ["ES2022"]
+  },
+  "include": ["App.tsx", "src/**/*.ts", "src/**/*.tsx", "types/**/*.d.ts"]
+}

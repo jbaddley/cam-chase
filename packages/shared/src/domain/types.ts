@@ -1,11 +1,4 @@
-import type {
-  FoulReason,
-  GameState,
-  GameType,
-  RatingAxis,
-  Role,
-  Tier,
-} from './enums.js';
+import type { FoulReason, RatingAxis, Role, Tier } from './enums.js';
 
 /** A geographic point captured with a device. */
 export interface GeoPoint {

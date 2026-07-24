@@ -1,0 +1,17 @@
+{
+  "name": "@photochase/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint App.tsx src"
+  },
+  "dependencies": {
+    "@photochase/shared": "workspace:*",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "typescript": "^5.7.2"
+  }
+}

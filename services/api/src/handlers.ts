@@ -199,7 +199,7 @@ export async function advanceGame(
     // Entering Round 2: generate the assignment plan deterministically.
     if (advanced.state === 'round2_active' && advanced.assignments.length === 0) {
       const plans = planAssignments(teamPhotos(advanced), advanced.config.gameType, seedFromCode(advanced.code));
-      advanced.assignments = plans.map((p, i): Assignment => ({
+      advanced.assignments = plans.map((p): Assignment => ({
         id: newId('asg'),
         gameId: advanced.id,
         chaserTeamId: p.chaserTeamId,
