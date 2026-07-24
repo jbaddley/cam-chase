@@ -15,3 +15,4 @@ export * from './billing/entitlements.js';
 export * from './billing/pricing.js';
 export * from './ai/judge.js';
 export * from './growth/referrals.js';
+export * from './growth/share-card.js';
