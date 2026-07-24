@@ -12,16 +12,18 @@ import {
   type AiJudgingRepository,
   type ReferralRepository,
 } from './growth-repo.js';
+import { makeS3Client, S3MediaService, type MediaService } from './media.js';
 import { InMemoryGameRepository, type GameRepository } from './repository.js';
 import { InMemoryTournamentRepository, type TournamentRepository } from './tournament-repo.js';
 
-/** All repositories the API handlers depend on. */
+/** Everything the API handlers depend on. */
 export interface Container {
   games: GameRepository;
   entitlements: EntitlementRepository;
   referrals: ReferralRepository;
   ai: AiJudgingRepository;
   tournaments: TournamentRepository;
+  media: MediaService;
 }
 
 /**
@@ -31,6 +33,13 @@ export interface Container {
  * in-memory (local dev / tests).
  */
 export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container {
+  // Photo media is always S3-backed (presigning is offline; the S3 client
+  // resolves credentials lazily). S3_ENDPOINT targets a local emulator.
+  const media = new S3MediaService(
+    makeS3Client({ region: env.AWS_REGION, endpoint: env.S3_ENDPOINT }),
+    env.PHOTO_BUCKET ?? 'photochase-local',
+  );
+
   if (env.TABLE_NAME) {
     const cfg = {
       tableName: env.TABLE_NAME,
@@ -42,6 +51,7 @@ export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container 
       referrals: new DynamoDBReferralRepository(cfg),
       ai: new DynamoDBAiJudgingRepository(cfg),
       tournaments: new DynamoDBTournamentRepository(cfg),
+      media,
     };
   }
 
@@ -51,5 +61,6 @@ export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container 
     referrals: new InMemoryReferralRepository(),
     ai: new InMemoryAiJudgingRepository(),
     tournaments: new InMemoryTournamentRepository(),
+    media,
   };
 }

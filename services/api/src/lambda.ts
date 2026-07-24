@@ -10,6 +10,7 @@ import {
   type Result,
 } from './handlers.js';
 import { createGameForHost, handlePurchaseWebhook, startGameForHost } from './billing-handlers.js';
+import { requestPhotoDownload, requestPhotoUpload } from './media-handlers.js';
 import { buildContainer, type Container } from './container.js';
 
 type Body = Record<string, unknown>;
@@ -53,6 +54,12 @@ const ROUTES: Route[] = [
   compile('POST', '/games/:id/chases', ({ container, params, body }) => submitChase(container.games, { ...body, gameId: params.id })),
   compile('POST', '/games/:id/votes', ({ container, params, body }) => castVote(container.games, { ...body, gameId: params.id })),
   compile('GET', '/games/:id/results', ({ container, params }) => getResults(container.games, params.id!)),
+  compile('POST', '/games/:id/uploads', ({ container, params, body }) =>
+    requestPhotoUpload(container.games, container.media, { gameId: params.id!, teamId: str(body.teamId), userId: str(body.userId) }),
+  ),
+  compile('POST', '/games/:id/downloads', ({ container, params, body }) =>
+    requestPhotoDownload(container.games, container.media, { gameId: params.id!, photoId: str(body.photoId), userId: str(body.userId) }),
+  ),
   compile('POST', '/webhooks/purchase', ({ container, body }) => handlePurchaseWebhook(container.entitlements, body)),
 ];
 

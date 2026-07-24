@@ -2,6 +2,7 @@ import { FREE_CONFIG } from '@photochase/shared';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { buildContainer, type Container } from './container.js';
+import { makeS3Client, S3MediaService } from './media.js';
 import { route } from './lambda.js';
 
 function event(method: string, path: string, body?: unknown): APIGatewayProxyEventV2 {
@@ -59,6 +60,28 @@ describe('lambda route', () => {
     const bad = { ...event('POST', '/games'), body: '{not json' } as APIGatewayProxyEventV2;
     const res = await route(bad, container);
     expect(res.statusCode).toBe(400);
+  });
+
+  it('issues a presigned photo upload over the route', async () => {
+    // Override media with credentialed presigning (offline).
+    const c: Container = {
+      ...buildContainer({} as NodeJS.ProcessEnv),
+      media: new S3MediaService(
+        makeS3Client({ region: 'us-east-1', credentials: { accessKeyId: 'AKIATEST', secretAccessKey: 'secret' } }),
+        'photochase-photos-dev',
+      ),
+    };
+    const { gameId, code } = (await call(c, 'POST', '/games', { hostUserId: 'host', config: FREE_CONFIG })).data;
+    await call(c, 'POST', '/games/join', { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } });
+    await call(c, 'POST', '/games/join', { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } });
+    await call(c, 'POST', `/games/${gameId}/start`, { hostUserId: 'host' });
+    const teams = await call(c, 'GET', `/games/${gameId}/teams`);
+    const teamA = (teams.data as Array<{ teamId: string; name: string }>).find((t) => t.name === 'A')!.teamId;
+
+    const up = await call(c, 'POST', `/games/${gameId}/uploads`, { teamId: teamA, userId: 'uA' });
+    expect(up.status).toBe(200);
+    expect(up.data.key).toContain(`games/${gameId}/${teamA}/`);
+    expect(up.data.upload.fields.key).toBe(up.data.key);
   });
 
   it('handles the purchase webhook', async () => {

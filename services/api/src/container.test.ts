@@ -9,6 +9,7 @@ import {
 } from './dynamodb-supporting-repos.js';
 import { InMemoryEntitlementRepository } from './entitlements-repo.js';
 import { InMemoryAiJudgingRepository, InMemoryReferralRepository } from './growth-repo.js';
+import { S3MediaService } from './media.js';
 import { InMemoryGameRepository } from './repository.js';
 import { InMemoryTournamentRepository } from './tournament-repo.js';
 
@@ -20,6 +21,7 @@ describe('buildContainer', () => {
     expect(c.referrals).toBeInstanceOf(DynamoDBReferralRepository);
     expect(c.ai).toBeInstanceOf(DynamoDBAiJudgingRepository);
     expect(c.tournaments).toBeInstanceOf(DynamoDBTournamentRepository);
+    expect(c.media).toBeInstanceOf(S3MediaService);
   });
 
   it('uses in-memory for every repository without TABLE_NAME', () => {
@@ -29,5 +31,6 @@ describe('buildContainer', () => {
     expect(c.referrals).toBeInstanceOf(InMemoryReferralRepository);
     expect(c.ai).toBeInstanceOf(InMemoryAiJudgingRepository);
     expect(c.tournaments).toBeInstanceOf(InMemoryTournamentRepository);
+    expect(c.media).toBeInstanceOf(S3MediaService);
   });
 });
