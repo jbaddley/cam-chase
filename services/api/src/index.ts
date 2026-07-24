@@ -16,3 +16,4 @@ export * from './dynamodb-referral-repository.js';
 export * from './media.js';
 export * from './media-handlers.js';
 export * from './image.js';
+export * from './image-handler.js';
