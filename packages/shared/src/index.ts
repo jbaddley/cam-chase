@@ -8,6 +8,7 @@ export * from './engine/state.js';
 export * from './engine/rng.js';
 export * from './engine/assignment.js';
 export * from './engine/scoring.js';
+export * from './engine/geofence.js';
 export * from './sim/harness.js';
 export * from './billing/entitlements.js';
 export * from './billing/pricing.js';
