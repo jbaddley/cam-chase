@@ -94,7 +94,7 @@ function resolveTier(entitlement: Entitlement): Tier {
 
 /** Apply a purchase/webhook event to an entitlement (pure reducer). */
 export function applyPurchaseEvent(entitlement: Entitlement, event: PurchaseEvent): Entitlement {
-  let next: Entitlement = { ...entitlement };
+  const next: Entitlement = { ...entitlement };
   switch (event.type) {
     case 'game_pack_purchased':
       next.gameCredits += event.credits;
