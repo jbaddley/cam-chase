@@ -96,6 +96,8 @@ importers:
         specifier: ^4.19.2
         version: 4.23.1
 
+  packages/i18n: {}
+
   packages/shared:
     dependencies:
       zod:
