@@ -1,5 +1,5 @@
 import type { Referral } from '@photochase/shared';
-import { GetCommand, PutCommand, QueryCommand, type DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { monthKey, type ReferralRepository } from './growth-repo.js';
 import type { SupportingRepoConfig } from './dynamodb-supporting-repos.js';
 
