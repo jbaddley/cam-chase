@@ -7,3 +7,4 @@ export * from './config/schema.js';
 export * from './engine/state.js';
 export * from './engine/rng.js';
 export * from './engine/assignment.js';
+export * from './engine/scoring.js';
