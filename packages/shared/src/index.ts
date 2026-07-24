@@ -14,3 +14,4 @@ export * from './sim/harness.js';
 export * from './billing/entitlements.js';
 export * from './billing/pricing.js';
 export * from './ai/judge.js';
+export * from './growth/referrals.js';
