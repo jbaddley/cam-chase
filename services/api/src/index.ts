@@ -10,3 +10,4 @@ export * from './tournament-handlers.js';
 export * from './dynamodb-repository.js';
 export * from './container.js';
 export * from './lambda.js';
+export * from './repo-contracts.js';
