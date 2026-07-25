@@ -175,6 +175,25 @@ describe('PhotoChaseClient', () => {
     expect(result).toEqual(queue);
   });
 
+  it('listRateable GETs the chases the caller may rate', async () => {
+    const rateable = [
+      {
+        assignmentId: 'a1',
+        originalPhotoId: 'p1',
+        originalPhotoKey: 'games/g1/t2/p1.jpg',
+        chasePhotoId: 'c1',
+        chasePhotoKey: 'games/g1/t1/c1.jpg',
+        myVotes: { pose: 4, angle: null },
+      },
+    ];
+    const { config, calls } = recorder(rateable);
+    const result = await new PhotoChaseClient(config).listRateable('g1');
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/rateable');
+    expect(calls[0]!.init?.method).toBe('GET');
+    expect(result).toEqual(rateable);
+  });
+
   describe('captureChase', () => {
     it('threads the presigned key through upload and submitChase', async () => {
       const calls: Call[] = [];

@@ -8,6 +8,7 @@ import {
   getResults,
   joinByCode,
   listAssignments,
+  listRateable,
   listTeams,
   startGame,
   submitChase,
@@ -225,6 +226,84 @@ describe('listAssignments', () => {
 
   it('errors for an unknown game', async () => {
     expect((await listAssignments(repo, { gameId: 'nope', userId: 'uA' })).ok).toBe(false);
+  });
+});
+
+describe('listRateable', () => {
+  /** Play a 2-team game into the rating phase with every chase submitted. */
+  async function gameInRating() {
+    const { gameId, code } = await unwrap(
+      createGame(repo, { hostUserId: 'host', tier: 'game_pack', config: { ...DEFAULT_CONFIG, maxTeams: 2, photosPerRound: 5 } }),
+    );
+    const a = await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
+    const b = await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
+    await unwrap(joinByCode(repo, { code, userId: 'uJ', displayName: 'J', action: { type: 'judge' } }));
+    await unwrap(startGame(repo, { gameId, hostUserId: 'host' }));
+    for (let i = 0; i < 5; i++) {
+      await unwrap(submitPhoto(repo, { gameId, teamId: a.teamId!, shooterUserId: 'uA', location: { lat: 40, lng: -74 }, s3Key: `a${i}` }));
+      await unwrap(submitPhoto(repo, { gameId, teamId: b.teamId!, shooterUserId: 'uB', location: { lat: 41, lng: -75 }, s3Key: `b${i}` }));
+    }
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
+    const mid = (await repo.get(gameId)) as Game;
+    for (const asg of mid.assignments) {
+      await unwrap(
+        submitChase(repo, { gameId, assignmentId: asg.id, location: { lat: 40, lng: -74 }, s3Key: `chase-${asg.id}`, shooterUserId: 'x' }),
+      );
+    }
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
+    return { gameId, teamA: a.teamId!, teamB: b.teamId! };
+  }
+
+  it('excludes the caller’s own team’s chases and pairs each with its original', async () => {
+    const { gameId, teamA } = await gameInRating();
+    const forA = await unwrap(listRateable(repo, { gameId, userId: 'uA' }));
+
+    expect(forA).toHaveLength(5); // only team B's chases
+    const game = (await repo.get(gameId)) as Game;
+    const ownIds = game.assignments.filter((asg) => asg.chaserTeamId === teamA).map((asg) => asg.id);
+    expect(forA.some((r) => ownIds.includes(r.assignmentId))).toBe(false);
+    expect(forA.every((r) => r.chasePhotoKey.startsWith('chase-'))).toBe(true);
+    expect(forA.every((r) => r.originalPhotoKey.length > 0)).toBe(true);
+  });
+
+  it('lets a judge rate every chase', async () => {
+    const { gameId } = await gameInRating();
+    expect(await unwrap(listRateable(repo, { gameId, userId: 'uJ' }))).toHaveLength(10);
+  });
+
+  it('reports the caller’s existing votes per axis', async () => {
+    const { gameId } = await gameInRating();
+    const [first] = await unwrap(listRateable(repo, { gameId, userId: 'uA' }));
+    await unwrap(castVote(repo, { gameId, assignmentId: first!.assignmentId, voterUserId: 'uA', axis: 'pose', stars: 4 }));
+
+    const after = await unwrap(listRateable(repo, { gameId, userId: 'uA' }));
+    const rated = after.find((r) => r.assignmentId === first!.assignmentId)!;
+    expect(rated.myVotes).toEqual({ pose: 4, angle: null });
+  });
+
+  it('omits assignments with no chase submitted', async () => {
+    const { gameId, code } = await unwrap(
+      createGame(repo, { hostUserId: 'host', tier: 'game_pack', config: { ...DEFAULT_CONFIG, maxTeams: 2, photosPerRound: 5 } }),
+    );
+    const a = await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
+    const b = await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
+    await unwrap(startGame(repo, { gameId, hostUserId: 'host' }));
+    for (let i = 0; i < 5; i++) {
+      await unwrap(submitPhoto(repo, { gameId, teamId: a.teamId!, shooterUserId: 'uA', location: { lat: 40, lng: -74 }, s3Key: `a${i}` }));
+      await unwrap(submitPhoto(repo, { gameId, teamId: b.teamId!, shooterUserId: 'uB', location: { lat: 41, lng: -75 }, s3Key: `b${i}` }));
+    }
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
+
+    expect(await unwrap(listRateable(repo, { gameId, userId: 'uA' }))).toEqual([]);
+  });
+
+  it('rejects a non-member and an unknown game', async () => {
+    const { gameId } = await gameInRating();
+    expect((await listRateable(repo, { gameId, userId: 'stranger' })).ok).toBe(false);
+    expect((await listRateable(repo, { gameId: 'nope', userId: 'uA' })).ok).toBe(false);
   });
 });
 
