@@ -53,6 +53,14 @@ export interface RateableView {
   myVotes: { pose: number | null; angle: number | null };
 }
 
+/** Finals categories open for voting, plus this caller's picks so far. */
+export interface FinalsView {
+  categories: Array<{ id: string; label: string }>;
+  teams: Array<{ teamId: string; name: string }>;
+  /** category id → teamId this user voted for. */
+  myVotes: Record<string, string>;
+}
+
 /** A team summary for the lobby list. */
 export interface TeamSummary {
   teamId: string;
@@ -140,6 +148,19 @@ export class PhotoChaseClient {
   /** The chases the caller may rate, with any votes they've already cast. */
   listRateable(gameId: string): Promise<RateableView[]> {
     return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/rateable`);
+  }
+
+  /** Finals categories and the caller's existing picks. */
+  getFinals(gameId: string): Promise<FinalsView> {
+    return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/finals`);
+  }
+
+  /** Cast or change this caller's finals vote in one category. */
+  castFinalsVote(
+    gameId: string,
+    input: { category: string; teamId: string },
+  ): Promise<{ category: string; teamId: string }> {
+    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/finals`, input);
   }
 
   getResults(gameId: string): Promise<{ scoreboard: TeamScore[] }> {
