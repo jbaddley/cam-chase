@@ -3,6 +3,8 @@ import { JoinScreen, type JoinedGame } from './src/screens/JoinScreen.js';
 import { LobbyScreen } from './src/screens/LobbyScreen.js';
 import { CaptureScreen } from './src/screens/CaptureScreen.js';
 import { ChaseScreen } from './src/screens/ChaseScreen.js';
+import { RatingScreen } from './src/screens/RatingScreen.js';
+import { ResultsScreen } from './src/screens/ResultsScreen.js';
 import { placeholderCapture } from './src/capture.js';
 import { useGamePhase } from './src/useGamePhase.js';
 
@@ -28,6 +30,15 @@ function GameRouter({ joined }: { joined: JoinedGame }) {
 
   if (onTeam && game?.state === 'round2_active') {
     return <ChaseScreen gameId={joined.gameId} teamId={joined.teamId!} capture={placeholderCapture} />;
+  }
+
+  // Judges and spectators rate too, so this is not gated on team membership.
+  if (game?.state === 'rating') {
+    return <RatingScreen gameId={joined.gameId} />;
+  }
+
+  if (game?.state === 'results' || game?.state === 'archived') {
+    return <ResultsScreen gameId={joined.gameId} teams={game.teams} />;
   }
 
   return <LobbyScreen game={game} code={joined.code} error={error} onStarted={applyState} />;
