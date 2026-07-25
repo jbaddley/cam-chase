@@ -11,6 +11,7 @@ import {
   getFinals,
   getGameState,
   getResults,
+  getSpectatorView,
   joinByCode,
   listAssignments,
   listRateable,
@@ -611,6 +612,34 @@ describe('finals voting', () => {
     const a = await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
     await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
     expect((await castFinalsVote(repo, { gameId, voterUserId: 'uB', category: 'best_overall_match', teamId: a.teamId! })).ok).toBe(false);
+  });
+});
+
+describe('getSpectatorView', () => {
+  it('resolves a join code to the public view without a scoreboard in the lobby', async () => {
+    const { gameId, code } = await unwrap(
+      createGame(repo, { hostUserId: 'host', tier: 'free', config: FREE_CONFIG }),
+    );
+    await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'Reds' } }));
+
+    const view = await unwrap(getSpectatorView(repo, code));
+    expect(view.game.id).toBe(gameId);
+    expect(view.game.state).toBe('lobby');
+    expect(view.game.teams).toEqual([{ teamId: view.game.teams[0]!.teamId, name: 'Reds', memberCount: 1 }]);
+    // Results aren't available yet, so no standings are shown.
+    expect(view.scoreboard).toBeNull();
+  });
+
+  it('exposes no private data', async () => {
+    const { code } = await unwrap(createGame(repo, { hostUserId: 'host', tier: 'free', config: FREE_CONFIG }));
+    const view = await unwrap(getSpectatorView(repo, code));
+    expect(view.game).not.toHaveProperty('hostUserId');
+    expect(view.game).not.toHaveProperty('memberships');
+    expect(view.game).not.toHaveProperty('photos');
+  });
+
+  it('errors on an unknown code', async () => {
+    expect((await getSpectatorView(repo, 'ZZZZZZ')).ok).toBe(false);
   });
 });
 

@@ -9,6 +9,7 @@ import {
   castVote,
   getFinals,
   getGameState,
+  getSpectatorView,
   getResults,
   joinByCode,
   listAssignments,
@@ -107,6 +108,8 @@ const ROUTES: Route[] = [
   compile('POST', '/games/:id/downloads', ({ container, params, body, auth }) =>
     requestPhotoDownload(container.games, container.media, { gameId: params.id!, photoId: str(body.photoId), userId: auth.userId }),
   ),
+  // Big-screen spectator view: reached from a TV browser with nobody signed in.
+  compile('GET', '/spectate/:code', ({ container, params }) => getSpectatorView(container.games, params.code!), true),
   // Provider-signed; not user-authenticated.
   compile('POST', '/webhooks/purchase', ({ container, body }) => handlePurchaseWebhook(container.entitlements, body), true),
 ];

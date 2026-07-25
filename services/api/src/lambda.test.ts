@@ -126,6 +126,22 @@ describe('lambda route (authenticated)', () => {
     expect(up.data.key).toContain(`games/${gameId}/${teamA}/`);
   });
 
+  it('serves the spectator view without authentication', async () => {
+    const { code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
+    await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'Reds' } }, 'uA');
+
+    // No userId — a TV browser has nobody signed in.
+    const res = await call(container, 'GET', `/spectate/${code}`);
+    expect(res.status).toBe(200);
+    expect(res.data.game.state).toBe('lobby');
+    expect(res.data.game.teams).toHaveLength(1);
+    expect(res.data.scoreboard).toBeNull();
+  });
+
+  it('returns an error for an unknown spectator code', async () => {
+    expect((await call(container, 'GET', '/spectate/ZZZZZZ')).status).toBe(400);
+  });
+
   it('handles the purchase webhook without authentication', async () => {
     const res = await call(container, 'POST', '/webhooks/purchase', { userId: 'u', event: { type: 'game_pack_purchased', credits: 2 } });
     expect(res.status).toBe(200);
