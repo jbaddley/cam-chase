@@ -1,4 +1,4 @@
-import type { GameConfig, GameEvent, GameState, TeamScore } from '@photochase/shared';
+import type { FoulReason, GameConfig, GameEvent, GameState, TeamScore } from '@photochase/shared';
 import { request, type ClientConfig } from './http.js';
 
 /** Sanitized game view returned by `GET /games/:id`, safe for any player. */
@@ -51,6 +51,8 @@ export interface RateableView {
   chasePhotoKey: string;
   /** Stars this user has already given on each axis, if any. */
   myVotes: { pose: number | null; angle: number | null };
+  /** Fouls currently called on the original photo. */
+  originalFouls: FoulReason[];
 }
 
 /** Finals categories open for voting, plus this caller's picks so far. */
@@ -138,6 +140,20 @@ export class PhotoChaseClient {
     input: { assignmentId: string; axis: 'pose' | 'angle'; stars: number },
   ): Promise<{ voteId: string }> {
     return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/votes`, input);
+  }
+
+  /** Call a foul on another team's photo. Returns the photo's fouls after. */
+  flagFoul(gameId: string, photoId: string, input: { reason: FoulReason }): Promise<{ fouls: FoulReason[] }> {
+    return request(this.config, 'POST', this.foulPath(gameId, photoId), input);
+  }
+
+  /** Withdraw a foul. Returns the photo's fouls after. */
+  clearFoul(gameId: string, photoId: string, input: { reason: FoulReason }): Promise<{ fouls: FoulReason[] }> {
+    return request(this.config, 'DELETE', this.foulPath(gameId, photoId), input);
+  }
+
+  private foulPath(gameId: string, photoId: string): string {
+    return `/games/${encodeURIComponent(gameId)}/photos/${encodeURIComponent(photoId)}/fouls`;
   }
 
   /** Check the caller's team in at the return spot during a return phase. */
