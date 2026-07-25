@@ -17,3 +17,4 @@ export * from './media.js';
 export * from './media-handlers.js';
 export * from './image.js';
 export * from './image-handler.js';
+export * from './auth.js';
