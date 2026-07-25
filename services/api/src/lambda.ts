@@ -11,6 +11,7 @@ import {
 } from './handlers.js';
 import { createGameForHost, handlePurchaseWebhook, startGameForHost } from './billing-handlers.js';
 import { requestPhotoDownload, requestPhotoUpload } from './media-handlers.js';
+import { authenticate, type AuthContext } from './auth.js';
 import { buildContainer, type Container } from './container.js';
 
 type Body = Record<string, unknown>;
@@ -18,6 +19,8 @@ type RouteHandler = (ctx: {
   container: Container;
   params: Record<string, string>;
   body: Body;
+  /** The authenticated identity (from a verified JWT), not the request body. */
+  auth: AuthContext;
 }) => Promise<Result<unknown>>;
 
 interface Route {
@@ -25,42 +28,56 @@ interface Route {
   regex: RegExp;
   keys: string[];
   handler: RouteHandler;
+  /** Routes that don't require a user identity (e.g. provider webhooks). */
+  isPublic: boolean;
 }
 
 /** Compile a path template (`/games/:id/teams`) into a matcher. */
-function compile(method: string, path: string, handler: RouteHandler): Route {
+function compile(method: string, path: string, handler: RouteHandler, isPublic = false): Route {
   const keys: string[] = [];
   const pattern = path.replace(/:[^/]+/g, (m) => {
     keys.push(m.slice(1));
     return '([^/]+)';
   });
-  return { method, regex: new RegExp(`^${pattern}/?$`), keys, handler };
+  return { method, regex: new RegExp(`^${pattern}/?$`), keys, handler, isPublic };
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
-/** Core API routes mapped to the existing handler functions. */
+/**
+ * Core API routes. The authenticated user (`auth.userId`) is injected into
+ * handlers — the request body never supplies its own identity.
+ */
 const ROUTES: Route[] = [
-  compile('POST', '/games', ({ container, body }) => createGameForHost(container.games, container.entitlements, body)),
-  compile('POST', '/games/join', ({ container, body }) => joinByCode(container.games, body)),
+  compile('POST', '/games', ({ container, body, auth }) =>
+    createGameForHost(container.games, container.entitlements, { hostUserId: auth.userId, config: body.config }),
+  ),
+  compile('POST', '/games/join', ({ container, body, auth }) => joinByCode(container.games, { ...body, userId: auth.userId })),
   compile('GET', '/games/:id/teams', ({ container, params }) => listTeams(container.games, params.id!)),
-  compile('POST', '/games/:id/start', ({ container, params, body }) =>
-    startGameForHost(container.games, container.entitlements, { gameId: params.id!, hostUserId: str(body.hostUserId) }),
+  compile('POST', '/games/:id/start', ({ container, params, auth }) =>
+    startGameForHost(container.games, container.entitlements, { gameId: params.id!, hostUserId: auth.userId }),
   ),
-  compile('POST', '/games/:id/advance', ({ container, params, body }) =>
-    advanceGame(container.games, { gameId: params.id!, hostUserId: str(body.hostUserId), event: body.event as never }),
+  compile('POST', '/games/:id/advance', ({ container, params, body, auth }) =>
+    advanceGame(container.games, { gameId: params.id!, hostUserId: auth.userId, event: body.event as never }),
   ),
-  compile('POST', '/games/:id/photos', ({ container, params, body }) => submitPhoto(container.games, { ...body, gameId: params.id })),
-  compile('POST', '/games/:id/chases', ({ container, params, body }) => submitChase(container.games, { ...body, gameId: params.id })),
-  compile('POST', '/games/:id/votes', ({ container, params, body }) => castVote(container.games, { ...body, gameId: params.id })),
+  compile('POST', '/games/:id/photos', ({ container, params, body, auth }) =>
+    submitPhoto(container.games, { ...body, gameId: params.id, shooterUserId: auth.userId }),
+  ),
+  compile('POST', '/games/:id/chases', ({ container, params, body, auth }) =>
+    submitChase(container.games, { ...body, gameId: params.id, shooterUserId: auth.userId }),
+  ),
+  compile('POST', '/games/:id/votes', ({ container, params, body, auth }) =>
+    castVote(container.games, { ...body, gameId: params.id, voterUserId: auth.userId }),
+  ),
   compile('GET', '/games/:id/results', ({ container, params }) => getResults(container.games, params.id!)),
-  compile('POST', '/games/:id/uploads', ({ container, params, body }) =>
-    requestPhotoUpload(container.games, container.media, { gameId: params.id!, teamId: str(body.teamId), userId: str(body.userId) }),
+  compile('POST', '/games/:id/uploads', ({ container, params, body, auth }) =>
+    requestPhotoUpload(container.games, container.media, { gameId: params.id!, teamId: str(body.teamId), userId: auth.userId }),
   ),
-  compile('POST', '/games/:id/downloads', ({ container, params, body }) =>
-    requestPhotoDownload(container.games, container.media, { gameId: params.id!, photoId: str(body.photoId), userId: str(body.userId) }),
+  compile('POST', '/games/:id/downloads', ({ container, params, body, auth }) =>
+    requestPhotoDownload(container.games, container.media, { gameId: params.id!, photoId: str(body.photoId), userId: auth.userId }),
   ),
-  compile('POST', '/webhooks/purchase', ({ container, body }) => handlePurchaseWebhook(container.entitlements, body)),
+  // Provider-signed; not user-authenticated.
+  compile('POST', '/webhooks/purchase', ({ container, body }) => handlePurchaseWebhook(container.entitlements, body), true),
 ];
 
 function json(statusCode: number, payload: unknown): APIGatewayProxyStructuredResultV2 {
@@ -92,14 +109,17 @@ export async function route(
   const body = parseBody(event);
   if (body === null) return json(400, { error: 'Invalid JSON body.' });
 
+  const auth = await authenticate(event, container.verifier);
+
   for (const r of ROUTES) {
     if (r.method !== method) continue;
     const match = r.regex.exec(path);
     if (!match) continue;
+    if (!r.isPublic && !auth) return json(401, { error: 'Unauthorized.' });
     const params: Record<string, string> = {};
     r.keys.forEach((key, i) => (params[key] = match[i + 1]!));
     try {
-      const result = await r.handler({ container, params, body });
+      const result = await r.handler({ container, params, body, auth: auth ?? { userId: '' } });
       return result.ok ? json(200, result.data) : json(400, { error: result.error });
     } catch (e) {
       return json(500, { error: (e as Error).message });

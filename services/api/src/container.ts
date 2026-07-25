@@ -12,6 +12,7 @@ import {
   type AiJudgingRepository,
   type ReferralRepository,
 } from './growth-repo.js';
+import { verifierFromEnv, type TokenVerifier } from './auth.js';
 import { makeS3Client, S3MediaService, type MediaService } from './media.js';
 import { InMemoryGameRepository, type GameRepository } from './repository.js';
 import { InMemoryTournamentRepository, type TournamentRepository } from './tournament-repo.js';
@@ -24,6 +25,8 @@ export interface Container {
   ai: AiJudgingRepository;
   tournaments: TournamentRepository;
   media: MediaService;
+  /** JWT verifier for the bearer-token fallback; undefined if Cognito isn't configured. */
+  verifier?: TokenVerifier;
 }
 
 /**
@@ -39,6 +42,7 @@ export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container 
     makeS3Client({ region: env.AWS_REGION, endpoint: env.S3_ENDPOINT }),
     env.PHOTO_BUCKET ?? 'photochase-local',
   );
+  const verifier = verifierFromEnv(env);
 
   if (env.TABLE_NAME) {
     const cfg = {
@@ -52,6 +56,7 @@ export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container 
       ai: new DynamoDBAiJudgingRepository(cfg),
       tournaments: new DynamoDBTournamentRepository(cfg),
       media,
+      verifier,
     };
   }
 
@@ -62,5 +67,6 @@ export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container 
     ai: new InMemoryAiJudgingRepository(),
     tournaments: new InMemoryTournamentRepository(),
     media,
+    verifier,
   };
 }
