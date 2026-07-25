@@ -148,6 +148,40 @@ export async function listTeams(
   return ok(teams);
 }
 
+// --- getGameState -----------------------------------------------------------
+
+/** A sanitized public view of a game, safe for any participant to poll. */
+export interface GameStateView {
+  id: string;
+  code: string;
+  state: Game['state'];
+  config: Game['config'];
+  teams: Array<{ teamId: string; name: string; memberCount: number }>;
+  playerCount: number;
+}
+
+/**
+ * Read a game's current state for lobby and in-play polling. Returns only
+ * public fields — team roster counts and config — never raw memberships,
+ * photos, or votes, which could leak other players' data.
+ */
+export async function getGameState(repo: GameRepository, gameId: string): Promise<Result<GameStateView>> {
+  const game = await repo.get(gameId);
+  if (!game) return err('Game not found.');
+  return ok({
+    id: game.id,
+    code: game.code,
+    state: game.state,
+    config: game.config,
+    teams: game.teams.map((t) => ({
+      teamId: t.id,
+      name: t.name,
+      memberCount: game.memberships.filter((m) => m.teamId === t.id).length,
+    })),
+    playerCount: game.memberships.length,
+  });
+}
+
 // --- startGame & advanceGame ------------------------------------------------
 
 async function requireHost(
