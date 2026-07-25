@@ -4,6 +4,8 @@ import {
   advanceGame,
   castFinalsVote,
   checkIn,
+  clearFoul,
+  flagFoul,
   castVote,
   getFinals,
   getGameState,
@@ -63,6 +65,12 @@ const ROUTES: Route[] = [
   compile('GET', '/games/:id/teams', ({ container, params }) => listTeams(container.games, params.id!)),
   compile('GET', '/games/:id/assignments', ({ container, params, auth }) =>
     listAssignments(container.games, { gameId: params.id!, userId: auth.userId }),
+  ),
+  compile('POST', '/games/:id/photos/:photoId/fouls', ({ container, params, body, auth }) =>
+    flagFoul(container.games, { ...body, gameId: params.id, photoId: params.photoId, userId: auth.userId }),
+  ),
+  compile('DELETE', '/games/:id/photos/:photoId/fouls', ({ container, params, body, auth }) =>
+    clearFoul(container.games, { ...body, gameId: params.id, photoId: params.photoId, userId: auth.userId }),
   ),
   compile('POST', '/games/:id/checkins', ({ container, params, body, auth }) =>
     checkIn(container.games, { ...body, gameId: params.id, userId: auth.userId }),

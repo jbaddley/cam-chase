@@ -2,6 +2,7 @@ import {
   applyTransition,
   BEST_OVERALL_CATEGORY,
   computeScoreboard,
+  FOUL_REASONS,
   GameConfigSchema,
   isWithinGeofence,
   planAssignments,
@@ -9,9 +10,11 @@ import {
   resolveVoteWeight,
   validateConfigForTier,
   type Assignment,
+  type FoulReason,
   type Game,
   type GameEvent,
   type GeoPoint,
+  type Photo,
   type ScoreAssignment,
   type ScoreVote,
   type TeamPhotos,
@@ -240,6 +243,8 @@ export interface RateableView {
   chasePhotoKey: string;
   /** Stars this user has already given on each axis, if any. */
   myVotes: { pose: number | null; angle: number | null };
+  /** Fouls currently called on the original photo. */
+  originalFouls: FoulReason[];
 }
 
 /**
@@ -259,6 +264,7 @@ export async function listRateable(
   if (!membership) return err('You are not in this game.');
 
   const photoKey = new Map(game.photos.map((p) => [p.id, p.s3Key]));
+  const photoFouls = new Map(game.photos.map((p) => [p.id, p.fouls]));
   const myVote = (assignmentId: string, axis: 'pose' | 'angle'): number | null =>
     game.votes.find((v) => v.assignmentId === assignmentId && v.voterUserId === input.userId && v.axis === axis)
       ?.stars ?? null;
@@ -274,6 +280,7 @@ export async function listRateable(
       chasePhotoId: a.chasePhotoId!,
       chasePhotoKey: photoKey.get(a.chasePhotoId!) ?? '',
       myVotes: { pose: myVote(a.id, 'pose'), angle: myVote(a.id, 'angle') },
+      originalFouls: [...(photoFouls.get(a.originalPhotoId) ?? [])],
     }));
   return ok(rateable);
 }
@@ -452,6 +459,68 @@ export async function castVote(repo: GameRepository, raw: unknown): Promise<Resu
   game.votes.push({ id: voteId, gameId, assignmentId, voterUserId, axis, stars });
   await repo.save(game);
   return ok({ voteId });
+}
+
+// --- fouls ------------------------------------------------------------------
+
+const FoulInput = z.object({
+  gameId: z.string(),
+  photoId: z.string().min(1),
+  userId: z.string().min(1),
+  reason: z.enum(FOUL_REASONS),
+});
+
+/**
+ * Shared authorization for raising and clearing a foul. A foul is a claim about
+ * someone else's photo — you cannot call one on your own team — and it only
+ * makes sense once the photos are on screen for comparison.
+ */
+async function requireFoulable(
+  repo: GameRepository,
+  input: { gameId: string; photoId: string; userId: string },
+): Promise<Result<{ game: Game; photo: Photo }>> {
+  const game = await repo.get(input.gameId);
+  if (!game) return err('Game not found.');
+  if (!['rating', 'finals_voting'].includes(game.state)) return err('Fouls can only be called during rating.');
+
+  const membership = game.memberships.find((m) => m.userId === input.userId);
+  if (!membership) return err('You are not in this game.');
+
+  const photo = game.photos.find((p) => p.id === input.photoId);
+  if (!photo) return err('Photo not found.');
+  if (membership.teamId === photo.teamId) return err('Cannot call a foul on your own team.');
+
+  return ok({ game, photo });
+}
+
+/** Raise a foul on a photo. Repeating the same reason does not stack. */
+export async function flagFoul(repo: GameRepository, raw: unknown): Promise<Result<{ fouls: FoulReason[] }>> {
+  const parsed = FoulInput.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
+  const { reason } = parsed.data;
+
+  const found = await requireFoulable(repo, parsed.data);
+  if (!found.ok) return found;
+  const { game, photo } = found.data;
+
+  if (!photo.fouls.includes(reason)) photo.fouls.push(reason);
+  await repo.save(game);
+  return ok({ fouls: [...photo.fouls] });
+}
+
+/** Clear a foul, so a wrongly-called one can be taken back. */
+export async function clearFoul(repo: GameRepository, raw: unknown): Promise<Result<{ fouls: FoulReason[] }>> {
+  const parsed = FoulInput.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
+  const { reason } = parsed.data;
+
+  const found = await requireFoulable(repo, parsed.data);
+  if (!found.ok) return found;
+  const { game, photo } = found.data;
+
+  photo.fouls = photo.fouls.filter((f) => f !== reason);
+  await repo.save(game);
+  return ok({ fouls: [...photo.fouls] });
 }
 
 // --- return check-in --------------------------------------------------------
