@@ -182,6 +182,50 @@ export async function getGameState(repo: GameRepository, gameId: string): Promis
   });
 }
 
+// --- listAssignments --------------------------------------------------------
+
+/** One Round 2 task as seen by the chasing team. */
+export interface AssignmentView {
+  assignmentId: string;
+  order: number;
+  originalPhotoId: string;
+  /** S3 key of the photo to recreate; exchange for a URL via /downloads. */
+  originalPhotoKey: string;
+  /** Set once this team has submitted its chase. */
+  chasePhotoId: string | null;
+}
+
+/**
+ * The caller's team's Round 2 queue, in delivery order. Scoped to the caller's
+ * own team — a player can never enumerate another team's assignments, which
+ * would reveal which photos they have to find. Judges and spectators have no
+ * team and so get an empty queue.
+ */
+export async function listAssignments(
+  repo: GameRepository,
+  input: { gameId: string; userId: string },
+): Promise<Result<AssignmentView[]>> {
+  const game = await repo.get(input.gameId);
+  if (!game) return err('Game not found.');
+
+  const membership = game.memberships.find((m) => m.userId === input.userId);
+  if (!membership) return err('You are not in this game.');
+  if (!membership.teamId) return ok([]); // judges/spectators don't chase
+
+  const photoKey = new Map(game.photos.map((p) => [p.id, p.s3Key]));
+  const mine = game.assignments
+    .filter((a) => a.chaserTeamId === membership.teamId)
+    .sort((a, b) => a.order - b.order)
+    .map((a): AssignmentView => ({
+      assignmentId: a.id,
+      order: a.order,
+      originalPhotoId: a.originalPhotoId,
+      originalPhotoKey: photoKey.get(a.originalPhotoId) ?? '',
+      chasePhotoId: a.chasePhotoId,
+    }));
+  return ok(mine);
+}
+
 // --- startGame & advanceGame ------------------------------------------------
 
 async function requireHost(

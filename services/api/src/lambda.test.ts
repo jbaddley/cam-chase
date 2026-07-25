@@ -63,6 +63,31 @@ describe('lambda route (authenticated)', () => {
     expect((await call(container, 'GET', '/nope', undefined, 'host')).status).toBe(404);
   });
 
+  it('serves the caller team’s Round 2 queue at GET /games/:id/assignments', async () => {
+    const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
+    await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
+    await call(container, 'POST', '/games/join', { code, displayName: 'B', action: { type: 'create_team', name: 'B' } }, 'uB');
+    await call(container, 'POST', `/games/${gameId}/start`, {}, 'host');
+
+    const teams = (await call(container, 'GET', `/games/${gameId}/teams`, undefined, 'host')).data as Array<{
+      teamId: string;
+      name: string;
+    }>;
+    const teamOf = (name: string) => teams.find((t) => t.name === name)!.teamId;
+    for (let i = 0; i < FREE_CONFIG.photosPerRound; i++) {
+      await call(container, 'POST', `/games/${gameId}/photos`, { teamId: teamOf('A'), location: { lat: 40, lng: -74 }, s3Key: `a${i}` }, 'uA');
+      await call(container, 'POST', `/games/${gameId}/photos`, { teamId: teamOf('B'), location: { lat: 41, lng: -75 }, s3Key: `b${i}` }, 'uB');
+    }
+    await call(container, 'POST', `/games/${gameId}/advance`, { event: 'END_ROUND1' }, 'host');
+    await call(container, 'POST', `/games/${gameId}/advance`, { event: 'COMPLETE_RETURN1' }, 'host');
+
+    const mine = await call(container, 'GET', `/games/${gameId}/assignments`, undefined, 'uA');
+    expect(mine.status).toBe(200);
+    expect(mine.data).toHaveLength(FREE_CONFIG.photosPerRound);
+    expect(mine.data[0].assignmentId).toBeDefined();
+    expect(mine.data[0].originalPhotoKey).toMatch(/^b/); // A chases B's photos
+  });
+
   it('serves the sanitized game state at GET /games/:id', async () => {
     const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
     await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
