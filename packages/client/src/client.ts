@@ -1,6 +1,16 @@
 import type { GameConfig, GameEvent, GameState, TeamScore } from '@photochase/shared';
 import { request, type ClientConfig } from './http.js';
 
+/** Sanitized game view returned by `GET /games/:id`, safe for any player. */
+export interface GameStateView {
+  id: string;
+  code: string;
+  state: GameState;
+  config: GameConfig;
+  teams: TeamSummary[];
+  playerCount: number;
+}
+
 /** A location fix attached to a captured photo. */
 export interface GeoPointInput {
   lat: number;
@@ -63,6 +73,10 @@ export class PhotoChaseClient {
 
   listTeams(gameId: string): Promise<TeamSummary[]> {
     return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/teams`);
+  }
+
+  getGame(gameId: string): Promise<GameStateView> {
+    return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}`);
   }
 
   startGame(gameId: string): Promise<{ state: GameState }> {
