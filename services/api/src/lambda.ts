@@ -1,4 +1,5 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
+import { randomUUID } from 'node:crypto';
 import {
   advanceGame,
   castVote,
@@ -105,9 +106,20 @@ export async function route(
 ): Promise<APIGatewayProxyStructuredResultV2> {
   const method = event.requestContext.http.method;
   const path = event.rawPath;
+  const requestId = (event.requestContext as { requestId?: string }).requestId ?? randomUUID();
+  const log = container.logger.child({ requestId, method, path });
+  const startedAt = Date.now();
+  log.info('request.start');
+
+  /** Stamp x-request-id on every response and log the request outcome. */
+  const finish = (res: APIGatewayProxyStructuredResultV2): APIGatewayProxyStructuredResultV2 => {
+    log.info('request.end', { status: res.statusCode, durationMs: Date.now() - startedAt });
+    return { ...res, headers: { ...res.headers, 'x-request-id': requestId } };
+  };
+  const errorResponse = (status: number, message: string) => finish(json(status, { error: message, requestId }));
 
   const body = parseBody(event);
-  if (body === null) return json(400, { error: 'Invalid JSON body.' });
+  if (body === null) return errorResponse(400, 'Invalid JSON body.');
 
   const auth = await authenticate(event, container.verifier);
 
@@ -115,17 +127,19 @@ export async function route(
     if (r.method !== method) continue;
     const match = r.regex.exec(path);
     if (!match) continue;
-    if (!r.isPublic && !auth) return json(401, { error: 'Unauthorized.' });
+    if (!r.isPublic && !auth) return errorResponse(401, 'Unauthorized.');
     const params: Record<string, string> = {};
     r.keys.forEach((key, i) => (params[key] = match[i + 1]!));
     try {
       const result = await r.handler({ container, params, body, auth: auth ?? { userId: '' } });
-      return result.ok ? json(200, result.data) : json(400, { error: result.error });
+      return result.ok ? finish(json(200, result.data)) : errorResponse(400, result.error);
     } catch (e) {
-      return json(500, { error: (e as Error).message });
+      const err = e as Error;
+      log.error('request.error', { error: err.message, stack: err.stack });
+      return errorResponse(500, err.message);
     }
   }
-  return json(404, { error: `No route for ${method} ${path}` });
+  return errorResponse(404, `No route for ${method} ${path}`);
 }
 
 // One container per cold start, reused across invocations.
