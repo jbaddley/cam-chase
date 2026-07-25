@@ -163,6 +163,73 @@ describe('PhotoChaseClient', () => {
     expect(result).toEqual({ url: 'https://s3/get' });
   });
 
+  describe('capturePhoto', () => {
+    it('threads the presigned key through upload and submit', async () => {
+      const calls: Call[] = [];
+      const s3Url = 'https://bucket.s3.amazonaws.com/';
+      const key = 'games/g1/t1/photo-abc.jpg';
+      const fetch: FetchFn = (url, init) => {
+        calls.push({ url, init });
+        if (url.endsWith('/uploads')) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ objectId: 'o1', key, upload: { url: s3Url, fields: { key } } }), {
+              headers: { 'content-type': 'application/json' },
+            }),
+          );
+        }
+        if (url === s3Url) return Promise.resolve(new Response(null, { status: 204 }));
+        if (url.endsWith('/photos')) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ photoId: 'p1' }), { headers: { 'content-type': 'application/json' } }),
+          );
+        }
+        return Promise.resolve(new Response('nope', { status: 404 }));
+      };
+
+      const client = new PhotoChaseClient({ baseUrl: 'https://api.example.com', fetch });
+      const file = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' });
+
+      const result = await client.capturePhoto('g1', { teamId: 't1', location: { lat: 1, lng: 2 }, file });
+
+      // Three calls, in order: uploads → S3 → photos.
+      expect(calls.map((c) => c.url)).toEqual([
+        'https://api.example.com/games/g1/uploads',
+        s3Url,
+        'https://api.example.com/games/g1/photos',
+      ]);
+      // The submitted s3Key is the key minted by the upload step.
+      expect(JSON.parse(calls[2]!.init!.body as string)).toEqual({
+        teamId: 't1',
+        location: { lat: 1, lng: 2 },
+        s3Key: key,
+      });
+      expect(result).toEqual({ photoId: 'p1', key });
+    });
+
+    it('does not submit metadata if the S3 upload fails', async () => {
+      const calls: Call[] = [];
+      const s3Url = 'https://bucket.s3.amazonaws.com/';
+      const fetch: FetchFn = (url, init) => {
+        calls.push({ url, init });
+        if (url.endsWith('/uploads')) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ objectId: 'o1', key: 'k', upload: { url: s3Url, fields: {} } }), {
+              headers: { 'content-type': 'application/json' },
+            }),
+          );
+        }
+        if (url === s3Url) return Promise.resolve(new Response('denied', { status: 403 }));
+        return Promise.resolve(new Response('nope', { status: 404 }));
+      };
+
+      const client = new PhotoChaseClient({ baseUrl: 'https://api.example.com', fetch });
+      const file = new Blob([new Uint8Array([1])], { type: 'image/jpeg' });
+
+      await expect(client.capturePhoto('g1', { teamId: 't1', location: { lat: 1, lng: 2 }, file })).rejects.toThrow('403');
+      expect(calls.some((c) => c.url.endsWith('/photos'))).toBe(false);
+    });
+  });
+
   describe('uploadPhoto', () => {
     const post: PresignedPost = {
       url: 'https://bucket.s3.amazonaws.com/',

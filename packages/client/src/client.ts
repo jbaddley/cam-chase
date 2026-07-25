@@ -140,4 +140,23 @@ export class PhotoChaseClient {
       throw new Error(`Photo upload failed with status ${res.status}`);
     }
   }
+
+  /**
+   * Capture a Round 1 photo end to end: request a presigned target, upload the
+   * file to S3, then register the photo's metadata. The S3 key minted by the
+   * upload step is what gets submitted, so the record points at the real object.
+   */
+  async capturePhoto(
+    gameId: string,
+    input: { teamId: string; location: GeoPointInput; file: Blob },
+  ): Promise<{ photoId: string; key: string }> {
+    const target = await this.requestUpload(gameId, input.teamId);
+    await this.uploadPhoto(target.upload, input.file);
+    const { photoId } = await this.submitPhoto(gameId, {
+      teamId: input.teamId,
+      location: input.location,
+      s3Key: target.key,
+    });
+    return { photoId, key: target.key };
+  }
 }

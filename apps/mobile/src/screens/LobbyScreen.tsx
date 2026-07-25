@@ -27,20 +27,35 @@ const PHASE_LABEL: Record<GameStateView['state'], string> = {
  * The host sees a Start control once ≥2 teams have joined. `isHost` is set by
  * the host-create flow (joiners are never hosts).
  */
-export function LobbyScreen({ gameId, code, isHost = false }: { gameId: string; code: string; isHost?: boolean }) {
+export function LobbyScreen({
+  gameId,
+  code,
+  isHost = false,
+  onEnterRound1,
+}: {
+  gameId: string;
+  code: string;
+  isHost?: boolean;
+  /** Fired once when the game enters Round 1, with the per-round photo quota. */
+  onEnterRound1?: (info: { quota: number }) => void;
+}) {
   const [game, setGame] = useState<GameStateView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     let active = true;
+    let signaled = false;
 
     async function refresh(): Promise<void> {
       try {
         const next = await client.getGame(gameId);
-        if (active) {
-          setGame(next);
-          setError(null);
+        if (!active) return;
+        setGame(next);
+        setError(null);
+        if (!signaled && next.state === 'round1_active') {
+          signaled = true;
+          onEnterRound1?.({ quota: next.config.photosPerRound });
         }
       } catch {
         if (active) setError('Reconnecting…');
@@ -53,7 +68,7 @@ export function LobbyScreen({ gameId, code, isHost = false }: { gameId: string; 
       active = false;
       clearInterval(timer);
     };
-  }, [gameId]);
+  }, [gameId, onEnterRound1]);
 
   async function start(): Promise<void> {
     setStarting(true);

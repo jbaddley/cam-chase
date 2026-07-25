@@ -1,0 +1,70 @@
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ApiError, type GeoPointInput } from '@photochase/client';
+import { client } from '../api.js';
+
+/**
+ * Produces a photo and its capture location. Injected so the screen is testable
+ * and decoupled from the native camera; the real expo-camera + expo-location
+ * implementation is wired in a later phase.
+ */
+export type CaptureSource = () => Promise<{ file: Blob; location: GeoPointInput }>;
+
+/**
+ * Round 1 capture: take up to `quota` photos for the player's team. Each capture
+ * runs the full upload → submit flow via the client.
+ */
+export function CaptureScreen({
+  gameId,
+  teamId,
+  quota,
+  capture,
+}: {
+  gameId: string;
+  teamId: string;
+  quota: number;
+  capture: CaptureSource;
+}) {
+  const [taken, setTaken] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const done = taken >= quota;
+
+  async function take(): Promise<void> {
+    if (busy || done) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { file, location } = await capture();
+      await client.capturePhoto(gameId, { teamId, location, file });
+      setTaken((n) => n + 1);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not save that photo. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Round 1</Text>
+      <Text style={styles.progress}>
+        {taken} / {quota} photos
+      </Text>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <Pressable onPress={take} style={done ? styles.buttonDone : styles.button}>
+        <Text>{done ? 'All photos taken' : busy ? 'Saving…' : 'Take photo'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 24, gap: 16, justifyContent: 'center' },
+  title: { fontSize: 28, fontWeight: '700' },
+  progress: { fontSize: 20, color: '#666' },
+  error: { color: '#c92a2a' },
+  button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
+  buttonDone: { backgroundColor: '#e9ecef', padding: 16, borderRadius: 12, alignItems: 'center' },
+});
