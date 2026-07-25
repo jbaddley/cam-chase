@@ -1,15 +1,14 @@
 import { useState } from 'react';
-import { JoinScreen } from './src/screens/JoinScreen.js';
-import { LobbyScreen, type LobbyTeam } from './src/screens/LobbyScreen.js';
+import { JoinScreen, type JoinedGame } from './src/screens/JoinScreen.js';
+import { LobbyScreen } from './src/screens/LobbyScreen.js';
 
 /**
  * Placeholder root navigation for the Phase 1 scaffold: Join → Lobby. A real
  * router (Expo Router) and the camera/rating flows are wired in later phases.
  */
 export default function App() {
-  const [code, setCode] = useState<string | null>(null);
-  const teams: LobbyTeam[] = [];
+  const [game, setGame] = useState<JoinedGame | null>(null);
 
-  if (!code) return <JoinScreen onJoin={setCode} />;
-  return <LobbyScreen code={code} teams={teams} />;
+  if (!game) return <JoinScreen onJoined={setGame} />;
+  return <LobbyScreen gameId={game.gameId} code={game.code} />;
 }

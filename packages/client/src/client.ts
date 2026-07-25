@@ -57,7 +57,7 @@ export class PhotoChaseClient {
     return request(this.config, 'POST', '/games', { config });
   }
 
-  joinGame(input: JoinGameInput): Promise<{ teamId: string | null; role: string }> {
+  joinGame(input: JoinGameInput): Promise<{ gameId: string; teamId: string | null; role: string }> {
     return request(this.config, 'POST', '/games/join', input);
   }
 

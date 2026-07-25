@@ -31,7 +31,7 @@ describe('PhotoChaseClient', () => {
   });
 
   it('joinGame POSTs /games/join with the join action', async () => {
-    const { config, calls } = recorder({ teamId: 't1', role: 'captain' });
+    const { config, calls } = recorder({ gameId: 'g1', teamId: 't1', role: 'captain' });
     const result = await new PhotoChaseClient(config).joinGame({
       code: 'ABCD',
       displayName: 'Ada',
@@ -45,7 +45,7 @@ describe('PhotoChaseClient', () => {
       displayName: 'Ada',
       action: { type: 'create_team', name: 'Reds' },
     });
-    expect(result).toEqual({ teamId: 't1', role: 'captain' });
+    expect(result).toEqual({ gameId: 'g1', teamId: 't1', role: 'captain' });
   });
 
   it('listTeams GETs the team list and url-encodes the id', async () => {

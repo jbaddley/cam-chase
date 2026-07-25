@@ -7,7 +7,7 @@
     "types": ["react"],
     "noEmit": true,
     "verbatimModuleSyntax": false,
-    "lib": ["ES2022"]
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["App.tsx", "src/**/*.ts", "src/**/*.tsx", "types/**/*.d.ts"]
 }
