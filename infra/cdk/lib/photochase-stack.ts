@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
+import * as cw from 'aws-cdk-lib/aws-cloudwatch';
 import { HttpApi, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpJwtAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
@@ -108,6 +109,32 @@ export class PhotoChaseStack extends cdk.Stack {
     // Trigger on new originals (under games/), not on our own thumbs/ output.
     photos.addEventNotification(s3.EventType.OBJECT_CREATED, new s3n.LambdaDestination(resizeFn), {
       prefix: 'games/',
+    });
+
+    // CloudWatch alarms: Lambda errors and API latency regressions.
+    const period = cdk.Duration.minutes(5);
+    const gt = cw.ComparisonOperator.GREATER_THAN_THRESHOLD;
+    const notBreaching = cw.TreatMissingData.NOT_BREACHING;
+    apiFn.metricErrors({ period }).createAlarm(this, 'ApiErrorsAlarm', {
+      alarmName: `photochase-${envName}-api-errors`,
+      threshold: 5,
+      evaluationPeriods: 1,
+      comparisonOperator: gt,
+      treatMissingData: notBreaching,
+    });
+    apiFn.metricDuration({ period, statistic: 'p99' }).createAlarm(this, 'ApiLatencyAlarm', {
+      alarmName: `photochase-${envName}-api-p99-latency`,
+      threshold: 3000,
+      evaluationPeriods: 3,
+      comparisonOperator: gt,
+      treatMissingData: notBreaching,
+    });
+    resizeFn.metricErrors({ period }).createAlarm(this, 'ResizeErrorsAlarm', {
+      alarmName: `photochase-${envName}-resize-errors`,
+      threshold: 3,
+      evaluationPeriods: 1,
+      comparisonOperator: gt,
+      treatMissingData: notBreaching,
     });
 
     // Cognito JWT authorizer: verifies tokens at the edge; the Lambda reads the
