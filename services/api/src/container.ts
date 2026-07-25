@@ -13,6 +13,7 @@ import {
   type ReferralRepository,
 } from './growth-repo.js';
 import { verifierFromEnv, type TokenVerifier } from './auth.js';
+import { consoleSink, Logger, noopSink } from './logger.js';
 import { makeS3Client, S3MediaService, type MediaService } from './media.js';
 import { InMemoryGameRepository, type GameRepository } from './repository.js';
 import { InMemoryTournamentRepository, type TournamentRepository } from './tournament-repo.js';
@@ -27,6 +28,7 @@ export interface Container {
   media: MediaService;
   /** JWT verifier for the bearer-token fallback; undefined if Cognito isn't configured. */
   verifier?: TokenVerifier;
+  logger: Logger;
 }
 
 /**
@@ -43,6 +45,8 @@ export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container 
     env.PHOTO_BUCKET ?? 'photochase-local',
   );
   const verifier = verifierFromEnv(env);
+  // Silence logs under Vitest; JSON to stdout (CloudWatch) otherwise.
+  const logger = new Logger(process.env.VITEST ? noopSink : consoleSink, { service: 'photochase-api' });
 
   if (env.TABLE_NAME) {
     const cfg = {
@@ -57,6 +61,7 @@ export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container 
       tournaments: new DynamoDBTournamentRepository(cfg),
       media,
       verifier,
+      logger,
     };
   }
 
@@ -68,5 +73,6 @@ export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container 
     tournaments: new InMemoryTournamentRepository(),
     media,
     verifier,
+    logger,
   };
 }

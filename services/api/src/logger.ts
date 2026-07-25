@@ -15,7 +15,6 @@ export interface LogRecord extends LogFields {
 export type LogSink = (record: LogRecord) => void;
 
 export const consoleSink: LogSink = (record) => {
-  // eslint-disable-next-line no-console
   console.log(JSON.stringify(record));
 };
 
