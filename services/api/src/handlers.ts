@@ -1,8 +1,10 @@
 import {
   applyTransition,
+  BEST_OVERALL_CATEGORY,
   computeScoreboard,
   GameConfigSchema,
   planAssignments,
+  resolveFinals,
   resolveVoteWeight,
   validateConfigForTier,
   type Assignment,
@@ -438,6 +440,81 @@ export async function castVote(repo: GameRepository, raw: unknown): Promise<Resu
   return ok({ voteId });
 }
 
+// --- finals voting ----------------------------------------------------------
+
+/** The categories open for voting, plus what this caller has already picked. */
+export interface FinalsView {
+  categories: Array<{ id: string; label: string }>;
+  teams: Array<{ teamId: string; name: string }>;
+  /** category id → teamId this user voted for. */
+  myVotes: Record<string, string>;
+}
+
+/** Every category up for a finals vote: best-overall plus the configured extras. */
+function finalsCategories(game: Game): Array<{ id: string; label: string }> {
+  const { presets, custom } = game.config.specialCategories;
+  return [
+    { id: BEST_OVERALL_CATEGORY, label: 'Best overall match' },
+    ...presets.map((p) => ({ id: p, label: p })),
+    ...custom.map((c) => ({ id: c, label: c })),
+  ];
+}
+
+export async function getFinals(
+  repo: GameRepository,
+  input: { gameId: string; userId: string },
+): Promise<Result<FinalsView>> {
+  const game = await repo.get(input.gameId);
+  if (!game) return err('Game not found.');
+  const membership = game.memberships.find((m) => m.userId === input.userId);
+  if (!membership) return err('You are not in this game.');
+
+  const myVotes: Record<string, string> = {};
+  for (const v of game.finalsVotes ?? []) {
+    if (v.voterUserId === input.userId) myVotes[v.category] = v.teamId;
+  }
+  return ok({
+    categories: finalsCategories(game),
+    teams: game.teams.map((t) => ({ teamId: t.id, name: t.name })),
+    myVotes,
+  });
+}
+
+const FinalsVoteInput = z.object({
+  gameId: z.string(),
+  voterUserId: z.string().min(1),
+  category: z.string().min(1),
+  teamId: z.string().min(1),
+});
+
+/**
+ * Cast (or change) a finals vote. One vote per voter per category — re-voting
+ * replaces the previous pick rather than stacking.
+ */
+export async function castFinalsVote(repo: GameRepository, raw: unknown): Promise<Result<{ category: string; teamId: string }>> {
+  const parsed = FinalsVoteInput.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
+  const { gameId, voterUserId, category, teamId } = parsed.data;
+
+  const game = await repo.get(gameId);
+  if (!game) return err('Game not found.');
+  if (game.state !== 'finals_voting') return err('Not in the finals voting phase.');
+
+  const voter = game.memberships.find((m) => m.userId === voterUserId);
+  if (!voter) return err('You are not in this game.');
+  if (!game.teams.some((t) => t.id === teamId)) return err('Team not found.');
+  if (voter.teamId === teamId) return err('Cannot vote for your own team.');
+  if (!finalsCategories(game).some((c) => c.id === category)) return err('Unknown category.');
+
+  const votes = game.finalsVotes ?? (game.finalsVotes = []);
+  const existing = votes.findIndex((v) => v.voterUserId === voterUserId && v.category === category);
+  if (existing >= 0) votes[existing] = { voterUserId, category, teamId };
+  else votes.push({ voterUserId, category, teamId });
+
+  await repo.save(game);
+  return ok({ category, teamId });
+}
+
 // --- getResults -------------------------------------------------------------
 
 export async function getResults(
@@ -474,15 +551,25 @@ export async function getResults(
     if (p.fouls.length > 0) fouls[p.teamId] = (fouls[p.teamId] ?? 0) + p.fouls.length;
   }
 
+  // Finals bonuses come from the actual weighted finals votes. With no finals
+  // votes cast, no best-match or special bonus is awarded.
+  const finals = resolveFinals(
+    (game.finalsVotes ?? []).map((v) => ({
+      category: v.category,
+      teamId: v.teamId,
+      weight: resolveVoteWeight(roleByUser.get(v.voterUserId) ?? 'member', game.config.judgeWeight),
+    })),
+  );
+
   const teamIds = game.teams.map((t) => t.id);
-  const preFinals = computeScoreboard({ teamIds, assignments, locations, votes, fouls });
   const scoreboard = computeScoreboard({
     teamIds,
     assignments,
     locations,
     votes,
     fouls,
-    bestMatchTeamId: preFinals[0]?.teamId,
+    bestMatchTeamId: finals.bestMatchTeamId,
+    specialWinners: finals.specialWinners,
   });
   return ok({ scoreboard });
 }

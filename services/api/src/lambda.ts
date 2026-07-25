@@ -2,7 +2,9 @@ import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from '
 import { randomUUID } from 'node:crypto';
 import {
   advanceGame,
+  castFinalsVote,
   castVote,
+  getFinals,
   getGameState,
   getResults,
   joinByCode,
@@ -60,6 +62,12 @@ const ROUTES: Route[] = [
   compile('GET', '/games/:id/teams', ({ container, params }) => listTeams(container.games, params.id!)),
   compile('GET', '/games/:id/assignments', ({ container, params, auth }) =>
     listAssignments(container.games, { gameId: params.id!, userId: auth.userId }),
+  ),
+  compile('GET', '/games/:id/finals', ({ container, params, auth }) =>
+    getFinals(container.games, { gameId: params.id!, userId: auth.userId }),
+  ),
+  compile('POST', '/games/:id/finals', ({ container, params, body, auth }) =>
+    castFinalsVote(container.games, { ...body, gameId: params.id, voterUserId: auth.userId }),
   ),
   compile('GET', '/games/:id/rateable', ({ container, params, auth }) =>
     listRateable(container.games, { gameId: params.id!, userId: auth.userId }),

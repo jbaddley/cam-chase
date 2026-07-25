@@ -2,8 +2,10 @@ import { DEFAULT_CONFIG, FREE_CONFIG, type Game } from '@photochase/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   advanceGame,
+  castFinalsVote,
   castVote,
   createGame,
+  getFinals,
   getGameState,
   getResults,
   joinByCode,
@@ -304,6 +306,107 @@ describe('listRateable', () => {
     const { gameId } = await gameInRating();
     expect((await listRateable(repo, { gameId, userId: 'stranger' })).ok).toBe(false);
     expect((await listRateable(repo, { gameId: 'nope', userId: 'uA' })).ok).toBe(false);
+  });
+});
+
+describe('finals voting', () => {
+  const CONFIG = {
+    ...DEFAULT_CONFIG,
+    maxTeams: 2,
+    photosPerRound: 5,
+    judgeWeight: 3,
+    specialCategories: { presets: [], custom: ['Craziest Pose'] },
+  };
+
+  /** Play a 2-team game all the way into the finals_voting phase. */
+  async function gameInFinals() {
+    const { gameId, code } = await unwrap(createGame(repo, { hostUserId: 'host', tier: 'game_pack', config: CONFIG }));
+    const a = await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
+    const b = await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
+    await unwrap(joinByCode(repo, { code, userId: 'uJ', displayName: 'J', action: { type: 'judge' } }));
+    await unwrap(startGame(repo, { gameId, hostUserId: 'host' }));
+    for (let i = 0; i < 5; i++) {
+      await unwrap(submitPhoto(repo, { gameId, teamId: a.teamId!, shooterUserId: 'uA', location: { lat: 40, lng: -74 }, s3Key: `a${i}` }));
+      await unwrap(submitPhoto(repo, { gameId, teamId: b.teamId!, shooterUserId: 'uB', location: { lat: 41, lng: -75 }, s3Key: `b${i}` }));
+    }
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
+    const mid = (await repo.get(gameId)) as Game;
+    for (const asg of mid.assignments) {
+      const original = mid.photos.find((p) => p.id === asg.originalPhotoId)!;
+      await unwrap(submitChase(repo, { gameId, assignmentId: asg.id, location: original.location, s3Key: `chase-${asg.id}`, shooterUserId: 'x' }));
+    }
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RATING' }));
+    return { gameId, teamA: a.teamId!, teamB: b.teamId! };
+  }
+
+  it('offers best-overall plus the configured custom categories', async () => {
+    const { gameId } = await gameInFinals();
+    const view = await unwrap(getFinals(repo, { gameId, userId: 'uA' }));
+    expect(view.categories.map((c) => c.id)).toEqual(['best_overall_match', 'Craziest Pose']);
+    expect(view.teams).toHaveLength(2);
+    expect(view.myVotes).toEqual({});
+  });
+
+  it('records a vote and reports it back to the voter', async () => {
+    const { gameId, teamB } = await gameInFinals();
+    await unwrap(castFinalsVote(repo, { gameId, voterUserId: 'uA', category: 'best_overall_match', teamId: teamB }));
+    const view = await unwrap(getFinals(repo, { gameId, userId: 'uA' }));
+    expect(view.myVotes).toEqual({ best_overall_match: teamB });
+  });
+
+  it('replaces a previous vote in the same category rather than stacking', async () => {
+    const { gameId, teamA, teamB } = await gameInFinals();
+    await unwrap(castFinalsVote(repo, { gameId, voterUserId: 'uJ', category: 'best_overall_match', teamId: teamA }));
+    await unwrap(castFinalsVote(repo, { gameId, voterUserId: 'uJ', category: 'best_overall_match', teamId: teamB }));
+
+    const game = (await repo.get(gameId)) as Game;
+    expect(game.finalsVotes).toHaveLength(1);
+    expect(game.finalsVotes![0]!.teamId).toBe(teamB);
+  });
+
+  it('rejects voting for your own team, an unknown team, and an unknown category', async () => {
+    const { gameId, teamA, teamB } = await gameInFinals();
+    expect((await castFinalsVote(repo, { gameId, voterUserId: 'uA', category: 'best_overall_match', teamId: teamA })).ok).toBe(false);
+    expect((await castFinalsVote(repo, { gameId, voterUserId: 'uA', category: 'best_overall_match', teamId: 'nope' })).ok).toBe(false);
+    expect((await castFinalsVote(repo, { gameId, voterUserId: 'uA', category: 'Not A Category', teamId: teamB })).ok).toBe(false);
+    expect((await castFinalsVote(repo, { gameId, voterUserId: 'stranger', category: 'best_overall_match', teamId: teamB })).ok).toBe(false);
+  });
+
+  it('lets the weighted judge vote outweigh a single player vote', async () => {
+    const { gameId, teamA, teamB } = await gameInFinals();
+    // Player uA picks B; the judge (weight 3) picks A — the judge should win.
+    await unwrap(castFinalsVote(repo, { gameId, voterUserId: 'uA', category: 'best_overall_match', teamId: teamB }));
+    await unwrap(castFinalsVote(repo, { gameId, voterUserId: 'uJ', category: 'best_overall_match', teamId: teamA }));
+
+    const { scoreboard } = await unwrap(getResults(repo, gameId));
+    const scoreA = scoreboard.find((s) => s.teamId === teamA)!;
+    const scoreB = scoreboard.find((s) => s.teamId === teamB)!;
+    expect(scoreA.bestMatchBonus).toBeGreaterThan(0);
+    expect(scoreB.bestMatchBonus).toBe(0);
+  });
+
+  it('awards a special-category bonus to its winner', async () => {
+    const { gameId, teamB } = await gameInFinals();
+    await unwrap(castFinalsVote(repo, { gameId, voterUserId: 'uA', category: 'Craziest Pose', teamId: teamB }));
+
+    const { scoreboard } = await unwrap(getResults(repo, gameId));
+    expect(scoreboard.find((s) => s.teamId === teamB)!.specialBonus).toBeGreaterThan(0);
+  });
+
+  it('awards no finals bonuses when nobody voted', async () => {
+    const { gameId } = await gameInFinals();
+    const { scoreboard } = await unwrap(getResults(repo, gameId));
+    expect(scoreboard.every((s) => s.bestMatchBonus === 0 && s.specialBonus === 0)).toBe(true);
+  });
+
+  it('rejects voting outside the finals phase', async () => {
+    const { gameId, code } = await unwrap(createGame(repo, { hostUserId: 'host', tier: 'game_pack', config: CONFIG }));
+    const a = await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
+    await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
+    expect((await castFinalsVote(repo, { gameId, voterUserId: 'uB', category: 'best_overall_match', teamId: a.teamId! })).ok).toBe(false);
   });
 });
 

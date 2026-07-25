@@ -22,7 +22,20 @@ export interface Game {
   photos: Photo[];
   assignments: Assignment[];
   votes: Vote[];
+  /**
+   * Finals-phase votes (best-overall and special categories). Optional so games
+   * persisted before finals shipped still load.
+   */
+  finalsVotes?: FinalsVoteRecord[];
   createdAt: number;
+}
+
+/** One player's finals vote for a category. One vote per voter per category. */
+export interface FinalsVoteRecord {
+  voterUserId: string;
+  /** BEST_OVERALL_CATEGORY, a preset id, or a custom category name. */
+  category: string;
+  teamId: string;
 }
 
 /** Events that drive the game forward. Most are host-issued or timer-issued. */
