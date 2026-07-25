@@ -7,6 +7,7 @@ import {
   getResults,
   joinByCode,
   listAssignments,
+  listRateable,
   listTeams,
   submitChase,
   submitPhoto,
@@ -59,6 +60,9 @@ const ROUTES: Route[] = [
   compile('GET', '/games/:id/teams', ({ container, params }) => listTeams(container.games, params.id!)),
   compile('GET', '/games/:id/assignments', ({ container, params, auth }) =>
     listAssignments(container.games, { gameId: params.id!, userId: auth.userId }),
+  ),
+  compile('GET', '/games/:id/rateable', ({ container, params, auth }) =>
+    listRateable(container.games, { gameId: params.id!, userId: auth.userId }),
   ),
   compile('GET', '/games/:id', ({ container, params }) => getGameState(container.games, params.id!)),
   compile('POST', '/games/:id/start', ({ container, params, auth }) =>

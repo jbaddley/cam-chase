@@ -42,6 +42,17 @@ export interface AssignmentView {
   chasePhotoId: string | null;
 }
 
+/** A chase attempt the caller may rate, paired with the original it recreates. */
+export interface RateableView {
+  assignmentId: string;
+  originalPhotoId: string;
+  originalPhotoKey: string;
+  chasePhotoId: string;
+  chasePhotoKey: string;
+  /** Stars this user has already given on each axis, if any. */
+  myVotes: { pose: number | null; angle: number | null };
+}
+
 /** A team summary for the lobby list. */
 export interface TeamSummary {
   teamId: string;
@@ -124,6 +135,11 @@ export class PhotoChaseClient {
   /** The caller team's Round 2 queue, in delivery order. */
   listAssignments(gameId: string): Promise<AssignmentView[]> {
     return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/assignments`);
+  }
+
+  /** The chases the caller may rate, with any votes they've already cast. */
+  listRateable(gameId: string): Promise<RateableView[]> {
+    return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/rateable`);
   }
 
   getResults(gameId: string): Promise<{ scoreboard: TeamScore[] }> {

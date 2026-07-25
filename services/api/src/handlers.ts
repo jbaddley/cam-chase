@@ -226,6 +226,55 @@ export async function listAssignments(
   return ok(mine);
 }
 
+// --- listRateable -----------------------------------------------------------
+
+/** A chase attempt the caller is allowed to rate, paired with its original. */
+export interface RateableView {
+  assignmentId: string;
+  originalPhotoId: string;
+  originalPhotoKey: string;
+  chasePhotoId: string;
+  chasePhotoKey: string;
+  /** Stars this user has already given on each axis, if any. */
+  myVotes: { pose: number | null; angle: number | null };
+}
+
+/**
+ * The chases the caller may rate, paired with the originals they recreate.
+ * Mirrors the authorization in {@link castVote}: teams cannot rate their own
+ * chase, while judges and spectators may rate everything. Only assignments with
+ * a submitted chase appear — there is nothing to compare otherwise.
+ */
+export async function listRateable(
+  repo: GameRepository,
+  input: { gameId: string; userId: string },
+): Promise<Result<RateableView[]>> {
+  const game = await repo.get(input.gameId);
+  if (!game) return err('Game not found.');
+
+  const membership = game.memberships.find((m) => m.userId === input.userId);
+  if (!membership) return err('You are not in this game.');
+
+  const photoKey = new Map(game.photos.map((p) => [p.id, p.s3Key]));
+  const myVote = (assignmentId: string, axis: 'pose' | 'angle'): number | null =>
+    game.votes.find((v) => v.assignmentId === assignmentId && v.voterUserId === input.userId && v.axis === axis)
+      ?.stars ?? null;
+
+  const rateable = game.assignments
+    .filter((a) => a.chasePhotoId !== null)
+    .filter((a) => membership.teamId === null || a.chaserTeamId !== membership.teamId)
+    .sort((a, b) => a.order - b.order)
+    .map((a): RateableView => ({
+      assignmentId: a.id,
+      originalPhotoId: a.originalPhotoId,
+      originalPhotoKey: photoKey.get(a.originalPhotoId) ?? '',
+      chasePhotoId: a.chasePhotoId!,
+      chasePhotoKey: photoKey.get(a.chasePhotoId!) ?? '',
+      myVotes: { pose: myVote(a.id, 'pose'), angle: myVote(a.id, 'angle') },
+    }));
+  return ok(rateable);
+}
+
 // --- startGame & advanceGame ------------------------------------------------
 
 async function requireHost(
