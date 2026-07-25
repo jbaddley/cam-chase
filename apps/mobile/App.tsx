@@ -1,26 +1,46 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { JoinScreen, type JoinedGame } from './src/screens/JoinScreen.js';
 import { LobbyScreen } from './src/screens/LobbyScreen.js';
 import { CaptureScreen } from './src/screens/CaptureScreen.js';
+import { ChaseScreen } from './src/screens/ChaseScreen.js';
 import { placeholderCapture } from './src/capture.js';
+import { useGamePhase } from './src/useGamePhase.js';
+
+/**
+ * Screen selection for a joined game, driven by the polled phase. Players on a
+ * team capture in Round 1 and chase in Round 2; judges and spectators stay on
+ * the lobby view, which doubles as the phase display.
+ */
+function GameRouter({ joined }: { joined: JoinedGame }) {
+  const { game, error, applyState } = useGamePhase(joined.gameId);
+  const onTeam = joined.teamId !== null;
+
+  if (onTeam && game?.state === 'round1_active') {
+    return (
+      <CaptureScreen
+        gameId={joined.gameId}
+        teamId={joined.teamId!}
+        quota={game.config.photosPerRound}
+        capture={placeholderCapture}
+      />
+    );
+  }
+
+  if (onTeam && game?.state === 'round2_active') {
+    return <ChaseScreen gameId={joined.gameId} teamId={joined.teamId!} capture={placeholderCapture} />;
+  }
+
+  return <LobbyScreen game={game} code={joined.code} error={error} onStarted={applyState} />;
+}
 
 /**
  * Placeholder root navigation for the Phase 1 scaffold: Join → Lobby → Round 1
- * capture. A real router (Expo Router) and the rating/results flows are wired in
- * later phases.
+ * capture → Round 2 chase. A real router (Expo Router) and the rating/results
+ * flows are wired in later phases.
  */
 export default function App() {
-  const [game, setGame] = useState<JoinedGame | null>(null);
-  const [round1, setRound1] = useState<{ quota: number } | null>(null);
+  const [joined, setJoined] = useState<JoinedGame | null>(null);
 
-  const enterRound1 = useCallback((info: { quota: number }) => setRound1(info), []);
-
-  if (!game) return <JoinScreen onJoined={setGame} />;
-
-  // A player on a team captures in Round 1; judges/spectators stay in the lobby.
-  if (round1 && game.teamId) {
-    return <CaptureScreen gameId={game.gameId} teamId={game.teamId} quota={round1.quota} capture={placeholderCapture} />;
-  }
-
-  return <LobbyScreen gameId={game.gameId} code={game.code} onEnterRound1={enterRound1} />;
+  if (!joined) return <JoinScreen onJoined={setJoined} />;
+  return <GameRouter joined={joined} />;
 }

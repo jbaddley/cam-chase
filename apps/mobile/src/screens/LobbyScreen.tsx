@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type GameStateView, type TeamSummary } from '@photochase/client';
 import { client } from '../api.js';
 
 export type LobbyTeam = TeamSummary;
 
-const POLL_MS = 3000;
 const MIN_TEAMS = 2;
 
 /** Human-friendly label for each game phase shown in the lobby header. */
@@ -23,68 +22,45 @@ const PHASE_LABEL: Record<GameStateView['state'], string> = {
 };
 
 /**
- * Live lobby driven by polling `getGame`: shows the current phase and roster.
- * The host sees a Start control once ≥2 teams have joined. `isHost` is set by
- * the host-create flow (joiners are never hosts).
+ * Roster and phase display. The game state is polled by the app root and passed
+ * in, so every screen agrees on the current phase. The host sees a Start control
+ * once ≥2 teams have joined.
  */
 export function LobbyScreen({
-  gameId,
+  game,
   code,
   isHost = false,
-  onEnterRound1,
+  error,
+  onStarted,
 }: {
-  gameId: string;
+  game: GameStateView | null;
   code: string;
   isHost?: boolean;
-  /** Fired once when the game enters Round 1, with the per-round photo quota. */
-  onEnterRound1?: (info: { quota: number }) => void;
+  error?: string | null;
+  /** Called with the new state after the host starts the game. */
+  onStarted?: (state: GameStateView['state']) => void;
 }) {
-  const [game, setGame] = useState<GameStateView | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    let signaled = false;
-
-    async function refresh(): Promise<void> {
-      try {
-        const next = await client.getGame(gameId);
-        if (!active) return;
-        setGame(next);
-        setError(null);
-        if (!signaled && next.state === 'round1_active') {
-          signaled = true;
-          onEnterRound1?.({ quota: next.config.photosPerRound });
-        }
-      } catch {
-        if (active) setError('Reconnecting…');
-      }
-    }
-
-    void refresh();
-    const timer = setInterval(() => void refresh(), POLL_MS);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, [gameId, onEnterRound1]);
+  const teams = game?.teams ?? [];
+  const canStart = isHost && game?.state === 'lobby' && teams.length >= MIN_TEAMS;
 
   async function start(): Promise<void> {
+    if (!game) return;
     setStarting(true);
-    setError(null);
+    setStartError(null);
     try {
-      const { state } = await client.startGame(gameId);
-      setGame((g) => (g ? { ...g, state } : g));
+      const { state } = await client.startGame(game.id);
+      onStarted?.(state);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not start the game.');
+      setStartError(e instanceof ApiError ? e.message : 'Could not start the game.');
     } finally {
       setStarting(false);
     }
   }
 
-  const teams = game?.teams ?? [];
-  const canStart = isHost && game?.state === 'lobby' && teams.length >= MIN_TEAMS;
+  const shownError = startError ?? error ?? null;
 
   return (
     <View style={styles.container}>
@@ -93,7 +69,7 @@ export function LobbyScreen({
       <Text style={styles.subtitle}>
         {teams.length} team{teams.length === 1 ? '' : 's'} joined
       </Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {shownError ? <Text style={styles.error}>{shownError}</Text> : null}
       <ScrollView>
         {teams.map((t) => (
           <View key={t.teamId} style={styles.row}>
