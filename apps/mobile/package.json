@@ -7,6 +7,7 @@
     "lint": "eslint App.tsx src"
   },
   "dependencies": {
+    "@photochase/client": "workspace:*",
     "@photochase/shared": "workspace:*",
     "react": "^18.3.1"
   },

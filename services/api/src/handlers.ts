@@ -93,7 +93,7 @@ const JoinInput = z.object({
 export async function joinByCode(
   repo: GameRepository,
   raw: unknown,
-): Promise<Result<{ teamId: string | null; role: string }>> {
+): Promise<Result<{ gameId: string; teamId: string | null; role: string }>> {
   const parsed = JoinInput.safeParse(raw);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
   const { code, userId, action } = parsed.data;
@@ -129,7 +129,7 @@ export async function joinByCode(
     returnCheckins: {},
   });
   await repo.save(game);
-  return ok({ teamId, role });
+  return ok({ gameId: game.id, teamId, role });
 }
 
 // --- listTeams --------------------------------------------------------------
