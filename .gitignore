@@ -10,3 +10,4 @@ coverage/
 cdk.out/
 .expo/
 web-build/
+.next/

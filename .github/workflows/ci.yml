@@ -33,6 +33,12 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # Typecheck alone misses bundler-level breakage (the web app failed to
+      # build for a while because Next could not resolve the workspace
+      # packages' ESM specifiers).
+      - name: Build
+        run: pnpm build
+
       # Phase 1 exit criterion (docs/09-roadmap.md): a bot-driven full game must
       # reach its expected scoreboard. Run separately so a break in the game loop
       # is obvious in the build log rather than buried in the unit-test output.

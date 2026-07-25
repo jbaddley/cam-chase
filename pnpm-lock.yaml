@@ -57,6 +57,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@photochase/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@photochase/shared':
         specifier: workspace:*
         version: link:../../packages/shared
