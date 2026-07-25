@@ -1,5 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import { HttpApi, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
+import { HttpJwtAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
@@ -71,7 +72,7 @@ export class PhotoChaseStack extends cdk.Stack {
       standardAttributes: { email: { required: true, mutable: true } },
       removalPolicy: envName === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
-    userPool.addClient('AppClient', {
+    const appClient = userPool.addClient('AppClient', {
       authFlows: { userSrp: true },
       // Google, Facebook, X, and Apple IdPs are wired per-env with secrets.
       supportedIdentityProviders: [cognito.UserPoolClientIdentityProvider.COGNITO],
@@ -109,11 +110,23 @@ export class PhotoChaseStack extends cdk.Stack {
       prefix: 'games/',
     });
 
+    // Cognito JWT authorizer: verifies tokens at the edge; the Lambda reads the
+    // verified claims. Access/id tokens are issued by this user pool + app client.
+    const jwtAuthorizer = new HttpJwtAuthorizer(
+      'JwtAuthorizer',
+      `https://cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}`,
+      { jwtAudience: [appClient.userPoolClientId] },
+    );
+
     const api = new HttpApi(this, 'HttpApi', { apiName: `photochase-${envName}` });
+    const integration = new HttpLambdaIntegration('ApiIntegration', apiFn);
+    // Provider webhook stays public; the more specific route wins over the catch-all.
+    api.addRoutes({ path: '/webhooks/purchase', methods: [HttpMethod.POST], integration });
     api.addRoutes({
       path: '/{proxy+}',
       methods: [HttpMethod.ANY],
-      integration: new HttpLambdaIntegration('ApiIntegration', apiFn),
+      integration,
+      authorizer: jwtAuthorizer,
     });
 
     new cdk.CfnOutput(this, 'ApiUrl', { value: api.apiEndpoint });
