@@ -57,6 +57,23 @@ describe('PhotoChaseClient', () => {
     expect(teams).toEqual([{ teamId: 't1', name: 'Reds', memberCount: 3 }]);
   });
 
+  it('getGame GETs the sanitized game state', async () => {
+    const view = {
+      id: 'g1',
+      code: 'ABCD',
+      state: 'lobby',
+      config: DEFAULT_CONFIG,
+      teams: [{ teamId: 't1', name: 'Reds', memberCount: 2 }],
+      playerCount: 2,
+    };
+    const { config, calls } = recorder(view);
+    const result = await new PhotoChaseClient(config).getGame('g1');
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1');
+    expect(calls[0]!.init?.method).toBe('GET');
+    expect(result).toEqual(view);
+  });
+
   it('startGame POSTs /start with no body', async () => {
     const { config, calls } = recorder({ state: 'round1_active' });
     const result = await new PhotoChaseClient(config).startGame('g1');

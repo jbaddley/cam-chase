@@ -63,6 +63,19 @@ describe('lambda route (authenticated)', () => {
     expect((await call(container, 'GET', '/nope', undefined, 'host')).status).toBe(404);
   });
 
+  it('serves the sanitized game state at GET /games/:id', async () => {
+    const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
+    await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
+
+    const res = await call(container, 'GET', `/games/${gameId}`, undefined, 'uA');
+    expect(res.status).toBe(200);
+    expect(res.data.id).toBe(gameId);
+    expect(res.data.state).toBe('lobby');
+    expect(res.data.teams).toHaveLength(1);
+    expect(res.data.playerCount).toBe(1);
+    expect(res.data).not.toHaveProperty('hostUserId');
+  });
+
   it('returns 400 for invalid JSON', async () => {
     const bad = { ...event('POST', '/games', undefined, 'host'), body: '{not json' } as APIGatewayProxyEventV2;
     expect((await route(bad, container)).statusCode).toBe(400);

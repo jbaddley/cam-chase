@@ -4,6 +4,7 @@ import {
   advanceGame,
   castVote,
   createGame,
+  getGameState,
   getResults,
   joinByCode,
   listTeams,
@@ -154,5 +155,38 @@ describe('full flow through the API reaches a scoreboard', () => {
     const ownChase = game.assignments.find((asg) => asg.chaserTeamId === a.teamId)!;
     const bad = await castVote(repo, { gameId, assignmentId: ownChase.id, voterUserId: 'uA', axis: 'pose', stars: 5 });
     expect(bad.ok).toBe(false);
+  });
+});
+
+describe('getGameState', () => {
+  it('returns a sanitized view with teams, config, and counts', async () => {
+    const { gameId, code } = await unwrap(
+      createGame(repo, { hostUserId: 'host', tier: 'free', config: FREE_CONFIG }),
+    );
+    await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'Team A' } }));
+    await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'join_team', teamId: (await unwrap(listTeams(repo, gameId)))[0]!.teamId } }));
+    await unwrap(joinByCode(repo, { code, userId: 'uJ', displayName: 'J', action: { type: 'judge' } }));
+
+    const view = await unwrap(getGameState(repo, gameId));
+    expect(view.id).toBe(gameId);
+    expect(view.code).toBe(code);
+    expect(view.state).toBe('lobby');
+    expect(view.config).toEqual(FREE_CONFIG);
+    expect(view.teams).toEqual([{ teamId: view.teams[0]!.teamId, name: 'Team A', memberCount: 2 }]);
+    expect(view.playerCount).toBe(3);
+  });
+
+  it('does not leak raw memberships, photos, or votes', async () => {
+    const { gameId } = await unwrap(createGame(repo, { hostUserId: 'host', tier: 'free', config: FREE_CONFIG }));
+    const view = await unwrap(getGameState(repo, gameId));
+    expect(view).not.toHaveProperty('memberships');
+    expect(view).not.toHaveProperty('photos');
+    expect(view).not.toHaveProperty('votes');
+    expect(view).not.toHaveProperty('hostUserId');
+  });
+
+  it('errors for an unknown game', async () => {
+    const result = await getGameState(repo, 'nope');
+    expect(result.ok).toBe(false);
   });
 });
