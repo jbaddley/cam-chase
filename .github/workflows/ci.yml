@@ -32,3 +32,9 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      # Phase 1 exit criterion (docs/09-roadmap.md): a bot-driven full game must
+      # reach its expected scoreboard. Run separately so a break in the game loop
+      # is obvious in the build log rather than buried in the unit-test output.
+      - name: Full-game simulation
+        run: pnpm --filter @photochase/api exec vitest run simulation

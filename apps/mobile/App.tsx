@@ -4,6 +4,7 @@ import { LobbyScreen } from './src/screens/LobbyScreen.js';
 import { CaptureScreen } from './src/screens/CaptureScreen.js';
 import { ChaseScreen } from './src/screens/ChaseScreen.js';
 import { RatingScreen } from './src/screens/RatingScreen.js';
+import { FinalsScreen } from './src/screens/FinalsScreen.js';
 import { ResultsScreen } from './src/screens/ResultsScreen.js';
 import { placeholderCapture } from './src/capture.js';
 import { useGamePhase } from './src/useGamePhase.js';
@@ -35,6 +36,10 @@ function GameRouter({ joined }: { joined: JoinedGame }) {
   // Judges and spectators rate too, so this is not gated on team membership.
   if (game?.state === 'rating') {
     return <RatingScreen gameId={joined.gameId} />;
+  }
+
+  if (game?.state === 'finals_voting') {
+    return <FinalsScreen gameId={joined.gameId} myTeamId={joined.teamId} />;
   }
 
   if (game?.state === 'results' || game?.state === 'archived') {

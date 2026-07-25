@@ -194,6 +194,33 @@ describe('PhotoChaseClient', () => {
     expect(result).toEqual(rateable);
   });
 
+  it('getFinals GETs the finals categories', async () => {
+    const view = {
+      categories: [{ id: 'best_overall_match', label: 'Best overall match' }],
+      teams: [{ teamId: 't1', name: 'Reds' }],
+      myVotes: { best_overall_match: 't1' },
+    };
+    const { config, calls } = recorder(view);
+    const result = await new PhotoChaseClient(config).getFinals('g1');
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/finals');
+    expect(calls[0]!.init?.method).toBe('GET');
+    expect(result).toEqual(view);
+  });
+
+  it('castFinalsVote POSTs the category and team', async () => {
+    const { config, calls } = recorder({ category: 'best_overall_match', teamId: 't2' });
+    const result = await new PhotoChaseClient(config).castFinalsVote('g1', {
+      category: 'best_overall_match',
+      teamId: 't2',
+    });
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/finals');
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual({ category: 'best_overall_match', teamId: 't2' });
+    expect(result).toEqual({ category: 'best_overall_match', teamId: 't2' });
+  });
+
   describe('captureChase', () => {
     it('threads the presigned key through upload and submitChase', async () => {
       const calls: Call[] = [];
