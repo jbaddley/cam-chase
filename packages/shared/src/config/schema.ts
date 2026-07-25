@@ -22,6 +22,13 @@ export const GameConfigSchema = z
     judgeWeight: z.number().int().min(1).max(5),
     specialCategories: SpecialCategoriesSchema,
     geofencing: z.boolean(),
+    /**
+     * Where teams check in at the end of each round. Optional: without it,
+     * check-ins are accepted anywhere and only their timing counts.
+     */
+    returnSpot: z
+      .object({ lat: z.number(), lng: z.number(), radiusM: z.number().positive().max(5000) })
+      .optional(),
     aiJudging: z.boolean(),
   })
   .strict();

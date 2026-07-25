@@ -27,6 +27,11 @@ export interface Game {
    * persisted before finals shipped still load.
    */
   finalsVotes?: FinalsVoteRecord[];
+  /**
+   * When each round began, for return-duration scoring. Optional so games
+   * persisted before check-ins shipped still load.
+   */
+  roundStartedAt?: Partial<Record<'round1' | 'round2', number>>;
   createdAt: number;
 }
 

@@ -5,6 +5,7 @@ import { CaptureScreen } from './src/screens/CaptureScreen.js';
 import { ChaseScreen } from './src/screens/ChaseScreen.js';
 import { RatingScreen } from './src/screens/RatingScreen.js';
 import { FinalsScreen } from './src/screens/FinalsScreen.js';
+import { ReturnScreen } from './src/screens/ReturnScreen.js';
 import { ResultsScreen } from './src/screens/ResultsScreen.js';
 import { placeholderCapture } from './src/capture.js';
 import { useGamePhase } from './src/useGamePhase.js';
@@ -31,6 +32,16 @@ function GameRouter({ joined }: { joined: JoinedGame }) {
 
   if (onTeam && game?.state === 'round2_active') {
     return <ChaseScreen gameId={joined.gameId} teamId={joined.teamId!} capture={placeholderCapture} />;
+  }
+
+  if (onTeam && (game?.state === 'round1_return' || game?.state === 'round2_return')) {
+    return (
+      <ReturnScreen
+        gameId={joined.gameId}
+        round={game.state === 'round1_return' ? 1 : 2}
+        capture={placeholderCapture}
+      />
+    );
   }
 
   // Judges and spectators rate too, so this is not gated on team membership.

@@ -194,6 +194,16 @@ describe('PhotoChaseClient', () => {
     expect(result).toEqual(rateable);
   });
 
+  it('checkIn POSTs the return location', async () => {
+    const { config, calls } = recorder({ round: 'round1', at: 5000 });
+    const result = await new PhotoChaseClient(config).checkIn('g1', { location: { lat: 40, lng: -74 } });
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/checkins');
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual({ location: { lat: 40, lng: -74 } });
+    expect(result).toEqual({ round: 'round1', at: 5000 });
+  });
+
   it('getFinals GETs the finals categories', async () => {
     const view = {
       categories: [{ id: 'best_overall_match', label: 'Best overall match' }],

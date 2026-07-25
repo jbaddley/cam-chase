@@ -140,6 +140,11 @@ export class PhotoChaseClient {
     return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/votes`, input);
   }
 
+  /** Check the caller's team in at the return spot during a return phase. */
+  checkIn(gameId: string, input: { location: GeoPointInput }): Promise<{ round: string; at: number }> {
+    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/checkins`, input);
+  }
+
   /** The caller team's Round 2 queue, in delivery order. */
   listAssignments(gameId: string): Promise<AssignmentView[]> {
     return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/assignments`);
