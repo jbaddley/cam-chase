@@ -194,6 +194,26 @@ describe('PhotoChaseClient', () => {
     expect(result).toEqual(rateable);
   });
 
+  it('flagFoul POSTs the reason to the photo’s foul path', async () => {
+    const { config, calls } = recorder({ fouls: ['missing_face'] });
+    const result = await new PhotoChaseClient(config).flagFoul('g1', 'p1', { reason: 'missing_face' });
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/photos/p1/fouls');
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual({ reason: 'missing_face' });
+    expect(result).toEqual({ fouls: ['missing_face'] });
+  });
+
+  it('clearFoul DELETEs the reason from the photo’s foul path', async () => {
+    const { config, calls } = recorder({ fouls: [] });
+    const result = await new PhotoChaseClient(config).clearFoul('g1', 'p1', { reason: 'missing_face' });
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/photos/p1/fouls');
+    expect(calls[0]!.init?.method).toBe('DELETE');
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual({ reason: 'missing_face' });
+    expect(result).toEqual({ fouls: [] });
+  });
+
   it('checkIn POSTs the return location', async () => {
     const { config, calls } = recorder({ round: 'round1', at: 5000 });
     const result = await new PhotoChaseClient(config).checkIn('g1', { location: { lat: 40, lng: -74 } });

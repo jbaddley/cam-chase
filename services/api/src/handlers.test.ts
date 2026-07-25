@@ -5,7 +5,9 @@ import {
   castFinalsVote,
   castVote,
   checkIn,
+  clearFoul,
   createGame,
+  flagFoul,
   getFinals,
   getGameState,
   getResults,
@@ -307,6 +309,119 @@ describe('listRateable', () => {
     const { gameId } = await gameInRating();
     expect((await listRateable(repo, { gameId, userId: 'stranger' })).ok).toBe(false);
     expect((await listRateable(repo, { gameId: 'nope', userId: 'uA' })).ok).toBe(false);
+  });
+});
+
+describe('fouls', () => {
+  /** Play into the rating phase and hand back a photo owned by each team. */
+  async function gameInRatingWithPhotos() {
+    const config = { ...DEFAULT_CONFIG, maxTeams: 2, photosPerRound: 5 };
+    const { gameId, code } = await unwrap(createGame(repo, { hostUserId: 'host', tier: 'game_pack', config }));
+    const a = await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
+    const b = await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
+    await unwrap(joinByCode(repo, { code, userId: 'uJ', displayName: 'J', action: { type: 'judge' } }));
+    await unwrap(startGame(repo, { gameId, hostUserId: 'host' }));
+    for (let i = 0; i < 5; i++) {
+      await unwrap(submitPhoto(repo, { gameId, teamId: a.teamId!, shooterUserId: 'uA', location: { lat: 40, lng: -74 }, s3Key: `a${i}` }));
+      await unwrap(submitPhoto(repo, { gameId, teamId: b.teamId!, shooterUserId: 'uB', location: { lat: 41, lng: -75 }, s3Key: `b${i}` }));
+    }
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
+    const mid = (await repo.get(gameId)) as Game;
+    for (const asg of mid.assignments) {
+      const original = mid.photos.find((p) => p.id === asg.originalPhotoId)!;
+      await unwrap(submitChase(repo, { gameId, assignmentId: asg.id, location: original.location, s3Key: `chase-${asg.id}`, shooterUserId: 'x' }));
+    }
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
+
+    const game = (await repo.get(gameId)) as Game;
+    return {
+      gameId,
+      teamA: a.teamId!,
+      teamB: b.teamId!,
+      photoOfA: game.photos.find((p) => p.teamId === a.teamId)!.id,
+      photoOfB: game.photos.find((p) => p.teamId === b.teamId)!.id,
+    };
+  }
+
+  it('records a foul on another team’s photo', async () => {
+    const { gameId, photoOfB } = await gameInRatingWithPhotos();
+    const result = await unwrap(flagFoul(repo, { gameId, photoId: photoOfB, userId: 'uA', reason: 'missing_face' }));
+    expect(result.fouls).toEqual(['missing_face']);
+  });
+
+  it('does not stack a repeated reason but does record a second distinct one', async () => {
+    const { gameId, photoOfB } = await gameInRatingWithPhotos();
+    await unwrap(flagFoul(repo, { gameId, photoId: photoOfB, userId: 'uA', reason: 'missing_face' }));
+    const again = await unwrap(flagFoul(repo, { gameId, photoId: photoOfB, userId: 'uJ', reason: 'missing_face' }));
+    expect(again.fouls).toEqual(['missing_face']);
+
+    const both = await unwrap(flagFoul(repo, { gameId, photoId: photoOfB, userId: 'uA', reason: 'missing_clue' }));
+    expect(both.fouls).toEqual(['missing_face', 'missing_clue']);
+  });
+
+  it('clears a wrongly-called foul', async () => {
+    const { gameId, photoOfB } = await gameInRatingWithPhotos();
+    await unwrap(flagFoul(repo, { gameId, photoId: photoOfB, userId: 'uA', reason: 'missing_face' }));
+    const cleared = await unwrap(clearFoul(repo, { gameId, photoId: photoOfB, userId: 'uA', reason: 'missing_face' }));
+    expect(cleared.fouls).toEqual([]);
+  });
+
+  it('lets a judge foul any team', async () => {
+    const { gameId, photoOfA, photoOfB } = await gameInRatingWithPhotos();
+    expect((await flagFoul(repo, { gameId, photoId: photoOfA, userId: 'uJ', reason: 'missing_clue' })).ok).toBe(true);
+    expect((await flagFoul(repo, { gameId, photoId: photoOfB, userId: 'uJ', reason: 'missing_clue' })).ok).toBe(true);
+  });
+
+  it('rejects fouling your own team, an unknown photo, and an unknown reason', async () => {
+    const { gameId, photoOfA, photoOfB } = await gameInRatingWithPhotos();
+    expect((await flagFoul(repo, { gameId, photoId: photoOfA, userId: 'uA', reason: 'missing_face' })).ok).toBe(false);
+    expect((await flagFoul(repo, { gameId, photoId: 'nope', userId: 'uA', reason: 'missing_face' })).ok).toBe(false);
+    expect((await flagFoul(repo, { gameId, photoId: photoOfB, userId: 'uA', reason: 'made_up' })).ok).toBe(false);
+    expect((await flagFoul(repo, { gameId, photoId: photoOfB, userId: 'stranger', reason: 'missing_face' })).ok).toBe(false);
+  });
+
+  it('rejects fouls outside the rating phase', async () => {
+    const config = { ...DEFAULT_CONFIG, maxTeams: 2, photosPerRound: 5 };
+    const { gameId, code } = await unwrap(createGame(repo, { hostUserId: 'host', tier: 'game_pack', config }));
+    const a = await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
+    await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
+    await unwrap(startGame(repo, { gameId, hostUserId: 'host' }));
+    await unwrap(submitPhoto(repo, { gameId, teamId: a.teamId!, shooterUserId: 'uA', location: { lat: 40, lng: -74 }, s3Key: 'a0' }));
+    const game = (await repo.get(gameId)) as Game;
+    expect((await flagFoul(repo, { gameId, photoId: game.photos[0]!.id, userId: 'uB', reason: 'missing_face' })).ok).toBe(false);
+  });
+
+  it('penalizes the fouled team on the scoreboard', async () => {
+    const { gameId, teamA, teamB, photoOfB } = await gameInRatingWithPhotos();
+    const before = await unwrap(getResults(repo, gameId));
+    expect(before.scoreboard.every((s) => s.foulPenalty === 0)).toBe(true);
+
+    await unwrap(flagFoul(repo, { gameId, photoId: photoOfB, userId: 'uA', reason: 'missing_face' }));
+    await unwrap(flagFoul(repo, { gameId, photoId: photoOfB, userId: 'uA', reason: 'missing_clue' }));
+
+    const { scoreboard } = await unwrap(getResults(repo, gameId));
+    const scoreB = scoreboard.find((s) => s.teamId === teamB)!;
+    const scoreA = scoreboard.find((s) => s.teamId === teamA)!;
+    expect(scoreB.foulPenalty).toBeGreaterThan(0);
+    expect(scoreA.foulPenalty).toBe(0);
+    // The penalty subtracts from the fouled team's total.
+    expect(scoreB.total).toBe(
+      scoreB.location + scoreB.pose + scoreB.angle + scoreB.timeBonus + scoreB.bestMatchBonus + scoreB.specialBonus - scoreB.foulPenalty,
+    );
+  });
+
+  it('surfaces the current fouls on the rateable view', async () => {
+    const { gameId, photoOfB } = await gameInRatingWithPhotos();
+    await unwrap(flagFoul(repo, { gameId, photoId: photoOfB, userId: 'uA', reason: 'missing_face' }));
+
+    // Read as the judge: a player's own rateable list never contains the
+    // assignments their team chased, so it wouldn't include team B's original.
+    const rateable = await unwrap(listRateable(repo, { gameId, userId: 'uJ' }));
+    const fouled = rateable.find((r) => r.originalPhotoId === photoOfB);
+    expect(fouled?.originalFouls).toEqual(['missing_face']);
+    expect(rateable.filter((r) => r.originalPhotoId !== photoOfB).every((r) => r.originalFouls.length === 0)).toBe(true);
   });
 });
 

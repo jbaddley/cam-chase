@@ -6,6 +6,7 @@ import {
   castVote,
   checkIn,
   createGame,
+  flagFoul,
   getResults,
   joinByCode,
   listAssignments,
@@ -146,6 +147,11 @@ describe('full-game simulation', () => {
       await unwrap(castVote(repo, { gameId, assignmentId: item.assignmentId, voterUserId: 'judge', axis: 'angle', stars: 4 }));
     }
 
+    // The judge calls one foul on a Team C original, so the penalty path is
+    // exercised and only that team is docked.
+    const fouledPhoto = ((await repo.get(gameId)) as Game).photos.find((p) => p.teamId === bots[2]!.teamId)!;
+    await unwrap(flagFoul(repo, { gameId, photoId: fouledPhoto.id, userId: 'judge', reason: 'missing_face' }));
+
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RATING' }));
 
     // --- Finals: judge picks Team A overall, Team B for the custom category ---
@@ -167,8 +173,12 @@ describe('full-game simulation', () => {
     // Every chase was an exact location match: 100 points × 5 photos per team.
     for (const score of scoreboard) {
       expect(score.location).toBe(500);
-      expect(score.foulPenalty).toBe(0);
     }
+
+    // Only the fouled team is docked.
+    expect(c.foulPenalty).toBeGreaterThan(0);
+    expect(a.foulPenalty).toBe(0);
+    expect(b.foulPenalty).toBe(0);
 
     // Identical 4-star ratings across every chase → identical pose/angle points.
     expect(new Set(scoreboard.map((s) => s.pose)).size).toBe(1);
