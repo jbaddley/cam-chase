@@ -3,6 +3,7 @@ import {
   BEST_OVERALL_CATEGORY,
   computeScoreboard,
   GameConfigSchema,
+  isWithinGeofence,
   planAssignments,
   resolveFinals,
   resolveVoteWeight,
@@ -279,6 +280,17 @@ export async function listRateable(
 
 // --- startGame & advanceGame ------------------------------------------------
 
+/**
+ * Record when a round became active, so return check-ins can be turned into
+ * durations. Idempotent — a round keeps the first start time it was given.
+ */
+function stampRoundStart(game: Game, now = Date.now): void {
+  const round = game.state === 'round1_active' ? 'round1' : game.state === 'round2_active' ? 'round2' : null;
+  if (!round) return;
+  game.roundStartedAt ??= {};
+  game.roundStartedAt[round] ??= now();
+}
+
 async function requireHost(
   repo: GameRepository,
   gameId: string,
@@ -298,6 +310,7 @@ export async function startGame(
   if (!found.ok) return found;
   try {
     const started = applyTransition(found.data, { type: 'START_GAME' });
+    stampRoundStart(started);
     await repo.save(started);
     return ok({ state: started.state });
   } catch (e) {
@@ -337,6 +350,7 @@ export async function advanceGame(
         chasePhotoId: null,
       }));
     }
+    stampRoundStart(advanced);
     await repo.save(advanced);
     return ok({ state: advanced.state });
   } catch (e) {
@@ -438,6 +452,83 @@ export async function castVote(repo: GameRepository, raw: unknown): Promise<Resu
   game.votes.push({ id: voteId, gameId, assignmentId, voterUserId, axis, stars });
   await repo.save(game);
   return ok({ voteId });
+}
+
+// --- return check-in --------------------------------------------------------
+
+const CheckinInput = z.object({
+  gameId: z.string(),
+  userId: z.string().min(1),
+  location: z.object({ lat: z.number(), lng: z.number(), accuracyM: z.number().optional() }),
+});
+
+/** Which round a return phase belongs to, or null outside those phases. */
+function returningRound(state: Game['state']): 'round1' | 'round2' | null {
+  if (state === 'round1_return') return 'round1';
+  if (state === 'round2_return') return 'round2';
+  return null;
+}
+
+/**
+ * Check a team in at the return spot. Only meaningful during a return phase,
+ * and only for players on a team. When a return geofence is configured the
+ * check-in must be inside it — a team has to actually get back. The earliest
+ * check-in per member stands; re-checking in never worsens the recorded time.
+ */
+export async function checkIn(
+  repo: GameRepository,
+  raw: unknown,
+  now = Date.now,
+): Promise<Result<{ round: 'round1' | 'round2'; at: number }>> {
+  const parsed = CheckinInput.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
+  const { gameId, userId, location } = parsed.data;
+
+  const game = await repo.get(gameId);
+  if (!game) return err('Game not found.');
+
+  const round = returningRound(game.state);
+  if (!round) return err('Not in a return phase.');
+
+  const membership = game.memberships.find((m) => m.userId === userId);
+  if (!membership) return err('You are not in this game.');
+  if (!membership.teamId) return err('Only players on a team check in.');
+
+  const spot = game.config.returnSpot;
+  if (spot && !isWithinGeofence(location as GeoPoint, { center: { lat: spot.lat, lng: spot.lng }, radiusM: spot.radiusM })) {
+    return err('You are not at the return spot yet.');
+  }
+
+  const at = now();
+  membership.returnCheckins[round] ??= at;
+  await repo.save(game);
+  return ok({ round, at: membership.returnCheckins[round]! });
+}
+
+/**
+ * Per-team return durations, summed across rounds. A team's time for a round is
+ * its earliest member check-in; teams that never checked in are omitted so they
+ * simply place last rather than scoring as instant returns.
+ */
+function returnDurations(game: Game): Record<string, number> {
+  const totals: Record<string, number> = {};
+  for (const round of ['round1', 'round2'] as const) {
+    const startedAt = game.roundStartedAt?.[round];
+    if (startedAt === undefined) continue;
+
+    const earliest: Record<string, number> = {};
+    for (const m of game.memberships) {
+      const at = m.returnCheckins[round];
+      if (at === undefined || !m.teamId) continue;
+      const duration = at - startedAt;
+      if (duration < 0) continue;
+      if (earliest[m.teamId] === undefined || duration < earliest[m.teamId]!) earliest[m.teamId] = duration;
+    }
+    for (const [teamId, duration] of Object.entries(earliest)) {
+      totals[teamId] = (totals[teamId] ?? 0) + duration;
+    }
+  }
+  return totals;
 }
 
 // --- finals voting ----------------------------------------------------------
@@ -570,6 +661,7 @@ export async function getResults(
     fouls,
     bestMatchTeamId: finals.bestMatchTeamId,
     specialWinners: finals.specialWinners,
+    returnDurations: returnDurations(game),
   });
   return ok({ scoreboard });
 }

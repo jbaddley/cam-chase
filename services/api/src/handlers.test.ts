@@ -4,6 +4,7 @@ import {
   advanceGame,
   castFinalsVote,
   castVote,
+  checkIn,
   createGame,
   getFinals,
   getGameState,
@@ -306,6 +307,94 @@ describe('listRateable', () => {
     const { gameId } = await gameInRating();
     expect((await listRateable(repo, { gameId, userId: 'stranger' })).ok).toBe(false);
     expect((await listRateable(repo, { gameId: 'nope', userId: 'uA' })).ok).toBe(false);
+  });
+});
+
+describe('return check-in', () => {
+  const SPOT = { lat: 40.0, lng: -74.0, radiusM: 100 };
+
+  /** Play into round1_return, optionally with a return geofence configured. */
+  async function gameReturning(returnSpot?: typeof SPOT) {
+    const config = { ...DEFAULT_CONFIG, maxTeams: 2, photosPerRound: 5, ...(returnSpot ? { returnSpot } : {}) };
+    const { gameId, code } = await unwrap(createGame(repo, { hostUserId: 'host', tier: 'game_pack', config }));
+    const a = await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
+    const b = await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
+    await unwrap(joinByCode(repo, { code, userId: 'uJ', displayName: 'J', action: { type: 'judge' } }));
+    await unwrap(startGame(repo, { gameId, hostUserId: 'host' }));
+    for (let i = 0; i < 5; i++) {
+      await unwrap(submitPhoto(repo, { gameId, teamId: a.teamId!, shooterUserId: 'uA', location: { lat: 40, lng: -74 }, s3Key: `a${i}` }));
+      await unwrap(submitPhoto(repo, { gameId, teamId: b.teamId!, shooterUserId: 'uB', location: { lat: 41, lng: -75 }, s3Key: `b${i}` }));
+    }
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    return { gameId, teamA: a.teamId!, teamB: b.teamId! };
+  }
+
+  it('records the check-in against the current round', async () => {
+    const { gameId } = await gameReturning();
+    const result = await unwrap(checkIn(repo, { gameId, userId: 'uA', location: SPOT }, () => 5_000));
+    expect(result.round).toBe('round1');
+    expect(result.at).toBe(5_000);
+
+    const game = (await repo.get(gameId)) as Game;
+    expect(game.memberships.find((m) => m.userId === 'uA')!.returnCheckins.round1).toBe(5_000);
+  });
+
+  it('keeps the earliest check-in when a member checks in twice', async () => {
+    const { gameId } = await gameReturning();
+    await unwrap(checkIn(repo, { gameId, userId: 'uA', location: SPOT }, () => 5_000));
+    const second = await unwrap(checkIn(repo, { gameId, userId: 'uA', location: SPOT }, () => 9_000));
+    expect(second.at).toBe(5_000);
+  });
+
+  it('rejects a check-in outside the return geofence', async () => {
+    const { gameId } = await gameReturning(SPOT);
+    const faraway = { lat: 41.5, lng: -75.5 };
+    expect((await checkIn(repo, { gameId, userId: 'uA', location: faraway })).ok).toBe(false);
+    // Just inside the fence is accepted.
+    expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: 40.0005, lng: -74 } })).ok).toBe(true);
+  });
+
+  it('accepts a check-in anywhere when no return spot is configured', async () => {
+    const { gameId } = await gameReturning();
+    expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: 12, lng: 34 } })).ok).toBe(true);
+  });
+
+  it('rejects check-ins outside a return phase, from judges, and from non-members', async () => {
+    const { gameId } = await gameReturning();
+    expect((await checkIn(repo, { gameId, userId: 'uJ', location: SPOT })).ok).toBe(false); // judge, no team
+    expect((await checkIn(repo, { gameId, userId: 'stranger', location: SPOT })).ok).toBe(false);
+
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
+    expect((await checkIn(repo, { gameId, userId: 'uA', location: SPOT })).ok).toBe(false); // round2_active
+  });
+
+  it('gives the faster returning team the larger time bonus', async () => {
+    const { gameId, teamA, teamB } = await gameReturning();
+    const game = (await repo.get(gameId)) as Game;
+    const startedAt = game.roundStartedAt!.round1!;
+
+    // Team A returns a minute after the round started; team B, five minutes.
+    await unwrap(checkIn(repo, { gameId, userId: 'uA', location: SPOT }, () => startedAt + 60_000));
+    await unwrap(checkIn(repo, { gameId, userId: 'uB', location: SPOT }, () => startedAt + 300_000));
+
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
+
+    const { scoreboard } = await unwrap(getResults(repo, gameId));
+    const scoreA = scoreboard.find((s) => s.teamId === teamA)!;
+    const scoreB = scoreboard.find((s) => s.teamId === teamB)!;
+    expect(scoreA.timeBonus).toBeGreaterThan(scoreB.timeBonus);
+  });
+
+  it('leaves timeBonus at zero when nobody checked in', async () => {
+    const { gameId } = await gameReturning();
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
+
+    const { scoreboard } = await unwrap(getResults(repo, gameId));
+    expect(scoreboard.every((s) => s.timeBonus === 0)).toBe(true);
   });
 });
 

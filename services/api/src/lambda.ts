@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import {
   advanceGame,
   castFinalsVote,
+  checkIn,
   castVote,
   getFinals,
   getGameState,
@@ -62,6 +63,9 @@ const ROUTES: Route[] = [
   compile('GET', '/games/:id/teams', ({ container, params }) => listTeams(container.games, params.id!)),
   compile('GET', '/games/:id/assignments', ({ container, params, auth }) =>
     listAssignments(container.games, { gameId: params.id!, userId: auth.userId }),
+  ),
+  compile('POST', '/games/:id/checkins', ({ container, params, body, auth }) =>
+    checkIn(container.games, { ...body, gameId: params.id, userId: auth.userId }),
   ),
   compile('GET', '/games/:id/finals', ({ container, params, auth }) =>
     getFinals(container.games, { gameId: params.id!, userId: auth.userId }),
