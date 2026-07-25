@@ -188,6 +188,32 @@ export async function getGameState(repo: GameRepository, gameId: string): Promis
   });
 }
 
+// --- spectate ---------------------------------------------------------------
+
+/** What a big-screen viewer sees: the public game view plus final standings. */
+export interface SpectatorView {
+  game: GameStateView;
+  /** Present once the game has reached a scorable phase. */
+  scoreboard: TeamScore[] | null;
+}
+
+/**
+ * Resolve a join code to the spectator view. Reached without authentication —
+ * a TV browser has nobody signed in — so it deliberately returns only the same
+ * sanitized fields the in-app view uses: state, config, team names and counts.
+ * No photos, memberships, or user identities.
+ */
+export async function getSpectatorView(repo: GameRepository, code: string): Promise<Result<SpectatorView>> {
+  const game = await repo.getByCode(code);
+  if (!game) return err('Game not found.');
+
+  const view = await getGameState(repo, game.id);
+  if (!view.ok) return view;
+
+  const results = await getResults(repo, game.id);
+  return ok({ game: view.data, scoreboard: results.ok ? results.data.scoreboard : null });
+}
+
 // --- listAssignments --------------------------------------------------------
 
 /** One Round 2 task as seen by the chasing team. */

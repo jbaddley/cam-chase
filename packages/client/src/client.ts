@@ -63,6 +63,13 @@ export interface FinalsView {
   myVotes: Record<string, string>;
 }
 
+/** What a big-screen viewer sees: the public game view plus final standings. */
+export interface SpectatorView {
+  game: GameStateView;
+  /** Present once the game has reached a scorable phase. */
+  scoreboard: TeamScore[] | null;
+}
+
 /** A team summary for the lobby list. */
 export interface TeamSummary {
   teamId: string;
@@ -109,6 +116,14 @@ export class PhotoChaseClient {
 
   getGame(gameId: string): Promise<GameStateView> {
     return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}`);
+  }
+
+  /**
+   * Look up a game by join code for the big-screen view. Needs no auth token,
+   * so it works from a TV browser where nobody is signed in.
+   */
+  spectate(code: string): Promise<SpectatorView> {
+    return request(this.config, 'GET', `/spectate/${encodeURIComponent(code)}`);
   }
 
   startGame(gameId: string): Promise<{ state: GameState }> {

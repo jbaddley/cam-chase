@@ -74,6 +74,26 @@ describe('PhotoChaseClient', () => {
     expect(result).toEqual(view);
   });
 
+  it('spectate GETs the public view by code', async () => {
+    const view = {
+      game: {
+        id: 'g1',
+        code: 'ABCDEF',
+        state: 'lobby',
+        config: DEFAULT_CONFIG,
+        teams: [{ teamId: 't1', name: 'Reds', memberCount: 2 }],
+        playerCount: 2,
+      },
+      scoreboard: null,
+    };
+    const { config, calls } = recorder(view);
+    const result = await new PhotoChaseClient(config).spectate('ABCDEF');
+
+    expect(calls[0]!.url).toBe('https://api.example.com/spectate/ABCDEF');
+    expect(calls[0]!.init?.method).toBe('GET');
+    expect(result).toEqual(view);
+  });
+
   it('startGame POSTs /start with no body', async () => {
     const { config, calls } = recorder({ state: 'round1_active' });
     const result = await new PhotoChaseClient(config).startGame('g1');
