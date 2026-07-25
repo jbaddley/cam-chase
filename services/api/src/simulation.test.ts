@@ -4,6 +4,7 @@ import {
   advanceGame,
   castFinalsVote,
   castVote,
+  checkIn,
   createGame,
   getResults,
   joinByCode,
@@ -38,6 +39,7 @@ const CONFIG: GameConfig = {
   photosPerRound: 5,
   judgeWeight: 3,
   specialCategories: { presets: [], custom: ['Craziest Pose'] },
+  returnSpot: { lat: 40.0, lng: -74.0, radiusM: 200 },
 };
 
 /** Each team shoots at its own fixed spot, so location scoring is predictable. */
@@ -46,6 +48,9 @@ const TEAM_SPOTS = [
   { lat: 41.0, lng: -75.0 },
   { lat: 42.0, lng: -76.0 },
 ];
+
+/** Where every team checks in; inside the configured return geofence. */
+const RETURN_SPOT = { lat: 40.0, lng: -74.0 };
 
 interface Bot {
   userId: string;
@@ -88,6 +93,16 @@ describe('full-game simulation', () => {
     }
 
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+
+    // Return: teams check in in order, a minute apart, so the bonus ranking is
+    // fully determined — Team A fastest, Team C slowest.
+    const round1StartedAt = ((await repo.get(gameId)) as Game).roundStartedAt!.round1!;
+    for (const [t, bot] of bots.entries()) {
+      await unwrap(
+        checkIn(repo, { gameId, userId: bot.userId, location: RETURN_SPOT }, () => round1StartedAt + (t + 1) * 60_000),
+      );
+    }
+
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
 
     // --- Round 2: each team chases its queue, standing exactly on target ------
@@ -113,6 +128,14 @@ describe('full-game simulation', () => {
     }
 
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+
+    const round2StartedAt = ((await repo.get(gameId)) as Game).roundStartedAt!.round2!;
+    for (const [t, bot] of bots.entries()) {
+      await unwrap(
+        checkIn(repo, { gameId, userId: bot.userId, location: RETURN_SPOT }, () => round2StartedAt + (t + 1) * 60_000),
+      );
+    }
+
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
 
     // --- Rating: the judge gives every chase the same score -------------------
@@ -150,6 +173,10 @@ describe('full-game simulation', () => {
     // Identical 4-star ratings across every chase → identical pose/angle points.
     expect(new Set(scoreboard.map((s) => s.pose)).size).toBe(1);
     expect(new Set(scoreboard.map((s) => s.angle)).size).toBe(1);
+
+    // Teams checked in a minute apart, so the return bonus strictly decreases.
+    expect(a.timeBonus).toBeGreaterThan(b.timeBonus);
+    expect(b.timeBonus).toBeGreaterThan(c.timeBonus);
 
     // Finals bonuses land exactly where the votes did.
     expect(a.bestMatchBonus).toBeGreaterThan(0);
