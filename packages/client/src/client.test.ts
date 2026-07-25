@@ -163,6 +163,65 @@ describe('PhotoChaseClient', () => {
     expect(result).toEqual({ url: 'https://s3/get' });
   });
 
+  it('listAssignments GETs the Round 2 queue', async () => {
+    const queue = [
+      { assignmentId: 'a1', order: 0, originalPhotoId: 'p1', originalPhotoKey: 'games/g1/t2/p1.jpg', chasePhotoId: null },
+    ];
+    const { config, calls } = recorder(queue);
+    const result = await new PhotoChaseClient(config).listAssignments('g1');
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/assignments');
+    expect(calls[0]!.init?.method).toBe('GET');
+    expect(result).toEqual(queue);
+  });
+
+  describe('captureChase', () => {
+    it('threads the presigned key through upload and submitChase', async () => {
+      const calls: Call[] = [];
+      const s3Url = 'https://bucket.s3.amazonaws.com/';
+      const key = 'games/g1/t1/chase-abc.jpg';
+      const fetch: FetchFn = (url, init) => {
+        calls.push({ url, init });
+        if (url.endsWith('/uploads')) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ objectId: 'o1', key, upload: { url: s3Url, fields: { key } } }), {
+              headers: { 'content-type': 'application/json' },
+            }),
+          );
+        }
+        if (url === s3Url) return Promise.resolve(new Response(null, { status: 204 }));
+        if (url.endsWith('/chases')) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ chasePhotoId: 'c1' }), { headers: { 'content-type': 'application/json' } }),
+          );
+        }
+        return Promise.resolve(new Response('nope', { status: 404 }));
+      };
+
+      const client = new PhotoChaseClient({ baseUrl: 'https://api.example.com', fetch });
+      const file = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' });
+
+      const result = await client.captureChase('g1', {
+        teamId: 't1',
+        assignmentId: 'a1',
+        location: { lat: 5, lng: 6 },
+        file,
+      });
+
+      expect(calls.map((c) => c.url)).toEqual([
+        'https://api.example.com/games/g1/uploads',
+        s3Url,
+        'https://api.example.com/games/g1/chases',
+      ]);
+      expect(JSON.parse(calls[2]!.init!.body as string)).toEqual({
+        assignmentId: 'a1',
+        location: { lat: 5, lng: 6 },
+        s3Key: key,
+      });
+      expect(result).toEqual({ chasePhotoId: 'c1', key });
+    });
+  });
+
   describe('capturePhoto', () => {
     it('threads the presigned key through upload and submit', async () => {
       const calls: Call[] = [];

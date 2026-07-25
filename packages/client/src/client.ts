@@ -31,6 +31,17 @@ export interface JoinGameInput {
   action: JoinAction;
 }
 
+/** One Round 2 task in the caller team's queue. */
+export interface AssignmentView {
+  assignmentId: string;
+  order: number;
+  originalPhotoId: string;
+  /** S3 key of the photo to recreate; exchange for a URL via requestDownload. */
+  originalPhotoKey: string;
+  /** Set once this team has submitted its chase. */
+  chasePhotoId: string | null;
+}
+
 /** A team summary for the lobby list. */
 export interface TeamSummary {
   teamId: string;
@@ -110,6 +121,11 @@ export class PhotoChaseClient {
     return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/votes`, input);
   }
 
+  /** The caller team's Round 2 queue, in delivery order. */
+  listAssignments(gameId: string): Promise<AssignmentView[]> {
+    return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/assignments`);
+  }
+
   getResults(gameId: string): Promise<{ scoreboard: TeamScore[] }> {
     return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/results`);
   }
@@ -158,5 +174,23 @@ export class PhotoChaseClient {
       s3Key: target.key,
     });
     return { photoId, key: target.key };
+  }
+
+  /**
+   * Capture a Round 2 chase end to end, mirroring {@link capturePhoto} but
+   * registering the result against the assignment being chased.
+   */
+  async captureChase(
+    gameId: string,
+    input: { teamId: string; assignmentId: string; location: GeoPointInput; file: Blob },
+  ): Promise<{ chasePhotoId: string; key: string }> {
+    const target = await this.requestUpload(gameId, input.teamId);
+    await this.uploadPhoto(target.upload, input.file);
+    const { chasePhotoId } = await this.submitChase(gameId, {
+      assignmentId: input.assignmentId,
+      location: input.location,
+      s3Key: target.key,
+    });
+    return { chasePhotoId, key: target.key };
   }
 }
