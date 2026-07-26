@@ -1,4 +1,5 @@
 import { PhotoChaseClient } from '@photochase/client';
+import { session } from './auth.js';
 
 /**
  * The API base URL. Injected at build time by Expo (`EXPO_PUBLIC_API_URL`);
@@ -10,21 +11,12 @@ const baseUrl =
   'http://localhost:3000';
 
 /**
- * A single shared client. The auth token supplier is wired to the Cognito
- * session store in a later phase; for now the scaffold runs unauthenticated.
+ * A single shared client. Every request asks the auth session for a token, and
+ * the session refreshes it when needed, so a long game never fails mid-round on
+ * an expired token. Signed out, it returns null and the request goes without an
+ * Authorization header.
  */
 export const client = new PhotoChaseClient({
   baseUrl,
-  getToken: () => getAuthToken(),
+  getToken: () => session.getAccessToken(),
 });
-
-let authToken: string | null = null;
-
-/** Set by the auth flow once the user signs in (Phase 2). */
-export function setAuthToken(token: string | null): void {
-  authToken = token;
-}
-
-function getAuthToken(): string | null {
-  return authToken;
-}

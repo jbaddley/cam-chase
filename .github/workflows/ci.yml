@@ -39,6 +39,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Synth validates the construct tree — it catches things typecheck cannot,
+      # such as Cognito's provider-name length rule. No AWS credentials needed.
+      - name: CDK synth
+        run: pnpm --filter @photochase/infra synth -- --quiet
+
       # Web E2E (docs 05, 09). Hermetic: the suite stubs every API call, so no
       # backend is needed. Uses the runner's Chromium when CHROMIUM_PATH points
       # at one, otherwise the browser Playwright installs below.

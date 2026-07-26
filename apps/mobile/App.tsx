@@ -7,8 +7,11 @@ import { RatingScreen } from './src/screens/RatingScreen.js';
 import { FinalsScreen } from './src/screens/FinalsScreen.js';
 import { ReturnScreen } from './src/screens/ReturnScreen.js';
 import { ResultsScreen } from './src/screens/ResultsScreen.js';
+import { SignInScreen } from './src/screens/SignInScreen.js';
+import { HostScreen } from './src/screens/HostScreen.js';
 import { placeholderCapture } from './src/capture.js';
 import { useGamePhase } from './src/useGamePhase.js';
+import { session, type Authorizer } from './src/auth.js';
 
 /**
  * Screen selection for a joined game, driven by the polled phase. Players on a
@@ -18,6 +21,7 @@ import { useGamePhase } from './src/useGamePhase.js';
 function GameRouter({ joined }: { joined: JoinedGame }) {
   const { game, error, applyState } = useGamePhase(joined.gameId);
   const onTeam = joined.teamId !== null;
+  const isHost = joined.role === 'host';
 
   if (onTeam && game?.state === 'round1_active') {
     return (
@@ -57,17 +61,46 @@ function GameRouter({ joined }: { joined: JoinedGame }) {
     return <ResultsScreen gameId={joined.gameId} teams={game.teams} />;
   }
 
-  return <LobbyScreen game={game} code={joined.code} error={error} onStarted={applyState} />;
+  return <LobbyScreen game={game} code={joined.code} isHost={isHost} error={error} onStarted={applyState} />;
 }
 
 /**
- * Placeholder root navigation for the Phase 1 scaffold: Join → Lobby → Round 1
- * capture → Round 2 chase. A real router (Expo Router) and the rating/results
- * flows are wired in later phases.
+ * Default authorizer for environments without the native module. It fails loudly
+ * instead of silently doing nothing, which would look like a broken button.
  */
-export default function App() {
+const unavailableAuthorizer: Authorizer = () => {
+  throw new Error('No authorizer configured. Pass expo-auth-session openAuthSessionAsync.');
+};
+
+/**
+ * Placeholder root navigation for the Phase 1 scaffold: sign in → host or join
+ * → the phase-driven game screens. A real router (Expo Router) lands in a later
+ * phase.
+ *
+ * `authorize` is injected so the app can be driven without a native build. Pass
+ * `expo-auth-session`'s `openAuthSessionAsync` in the real client; the default
+ * throws rather than pretending to sign anyone in.
+ */
+export default function App({ authorize = unavailableAuthorizer }: { authorize?: Authorizer } = {}) {
+  const [signedIn, setSignedIn] = useState(session.isSignedIn);
+  const [hosting, setHosting] = useState(false);
   const [joined, setJoined] = useState<JoinedGame | null>(null);
 
-  if (!joined) return <JoinScreen onJoined={setJoined} />;
-  return <GameRouter joined={joined} />;
+  if (!signedIn) return <SignInScreen authorize={authorize} onSignedIn={() => setSignedIn(true)} />;
+
+  if (joined) return <GameRouter joined={joined} />;
+
+  if (hosting) {
+    return (
+      <HostScreen
+        onHosting={(game) => {
+          setHosting(false);
+          setJoined(game);
+        }}
+        onCancel={() => setHosting(false)}
+      />
+    );
+  }
+
+  return <JoinScreen onJoined={setJoined} onHost={() => setHosting(true)} />;
 }

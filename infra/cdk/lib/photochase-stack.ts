@@ -9,6 +9,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction, OutputFormat } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import type { Construct } from 'constructs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,7 +19,34 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 export interface PhotoChaseStackProps extends cdk.StackProps {
   /** Deployment environment name: dev | staging | prod. */
   envName: string;
+  /**
+   * Secrets Manager secret holding the social IdP credentials, as JSON keys:
+   * googleClientId, googleClientSecret, facebookAppId, facebookAppSecret,
+   * appleClientId, appleTeamId, appleKeyId, applePrivateKey, xClientId,
+   * xClientSecret. Omit to deploy with Cognito-only sign-in (useful for a bare
+   * dev stack); credentials never live in source.
+   */
+  idpSecretName?: string;
+  /**
+   * Prefix for the Cognito hosted domain that serves /oauth2/*. Defaults to
+   * `photochase-<envName>`; must be globally unique within the region.
+   */
+  authDomainPrefix?: string;
+  /**
+   * Extra OAuth callback URLs. The app's custom scheme is always included so
+   * the native browser sheet can return to it.
+   */
+  callbackUrls?: string[];
 }
+
+/** Custom scheme the mobile app registers; the browser sheet returns here. */
+const APP_REDIRECT_URI = 'photochase://auth';
+
+/**
+ * Cognito rejects provider names shorter than 3 characters, so X federates
+ * under this name. Clients pass it as `identity_provider` on /oauth2/authorize.
+ */
+const X_PROVIDER_NAME = 'TwitterX';
 
 /**
  * Core PhotoChase backend: a DynamoDB single table, a private photo bucket, a
@@ -73,11 +101,42 @@ export class PhotoChaseStack extends cdk.Stack {
       standardAttributes: { email: { required: true, mutable: true } },
       removalPolicy: envName === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
-    const appClient = userPool.addClient('AppClient', {
-      authFlows: { userSrp: true },
-      // Google, Facebook, X, and Apple IdPs are wired per-env with secrets.
-      supportedIdentityProviders: [cognito.UserPoolClientIdentityProvider.COGNITO],
+    // Hosted domain that serves /oauth2/authorize and /oauth2/token. The app
+    // opens authorize in a native browser sheet and exchanges the code itself.
+    userPool.addDomain('AuthDomain', {
+      cognitoDomain: { domainPrefix: props.authDomainPrefix ?? `photochase-${envName}` },
     });
+
+    // Social IdPs read their credentials from Secrets Manager — never source.
+    const idpSecret = props.idpSecretName
+      ? secretsmanager.Secret.fromSecretNameV2(this, 'IdpSecret', props.idpSecretName)
+      : undefined;
+    const providers = idpSecret ? this.addSocialProviders(userPool, idpSecret) : [];
+
+    const appClient = userPool.addClient('AppClient', {
+      // Public client: no secret, so PKCE is what proves the caller's identity.
+      generateSecret: false,
+      authFlows: { userSrp: true },
+      oAuth: {
+        flows: { authorizationCodeGrant: true },
+        scopes: [cognito.OAuthScope.OPENID, cognito.OAuthScope.EMAIL, cognito.OAuthScope.PROFILE],
+        callbackUrls: [APP_REDIRECT_URI, ...(props.callbackUrls ?? [])],
+        logoutUrls: [APP_REDIRECT_URI, ...(props.callbackUrls ?? [])],
+      },
+      supportedIdentityProviders: [
+        cognito.UserPoolClientIdentityProvider.COGNITO,
+        ...(idpSecret
+          ? [
+              cognito.UserPoolClientIdentityProvider.GOOGLE,
+              cognito.UserPoolClientIdentityProvider.FACEBOOK,
+              cognito.UserPoolClientIdentityProvider.APPLE,
+              cognito.UserPoolClientIdentityProvider.custom(X_PROVIDER_NAME),
+            ]
+          : []),
+      ],
+    });
+    // The client must not be created before the IdPs it names exist.
+    for (const provider of providers) appClient.node.addDependency(provider);
 
     // Bundles services/api's Lambda entrypoint (esbuild). The handler reads
     // TABLE_NAME to select the DynamoDB GameRepository (see container.ts).
@@ -158,5 +217,64 @@ export class PhotoChaseStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'ApiUrl', { value: api.apiEndpoint });
     new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
+    new cdk.CfnOutput(this, 'UserPoolClientId', { value: appClient.userPoolClientId });
+  }
+
+  /**
+   * Federate the four social IdPs. Every credential comes from the given
+   * secret, so nothing sensitive appears in source or in the synthesized
+   * template. Email is mapped through so accounts can be linked by verified
+   * email (docs/02-architecture.md).
+   *
+   * Sign in with Apple is not optional: the App Store requires it whenever an
+   * app offers third-party social login.
+   */
+  private addSocialProviders(
+    userPool: cognito.UserPool,
+    secret: secretsmanager.ISecret,
+  ): cognito.IUserPoolIdentityProvider[] {
+    const value = (key: string) => secret.secretValueFromJson(key).unsafeUnwrap();
+    const emailMapping = { email: cognito.ProviderAttribute.other('email') };
+
+    const google = new cognito.UserPoolIdentityProviderGoogle(this, 'GoogleIdp', {
+      userPool,
+      clientId: value('googleClientId'),
+      clientSecretValue: secret.secretValueFromJson('googleClientSecret'),
+      scopes: ['openid', 'email', 'profile'],
+      attributeMapping: { email: cognito.ProviderAttribute.GOOGLE_EMAIL },
+    });
+
+    const facebook = new cognito.UserPoolIdentityProviderFacebook(this, 'FacebookIdp', {
+      userPool,
+      clientId: value('facebookAppId'),
+      clientSecret: value('facebookAppSecret'),
+      scopes: ['public_profile', 'email'],
+      attributeMapping: { email: cognito.ProviderAttribute.FACEBOOK_EMAIL },
+    });
+
+    const apple = new cognito.UserPoolIdentityProviderApple(this, 'AppleIdp', {
+      userPool,
+      clientId: value('appleClientId'),
+      teamId: value('appleTeamId'),
+      keyId: value('appleKeyId'),
+      privateKeyValue: secret.secretValueFromJson('applePrivateKey'),
+      scopes: ['name', 'email'],
+      attributeMapping: { email: cognito.ProviderAttribute.APPLE_EMAIL },
+    });
+
+    // X has no first-class CDK construct; it federates as a generic OIDC IdP.
+    // Cognito requires a provider name of 3-32 characters, so plain "X" is
+    // rejected — this name is what clients pass as `identity_provider`.
+    const x = new cognito.UserPoolIdentityProviderOidc(this, 'XIdp', {
+      userPool,
+      name: X_PROVIDER_NAME,
+      clientId: value('xClientId'),
+      clientSecret: value('xClientSecret'),
+      issuerUrl: 'https://x.com/i/oauth2',
+      scopes: ['openid', 'email'],
+      attributeMapping: emailMapping,
+    });
+
+    return [google, facebook, apple, x];
   }
 }
