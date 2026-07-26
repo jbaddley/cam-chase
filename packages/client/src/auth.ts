@@ -11,8 +11,12 @@
 
 import { ApiError, type FetchFn } from './http.js';
 
-/** Identity providers configured on the user pool. */
-export type IdentityProvider = 'Google' | 'Facebook' | 'SignInWithApple' | 'X';
+/**
+ * Identity providers configured on the user pool. These are Cognito provider
+ * names, not brand names — X federates as `TwitterX` because Cognito rejects
+ * provider names shorter than three characters.
+ */
+export type IdentityProvider = 'Google' | 'Facebook' | 'SignInWithApple' | 'TwitterX';
 
 export interface AuthConfig {
   /** Cognito domain, e.g. `https://photochase-dev.auth.us-east-1.amazoncognito.com`. */
