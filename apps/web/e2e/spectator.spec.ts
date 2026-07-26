@@ -113,3 +113,21 @@ test.describe('big screen', () => {
     await expect(page.getByText(/Cannot reach that game/)).toBeVisible();
   });
 });
+
+test.describe('localization', () => {
+  // A Spanish browser must see Spanish. This is what proves the catalogs are
+  // actually wired rather than merely present in the repo.
+  test.use({ locale: 'es-ES' });
+
+  test('renders the entry page in the browser language', async ({ page }) => {
+    await page.goto('/watch');
+    await expect(page.getByRole('heading', { name: 'Ver una partida' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /pantalla grande/i })).toBeVisible();
+  });
+
+  test('renders the phase label in the browser language', async ({ page }) => {
+    await stubSpectate(page, { game: gameView('round2_active'), scoreboard: null });
+    await page.goto('/watch/ABC123');
+    await expect(page.getByText(/comienza la persecución/i)).toBeVisible();
+  });
+});

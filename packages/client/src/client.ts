@@ -1,4 +1,4 @@
-import type { FoulReason, GameConfig, GameEvent, GameState, TeamScore } from '@photochase/shared';
+import type { FoulReason, GameConfig, GameEvent, GameState, TeamScore, Tier, TierLimits } from '@photochase/shared';
 import { request, type ClientConfig } from './http.js';
 
 /** Sanitized game view returned by `GET /games/:id`, safe for any player. */
@@ -68,6 +68,18 @@ export interface SpectatorView {
   game: GameStateView;
   /** Present once the game has reached a scorable phase. */
   scoreboard: TeamScore[] | null;
+}
+
+/** The caller's monetization entitlement, for rendering paywalls and limits. */
+export interface EntitlementView {
+  tier: Tier;
+  gameCredits: number;
+  subscriptionActive: boolean;
+  subscriptionExpiresAt?: number;
+  canStartGame: boolean;
+  cannotStartReason?: string;
+  limits: TierLimits;
+  features: Record<string, boolean>;
 }
 
 /** A team summary for the lobby list. */
@@ -169,6 +181,11 @@ export class PhotoChaseClient {
 
   private foulPath(gameId: string, photoId: string): string {
     return `/games/${encodeURIComponent(gameId)}/photos/${encodeURIComponent(photoId)}/fouls`;
+  }
+
+  /** The caller's own tier, credits, limits, and feature flags. */
+  getEntitlement(): Promise<EntitlementView> {
+    return request(this.config, 'GET', '/me/entitlement');
   }
 
   /** Check the caller's team in at the return spot during a return phase. */

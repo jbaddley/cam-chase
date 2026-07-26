@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@photochase/client": "workspace:*",
+    "@photochase/i18n": "workspace:*",
     "@photochase/shared": "workspace:*",
     "react": "^18.3.1"
   },

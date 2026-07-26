@@ -234,6 +234,23 @@ describe('PhotoChaseClient', () => {
     expect(result).toEqual({ fouls: [] });
   });
 
+  it('getEntitlement GETs the caller entitlement', async () => {
+    const view = {
+      tier: 'free',
+      gameCredits: 0,
+      subscriptionActive: false,
+      canStartGame: true,
+      limits: { maxTeams: 2 },
+      features: { ai_judging: false },
+    };
+    const { config, calls } = recorder(view);
+    const result = await new PhotoChaseClient(config).getEntitlement();
+
+    expect(calls[0]!.url).toBe('https://api.example.com/me/entitlement');
+    expect(calls[0]!.init?.method).toBe('GET');
+    expect(result).toEqual(view);
+  });
+
   it('checkIn POSTs the return location', async () => {
     const { config, calls } = recorder({ round: 'round1', at: 5000 });
     const result = await new PhotoChaseClient(config).checkIn('g1', { location: { lat: 40, lng: -74 } });

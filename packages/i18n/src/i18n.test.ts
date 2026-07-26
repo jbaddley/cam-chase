@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CATALOGS, LOCALES, pseudoLocalize, translate } from './index.js';
+import { CATALOGS, LOCALES, pseudoLocalize, resolveLocale, translate } from './index.js';
 import { en } from './locales/en.js';
 
 describe('key parity', () => {
@@ -41,5 +41,27 @@ describe('pseudoLocalize', () => {
     expect(out.startsWith('⟦')).toBe(true);
     expect(out.endsWith('⟧')).toBe(true);
     expect(out).toContain('Stárt');
+  });
+});
+
+describe('resolveLocale', () => {
+  it('matches a supported locale ignoring the region subtag', () => {
+    expect(resolveLocale(['es-MX'])).toBe('es');
+    expect(resolveLocale(['pt-BR'])).toBe('pt');
+    expect(resolveLocale(['DE-de'])).toBe('de');
+  });
+
+  it('takes the first supported preference in order', () => {
+    expect(resolveLocale(['kl', 'is', 'fr-CA', 'es'])).toBe('fr');
+  });
+
+  it('falls back to English for unsupported or missing preferences', () => {
+    expect(resolveLocale(['kl-GL'])).toBe('en');
+    expect(resolveLocale([])).toBe('en');
+    expect(resolveLocale(undefined)).toBe('en');
+  });
+
+  it('honours an explicit fallback', () => {
+    expect(resolveLocale(['kl'], 'ja')).toBe('ja');
   });
 });

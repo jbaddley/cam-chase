@@ -2,23 +2,25 @@
 
 import { useEffect, useState } from 'react';
 import type { SpectatorView } from '@photochase/client';
+import type { MessageKey } from '@photochase/i18n';
 import { client } from '../../api.js';
+import { useT } from '../../i18n.js';
 
 const POLL_MS = 3000;
 
-/** Phase labels sized for a room reading them from across the couch. */
-const PHASE_LABEL: Record<SpectatorView['game']['state'], string> = {
-  draft: 'Setting up',
-  lobby: 'Waiting for teams',
-  round1_active: 'Round 1 — teams are out shooting',
-  round1_return: 'Round 1 — heading back',
-  round2_active: 'Round 2 — the chase is on',
-  round2_return: 'Round 2 — heading back',
-  rating: 'Rating the chases',
-  finals_voting: 'Finals voting',
-  results: 'Final results',
-  archived: 'Game over',
-};
+/** Catalog key per phase, so the big screen follows the viewer's language. */
+const PHASE_KEY = {
+  draft: 'phase.draft',
+  lobby: 'phase.lobby',
+  round1_active: 'phase.round1Active',
+  round1_return: 'phase.round1Return',
+  round2_active: 'phase.round2Active',
+  round2_return: 'phase.round2Return',
+  rating: 'phase.rating',
+  finals_voting: 'phase.finalsVoting',
+  results: 'phase.results',
+  archived: 'phase.archived',
+} as const satisfies Record<SpectatorView['game']['state'], MessageKey>;
 
 /**
  * Live big-screen view for a game code. Polls the public spectator endpoint, so
@@ -28,6 +30,7 @@ export default function BigScreenPage({ params }: { params: { code: string } }) 
   const code = params.code.toUpperCase();
   const [view, setView] = useState<SpectatorView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const t = useT();
 
   useEffect(() => {
     let active = true;
@@ -39,7 +42,7 @@ export default function BigScreenPage({ params }: { params: { code: string } }) 
         setView(next);
         setError(null);
       } catch {
-        if (active) setError('Cannot reach that game. Check the code.');
+        if (active) setError('unreachable');
       }
     }
 
@@ -55,7 +58,7 @@ export default function BigScreenPage({ params }: { params: { code: string } }) 
     return (
       <main style={styles.main}>
         <h1 style={styles.code}>{code}</h1>
-        <p style={styles.phase}>{error ?? 'Connecting…'}</p>
+        <p style={styles.phase}>{error ? t('watch.unreachable') : t('watch.connecting')}</p>
       </main>
     );
   }
@@ -68,8 +71,8 @@ export default function BigScreenPage({ params }: { params: { code: string } }) 
   return (
     <main style={styles.main}>
       <h1 style={styles.code}>{code}</h1>
-      <p style={styles.phase}>{PHASE_LABEL[game.state]}</p>
-      {error ? <p style={styles.error}>{error}</p> : null}
+      <p style={styles.phase}>{t(PHASE_KEY[game.state])}</p>
+      {error ? <p style={styles.error}>{t('watch.unreachable')}</p> : null}
 
       {showStandings ? (
         <ol style={styles.list}>

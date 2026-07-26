@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError } from '@photochase/client';
 import { client } from '../api.js';
+import { t } from '../i18n.js';
 
 /** Handed back once the player is in the lobby, so the app can poll teams. */
 export interface JoinedGame {
@@ -33,7 +34,7 @@ export function JoinScreen({ onJoined, onHost }: { onJoined: (game: JoinedGame) 
       });
       onJoined({ gameId: result.gameId, code, teamId: result.teamId, role: result.role });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not join the game. Check your connection.');
+      setError(e instanceof ApiError ? e.message : t('join.failed'));
     } finally {
       setBusy(false);
     }
@@ -41,24 +42,24 @@ export function JoinScreen({ onJoined, onHost }: { onJoined: (game: JoinedGame) 
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Join a game</Text>
+      <Text style={styles.title}>{t('join.title')}</Text>
       <TextInput
         value={code}
-        onChangeText={(t) => setCode(t.toUpperCase())}
+        onChangeText={(text) => setCode(text.toUpperCase())}
         placeholder="ABC123"
         maxLength={6}
         autoCapitalize="characters"
         style={styles.input}
       />
-      <TextInput value={name} onChangeText={setName} placeholder="Your name" style={styles.textField} />
-      <TextInput value={teamName} onChangeText={setTeamName} placeholder="Team name" style={styles.textField} />
+      <TextInput value={name} onChangeText={setName} placeholder={t('join.yourName')} style={styles.textField} />
+      <TextInput value={teamName} onChangeText={setTeamName} placeholder={t('join.teamName')} style={styles.textField} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable onPress={submit} style={styles.button}>
-        <Text>{busy ? 'Joining…' : 'Join'}</Text>
+        <Text>{busy ? t('join.joining') : t('join.submit')}</Text>
       </Pressable>
       {onHost ? (
         <Pressable onPress={onHost} style={styles.secondary}>
-          <Text>Host a game instead</Text>
+          <Text>{t('join.hostInstead')}</Text>
         </Pressable>
       ) : null}
     </View>
