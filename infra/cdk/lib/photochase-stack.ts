@@ -64,7 +64,7 @@ export class PhotoChaseStack extends cdk.Stack {
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      pointInTimeRecovery: envName === 'prod',
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: envName === 'prod' },
       removalPolicy: envName === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
     // Sparse GSI for the referral repository's monthly-cap count query.
@@ -141,10 +141,10 @@ export class PhotoChaseStack extends cdk.Stack {
     // Bundles services/api's Lambda entrypoint (esbuild). The handler reads
     // TABLE_NAME to select the DynamoDB GameRepository (see container.ts).
     const apiFn = new NodejsFunction(this, 'ApiFn', {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       entry: path.join(moduleDir, '../../../services/api/src/lambda.ts'),
       handler: 'handler',
-      bundling: { format: OutputFormat.ESM, target: 'node20', minify: true },
+      bundling: { format: OutputFormat.ESM, target: 'node22', minify: true },
       environment: {
         TABLE_NAME: table.tableName,
         PHOTO_BUCKET: photos.bucketName,
@@ -156,10 +156,10 @@ export class PhotoChaseStack extends cdk.Stack {
 
     // Resize Lambda: writes a ≤1024px thumbnail for each uploaded original.
     const resizeFn = new NodejsFunction(this, 'ResizeFn', {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       entry: path.join(moduleDir, '../../../services/api/src/image-handler.ts'),
       handler: 'resizeHandler',
-      bundling: { format: OutputFormat.ESM, target: 'node20', minify: true },
+      bundling: { format: OutputFormat.ESM, target: 'node22', minify: true },
       timeout: cdk.Duration.seconds(30),
       memorySize: 1024,
       environment: { PHOTO_BUCKET: photos.bucketName },
