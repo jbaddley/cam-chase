@@ -142,6 +142,18 @@ describe('lambda route (authenticated)', () => {
     expect((await call(container, 'GET', '/spectate/ZZZZZZ')).status).toBe(400);
   });
 
+  it('serves the caller their own entitlement', async () => {
+    const res = await call(container, 'GET', '/me/entitlement', undefined, 'someone');
+    expect(res.status).toBe(200);
+    expect(res.data.tier).toBe('free');
+    expect(res.data.limits.maxTeams).toBe(2);
+    expect(res.data.features.ai_judging).toBe(false);
+  });
+
+  it('requires authentication for the entitlement endpoint', async () => {
+    expect((await call(container, 'GET', '/me/entitlement')).status).toBe(401);
+  });
+
   describe('purchase webhook', () => {
     const SECRET = 'whsec_test';
     const GRANT = { userId: 'u', event: { type: 'game_pack_purchased', credits: 2 } };

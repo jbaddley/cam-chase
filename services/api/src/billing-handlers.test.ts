@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   abandonGame,
   createGameForHost,
+  getMyEntitlement,
   handlePurchaseWebhook,
   startGameForHost,
 } from './billing-handlers.js';
@@ -114,5 +115,64 @@ describe('handlePurchaseWebhook', () => {
   it('rejects a malformed webhook', async () => {
     const result = await handlePurchaseWebhook(ents, { userId: 'u', event: { type: 'nonsense' } });
     expect(result.ok).toBe(false);
+  });
+});
+
+describe('getMyEntitlement', () => {
+  async function unwrapEnt(userId: string) {
+    const result = await getMyEntitlement(ents, userId);
+    if (!result.ok) throw new Error(result.error);
+    return result.data;
+  }
+
+  it('defaults a new user to the free tier with its real limits', async () => {
+    const view = await unwrapEnt('newcomer');
+    expect(view.tier).toBe('free');
+    expect(view.gameCredits).toBe(0);
+    expect(view.subscriptionActive).toBe(false);
+    // Free plays unlimited games, just a restricted one.
+    expect(view.canStartGame).toBe(true);
+    expect(view.limits.maxTeams).toBe(2);
+    expect(view.features.ai_judging).toBe(false);
+    expect(view.features.up_to_6_teams).toBe(false);
+  });
+
+  it('reflects a game-pack purchase', async () => {
+    await handlePurchaseWebhook(ents, { userId: 'buyer', event: { type: 'game_pack_purchased', credits: 2 } });
+    const view = await unwrapEnt('buyer');
+    expect(view.tier).toBe('game_pack');
+    expect(view.gameCredits).toBe(2);
+    expect(view.canStartGame).toBe(true);
+    expect(view.limits.maxTeams).toBe(6);
+    expect(view.features.ai_judging).toBe(true);
+  });
+
+  it('explains why a spent game pack cannot start another game', async () => {
+    await handlePurchaseWebhook(ents, { userId: 'spent', event: { type: 'game_pack_purchased', credits: 1 } });
+    const { gameId, code } = await unwrap(
+      createGameForHost(games, ents, { hostUserId: 'spent', config: DEFAULT_CONFIG }),
+    );
+    await unwrap(joinByCode(games, { code, userId: 'a', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
+    await unwrap(joinByCode(games, { code, userId: 'b', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
+    await unwrap(startGameForHost(games, ents, { gameId, hostUserId: 'spent' }));
+
+    const view = await unwrapEnt('spent');
+    expect(view.gameCredits).toBe(0);
+    expect(view.canStartGame).toBe(false);
+    expect(view.cannotStartReason).toBeTruthy();
+  });
+
+  it('reports an active subscription with its expiry', async () => {
+    const expiresAt = Date.now() + 30 * 86_400_000;
+    await handlePurchaseWebhook(ents, { userId: 'sub', event: { type: 'subscription_started', expiresAt } });
+    const view = await unwrapEnt('sub');
+    expect(view.tier).toBe('unlimited');
+    expect(view.subscriptionActive).toBe(true);
+    expect(view.subscriptionExpiresAt).toBe(expiresAt);
+    expect(view.canStartGame).toBe(true);
+  });
+
+  it('rejects an unauthenticated caller', async () => {
+    expect((await getMyEntitlement(ents, '')).ok).toBe(false);
   });
 });

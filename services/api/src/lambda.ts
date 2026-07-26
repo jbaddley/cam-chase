@@ -19,7 +19,7 @@ import {
   submitPhoto,
   type Result,
 } from './handlers.js';
-import { createGameForHost, handlePurchaseWebhook, startGameForHost } from './billing-handlers.js';
+import { createGameForHost, getMyEntitlement, handlePurchaseWebhook, startGameForHost } from './billing-handlers.js';
 import { requestPhotoDownload, requestPhotoUpload } from './media-handlers.js';
 import { authenticate, type AuthContext } from './auth.js';
 import { buildContainer, type Container } from './container.js';
@@ -111,6 +111,7 @@ const ROUTES: Route[] = [
   compile('POST', '/games/:id/downloads', ({ container, params, body, auth }) =>
     requestPhotoDownload(container.games, container.media, { gameId: params.id!, photoId: str(body.photoId), userId: auth.userId }),
   ),
+  compile('GET', '/me/entitlement', ({ container, auth }) => getMyEntitlement(container.entitlements, auth.userId)),
   // Big-screen spectator view: reached from a TV browser with nobody signed in.
   compile('GET', '/spectate/:code', ({ container, params }) => getSpectatorView(container.games, params.code!), true),
   // Provider-signed, not user-authenticated: the signature is checked in

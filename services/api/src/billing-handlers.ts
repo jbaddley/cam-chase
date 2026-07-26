@@ -2,12 +2,16 @@ import {
   applyPurchaseEvent,
   canHostConfig,
   canStartGame,
+  canUseFeature,
   consumeGameCredit,
   GameConfigSchema,
   refundGameCredit,
+  TIER_LIMITS,
   type Entitlement,
+  type Feature,
   type Game,
   type PurchaseEvent,
+  type Tier,
 } from '@photochase/shared';
 import { z } from 'zod';
 import { createGame, startGame, type Result } from './handlers.js';
@@ -89,6 +93,62 @@ const PurchaseWebhookInput = z.object({
     z.object({ type: z.literal('subscription_expired') }),
   ]),
 });
+
+/** What the client needs to render a paywall without hardcoding the matrix. */
+export interface EntitlementView {
+  tier: Tier;
+  /** Remaining one-time game credits (game_pack tier). */
+  gameCredits: number;
+  subscriptionActive: boolean;
+  subscriptionExpiresAt?: number;
+  /** Whether this user can start another game right now, and why not. */
+  canStartGame: boolean;
+  cannotStartReason?: string;
+  /** The tier's limits, so the client renders real numbers, not guesses. */
+  limits: (typeof TIER_LIMITS)[Tier];
+  /** Feature flags keyed by feature name. */
+  features: Record<Feature, boolean>;
+}
+
+const FEATURES: Feature[] = [
+  'ai_judging',
+  'geofencing',
+  'special_categories',
+  'random_game_type',
+  'judge_weight_over_1',
+  'up_to_6_teams',
+];
+
+/**
+ * The caller's own entitlement. Returned to the client so it can show what the
+ * user has, what they are missing, and whether another game is available —
+ * without duplicating the tier matrix, which would drift from the server's.
+ */
+export async function getMyEntitlement(
+  entRepo: EntitlementRepository,
+  userId: string,
+): Promise<Result<EntitlementView>> {
+  if (!userId) return err('Not signed in.');
+  const entitlement = await entRepo.getOrCreate(userId);
+  const startable = canStartGame(entitlement);
+
+  const features = Object.fromEntries(
+    FEATURES.map((feature) => [feature, canUseFeature(entitlement.tier, feature)]),
+  ) as Record<Feature, boolean>;
+
+  return ok({
+    tier: entitlement.tier,
+    gameCredits: entitlement.gameCredits,
+    subscriptionActive: entitlement.subscriptionActive,
+    ...(entitlement.subscriptionExpiresAt !== undefined
+      ? { subscriptionExpiresAt: entitlement.subscriptionExpiresAt }
+      : {}),
+    canStartGame: startable.ok,
+    ...(startable.reason ? { cannotStartReason: startable.reason } : {}),
+    limits: TIER_LIMITS[entitlement.tier],
+    features,
+  });
+}
 
 /**
  * Apply a normalized store/webhook event (RevenueCat/Stripe map onto this
