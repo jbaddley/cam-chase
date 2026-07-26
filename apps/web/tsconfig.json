@@ -11,5 +11,5 @@
     "verbatimModuleSyntax": false,
     "plugins": [{ "name": "next" }]
   },
-  "include": ["next-env.d.ts", "app/**/*.ts", "app/**/*.tsx"]
+  "include": ["next-env.d.ts", "app/**/*.ts", "app/**/*.tsx", "e2e/**/*.ts", "playwright.config.ts"]
 }

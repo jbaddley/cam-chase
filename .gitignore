@@ -11,3 +11,5 @@ cdk.out/
 .expo/
 web-build/
 .next/
+test-results/
+playwright-report/
