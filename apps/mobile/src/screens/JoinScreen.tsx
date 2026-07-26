@@ -12,7 +12,7 @@ export interface JoinedGame {
 }
 
 /** Enter a 6-character game code (or arrive here via a scanned QR deep link). */
-export function JoinScreen({ onJoined }: { onJoined: (game: JoinedGame) => void }) {
+export function JoinScreen({ onJoined, onHost }: { onJoined: (game: JoinedGame) => void; onHost?: () => void }) {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [teamName, setTeamName] = useState('');
@@ -56,6 +56,11 @@ export function JoinScreen({ onJoined }: { onJoined: (game: JoinedGame) => void 
       <Pressable onPress={submit} style={styles.button}>
         <Text>{busy ? 'Joining…' : 'Join'}</Text>
       </Pressable>
+      {onHost ? (
+        <Pressable onPress={onHost} style={styles.secondary}>
+          <Text>Host a game instead</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -67,4 +72,5 @@ const styles = StyleSheet.create({
   textField: { fontSize: 18, borderWidth: 1, padding: 12 },
   error: { color: '#c92a2a' },
   button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
+  secondary: { padding: 16, borderRadius: 12, alignItems: 'center' },
 });
