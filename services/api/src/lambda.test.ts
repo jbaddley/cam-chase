@@ -142,9 +142,41 @@ describe('lambda route (authenticated)', () => {
     expect((await call(container, 'GET', '/spectate/ZZZZZZ')).status).toBe(400);
   });
 
-  it('handles the purchase webhook without authentication', async () => {
-    const res = await call(container, 'POST', '/webhooks/purchase', { userId: 'u', event: { type: 'game_pack_purchased', credits: 2 } });
-    expect(res.status).toBe(200);
-    expect(res.data.tier).toBe('game_pack');
+  describe('purchase webhook', () => {
+    const SECRET = 'whsec_test';
+    const GRANT = { userId: 'u', event: { type: 'game_pack_purchased', credits: 2 } };
+
+    /** A container whose webhook verifier expects the shared secret. */
+    const signedContainer = () => buildContainer({ PURCHASE_WEBHOOK_SECRET: SECRET } as NodeJS.ProcessEnv);
+
+    /** Post to the webhook with explicit headers and no user identity. */
+    async function postWebhook(c: Container, headers: Record<string, string>, body: unknown = GRANT) {
+      const base = event('POST', '/webhooks/purchase', body);
+      const res = await route({ ...base, headers } as APIGatewayProxyEventV2, c);
+      return { status: res.statusCode, data: JSON.parse((res.body as string) ?? '{}') };
+    }
+
+    it('applies the event when the shared secret is correct', async () => {
+      const res = await postWebhook(signedContainer(), { authorization: `Bearer ${SECRET}` });
+      expect(res.status).toBe(200);
+      expect(res.data.tier).toBe('game_pack');
+    });
+
+    it('rejects an unsigned request', async () => {
+      const res = await postWebhook(signedContainer(), {});
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects a wrong secret', async () => {
+      const res = await postWebhook(signedContainer(), { authorization: 'Bearer not-the-secret' });
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects everything when no secret is configured, rather than accepting', async () => {
+      // This is the regression that mattered: an unconfigured deployment used
+      // to grant entitlements to anyone who could reach the URL.
+      const res = await postWebhook(container, { authorization: 'Bearer anything' });
+      expect(res.status).toBe(401);
+    });
   });
 });

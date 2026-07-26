@@ -54,6 +54,9 @@ function compile(method: string, path: string, handler: RouteHandler, isPublic =
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
+/** Provider-signed route; `route` verifies its signature before dispatching. */
+const WEBHOOK_PATH = '/webhooks/purchase';
+
 /**
  * Core API routes. The authenticated user (`auth.userId`) is injected into
  * handlers — the request body never supplies its own identity.
@@ -110,12 +113,19 @@ const ROUTES: Route[] = [
   ),
   // Big-screen spectator view: reached from a TV browser with nobody signed in.
   compile('GET', '/spectate/:code', ({ container, params }) => getSpectatorView(container.games, params.code!), true),
-  // Provider-signed; not user-authenticated.
+  // Provider-signed, not user-authenticated: the signature is checked in
+  // `route` against the raw body before this handler ever runs.
   compile('POST', '/webhooks/purchase', ({ container, body }) => handlePurchaseWebhook(container.entitlements, body), true),
 ];
 
 function json(statusCode: number, payload: unknown): APIGatewayProxyStructuredResultV2 {
   return { statusCode, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) };
+}
+
+/** The body exactly as sent — signatures cover these bytes, not a re-encoding. */
+function rawBody(event: APIGatewayProxyEventV2): string {
+  if (!event.body) return '';
+  return event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString('utf8') : event.body;
 }
 
 function parseBody(event: APIGatewayProxyEventV2): Body | null {
@@ -153,6 +163,17 @@ export async function route(
 
   const body = parseBody(event);
   if (body === null) return errorResponse(400, 'Invalid JSON body.');
+
+  // The purchase webhook grants entitlements, so it is provider-authenticated
+  // rather than open. Verify against the raw bytes before anything is applied —
+  // re-serializing the parsed body would not match the provider's signature.
+  if (path === WEBHOOK_PATH) {
+    const failure = container.webhookVerifier.verify(rawBody(event), event.headers);
+    if (failure) {
+      log.warn('webhook.rejected', { reason: failure });
+      return errorResponse(401, failure);
+    }
+  }
 
   const auth = await authenticate(event, container.verifier);
 

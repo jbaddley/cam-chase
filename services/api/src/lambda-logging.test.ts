@@ -1,5 +1,6 @@
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { FREE_CONFIG } from '@photochase/shared';
 import { buildContainer, type Container } from './container.js';
 import { Logger, type LogRecord } from './logger.js';
 import { route } from './lambda.js';
@@ -27,14 +28,14 @@ const header = (res: { headers?: unknown }, name: string) => (res.headers as Rec
 
 describe('router logging middleware', () => {
   it('logs request.start and request.end and stamps x-request-id', async () => {
-    const res = await route(event('POST', '/webhooks/purchase', 'req-1', { userId: 'u', event: { type: 'game_pack_purchased', credits: 1 } }), container);
+    const res = await route(event('POST', '/games', 'req-1', { config: FREE_CONFIG }), container);
     expect(res.statusCode).toBe(200);
     expect(header(res, 'x-request-id')).toBe('req-1');
 
     const msgs = records.map((r) => r.msg);
     expect(msgs).toContain('request.start');
     const end = records.find((r) => r.msg === 'request.end')!;
-    expect(end).toMatchObject({ status: 200, requestId: 'req-1', method: 'POST', path: '/webhooks/purchase' });
+    expect(end).toMatchObject({ status: 200, requestId: 'req-1', method: 'POST', path: '/games' });
     expect(typeof end.durationMs).toBe('number');
   });
 
