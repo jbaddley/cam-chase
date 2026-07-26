@@ -9,10 +9,14 @@ for (const envName of ['dev', 'staging', 'prod']) {
   // context (`-c dev:idpSecret=photochase/dev/idp`). Without it the stack
   // deploys with Cognito-only sign-in, which is enough for a bare dev stack.
   const idpSecretName = app.node.tryGetContext(`${envName}:idpSecret`) as string | undefined;
+  // Purchase-webhook credentials, likewise from Secrets Manager. Without it the
+  // API rejects every webhook rather than granting entitlements unverified.
+  const purchaseWebhookSecretName = app.node.tryGetContext(`${envName}:webhookSecret`) as string | undefined;
 
   new PhotoChaseStack(app, `PhotoChase-${envName}`, {
     envName,
     ...(idpSecretName ? { idpSecretName } : {}),
+    ...(purchaseWebhookSecretName ? { purchaseWebhookSecretName } : {}),
     env: {
       account: app.node.tryGetContext(`${envName}:account`),
       region: app.node.tryGetContext(`${envName}:region`) ?? 'us-east-1',

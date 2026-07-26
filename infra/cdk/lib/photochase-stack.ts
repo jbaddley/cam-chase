@@ -37,6 +37,14 @@ export interface PhotoChaseStackProps extends cdk.StackProps {
    * the native browser sheet can return to it.
    */
   callbackUrls?: string[];
+  /**
+   * Secrets Manager secret holding the purchase-webhook credentials, as JSON
+   * keys `hmacSecret` (Stripe-style signature) and/or `sharedSecret`
+   * (RevenueCat bearer). Without it the API rejects every purchase webhook,
+   * which is deliberate: an unconfigured deployment must not grant
+   * entitlements to anyone who finds the URL.
+   */
+  purchaseWebhookSecretName?: string;
 }
 
 /** Custom scheme the mobile app registers; the browser sheet returns here. */
@@ -138,6 +146,12 @@ export class PhotoChaseStack extends cdk.Stack {
     // The client must not be created before the IdPs it names exist.
     for (const provider of providers) appClient.node.addDependency(provider);
 
+    // Purchase-webhook credentials. Absent, the API rejects every webhook
+    // rather than trusting an unsigned request (see webhook-auth.ts).
+    const webhookSecret = props.purchaseWebhookSecretName
+      ? secretsmanager.Secret.fromSecretNameV2(this, 'PurchaseWebhookSecret', props.purchaseWebhookSecretName)
+      : undefined;
+
     // Bundles services/api's Lambda entrypoint (esbuild). The handler reads
     // TABLE_NAME to select the DynamoDB GameRepository (see container.ts).
     const apiFn = new NodejsFunction(this, 'ApiFn', {
@@ -149,6 +163,12 @@ export class PhotoChaseStack extends cdk.Stack {
         TABLE_NAME: table.tableName,
         PHOTO_BUCKET: photos.bucketName,
         USER_POOL_ID: userPool.userPoolId,
+        ...(webhookSecret
+          ? {
+              PURCHASE_WEBHOOK_HMAC_SECRET: webhookSecret.secretValueFromJson('hmacSecret').unsafeUnwrap(),
+              PURCHASE_WEBHOOK_SECRET: webhookSecret.secretValueFromJson('sharedSecret').unsafeUnwrap(),
+            }
+          : {}),
       },
     });
     table.grantReadWriteData(apiFn);
