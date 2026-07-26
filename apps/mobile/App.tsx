@@ -9,6 +9,7 @@ import { ReturnScreen } from './src/screens/ReturnScreen.js';
 import { ResultsScreen } from './src/screens/ResultsScreen.js';
 import { SignInScreen } from './src/screens/SignInScreen.js';
 import { HostScreen } from './src/screens/HostScreen.js';
+import { PlanScreen } from './src/screens/PlanScreen.js';
 import { placeholderCapture } from './src/capture.js';
 import { useGamePhase } from './src/useGamePhase.js';
 import { session, type Authorizer } from './src/auth.js';
@@ -84,11 +85,14 @@ const unavailableAuthorizer: Authorizer = () => {
 export default function App({ authorize = unavailableAuthorizer }: { authorize?: Authorizer } = {}) {
   const [signedIn, setSignedIn] = useState(session.isSignedIn);
   const [hosting, setHosting] = useState(false);
+  const [viewingPlan, setViewingPlan] = useState(false);
   const [joined, setJoined] = useState<JoinedGame | null>(null);
 
   if (!signedIn) return <SignInScreen authorize={authorize} onSignedIn={() => setSignedIn(true)} />;
 
   if (joined) return <GameRouter joined={joined} />;
+
+  if (viewingPlan) return <PlanScreen onBack={() => setViewingPlan(false)} />;
 
   if (hosting) {
     return (
@@ -98,6 +102,7 @@ export default function App({ authorize = unavailableAuthorizer }: { authorize?:
           setJoined(game);
         }}
         onCancel={() => setHosting(false)}
+        onViewPlan={() => setViewingPlan(true)}
       />
     );
   }

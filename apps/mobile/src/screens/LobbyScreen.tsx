@@ -66,19 +66,15 @@ export function LobbyScreen({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.code}>Code: {code}</Text>
+      <Text style={styles.code}>{t('lobby.code', { code })}</Text>
       <Text style={styles.phase}>{game ? t(PHASE_KEY[game.state]) : t('watch.connecting')}</Text>
-      <Text style={styles.subtitle}>
-        {teams.length} team{teams.length === 1 ? '' : 's'} joined
-      </Text>
+      <Text style={styles.subtitle}>{t('lobby.teamsJoined', { count: teams.length })}</Text>
       {shownError ? <Text style={styles.error}>{shownError}</Text> : null}
       <ScrollView>
-        {teams.map((t) => (
-          <View key={t.teamId} style={styles.row}>
-            <Text style={styles.teamName}>{t.name}</Text>
-            <Text>
-              {t.memberCount} player{t.memberCount === 1 ? '' : 's'}
-            </Text>
+        {teams.map((team) => (
+          <View key={team.teamId} style={styles.row}>
+            <Text style={styles.teamName}>{team.name}</Text>
+            <Text>{t('lobby.playerCount', { count: team.memberCount })}</Text>
           </View>
         ))}
       </ScrollView>
