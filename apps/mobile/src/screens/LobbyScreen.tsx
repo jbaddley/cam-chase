@@ -1,25 +1,27 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type GameStateView, type TeamSummary } from '@photochase/client';
+import type { MessageKey } from '@photochase/i18n';
 import { client } from '../api.js';
+import { t } from '../i18n.js';
 
 export type LobbyTeam = TeamSummary;
 
 const MIN_TEAMS = 2;
 
-/** Human-friendly label for each game phase shown in the lobby header. */
-const PHASE_LABEL: Record<GameStateView['state'], string> = {
-  draft: 'Setting up',
-  lobby: 'Waiting for teams',
-  round1_active: 'Round 1 in play',
-  round1_return: 'Round 1 — returning',
-  round2_active: 'Round 2 in play',
-  round2_return: 'Round 2 — returning',
-  rating: 'Rating photos',
-  finals_voting: 'Finals voting',
-  results: 'Results',
-  archived: 'Archived',
-};
+/** Catalog key for each game phase, so the header follows the active locale. */
+const PHASE_KEY = {
+  draft: 'phase.draft',
+  lobby: 'phase.lobby',
+  round1_active: 'phase.round1Active',
+  round1_return: 'phase.round1Return',
+  round2_active: 'phase.round2Active',
+  round2_return: 'phase.round2Return',
+  rating: 'phase.rating',
+  finals_voting: 'phase.finalsVoting',
+  results: 'phase.results',
+  archived: 'phase.archived',
+} as const satisfies Record<GameStateView['state'], MessageKey>;
 
 /**
  * Roster and phase display. The game state is polled by the app root and passed
@@ -65,7 +67,7 @@ export function LobbyScreen({
   return (
     <View style={styles.container}>
       <Text style={styles.code}>Code: {code}</Text>
-      <Text style={styles.phase}>{game ? PHASE_LABEL[game.state] : 'Loading…'}</Text>
+      <Text style={styles.phase}>{game ? t(PHASE_KEY[game.state]) : t('watch.connecting')}</Text>
       <Text style={styles.subtitle}>
         {teams.length} team{teams.length === 1 ? '' : 's'} joined
       </Text>
@@ -82,7 +84,7 @@ export function LobbyScreen({
       </ScrollView>
       {canStart ? (
         <Pressable onPress={start} style={styles.button}>
-          <Text>{starting ? 'Starting…' : 'Start game'}</Text>
+          <Text>{starting ? t('game.starting') : t('game.start')}</Text>
         </Pressable>
       ) : null}
     </View>

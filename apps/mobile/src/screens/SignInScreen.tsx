@@ -2,16 +2,17 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { IdentityProvider } from '@photochase/client';
 import { signIn, SignInCancelled, type Authorizer } from '../auth.js';
+import { t } from '../i18n.js';
 
 /**
  * Sign in with Apple is listed first and is not optional: the App Store
  * requires it whenever an app offers third-party social login.
  */
-const PROVIDERS: Array<{ id: IdentityProvider; label: string }> = [
-  { id: 'SignInWithApple', label: 'Continue with Apple' },
-  { id: 'Google', label: 'Continue with Google' },
-  { id: 'Facebook', label: 'Continue with Facebook' },
-  { id: 'TwitterX', label: 'Continue with X' },
+const PROVIDERS: Array<{ id: IdentityProvider; name: string }> = [
+  { id: 'SignInWithApple', name: 'Apple' },
+  { id: 'Google', name: 'Google' },
+  { id: 'Facebook', name: 'Facebook' },
+  { id: 'TwitterX', name: 'X' },
 ];
 
 /**
@@ -31,7 +32,7 @@ export function SignInScreen({ authorize, onSignedIn }: { authorize: Authorizer;
       onSignedIn();
     } catch (e) {
       // Dismissing the sheet is a normal action, not an error worth shouting.
-      setError(e instanceof SignInCancelled ? null : 'Sign-in failed. Please try again.');
+      setError(e instanceof SignInCancelled ? null : t('auth.failed'));
     } finally {
       setBusy(null);
     }
@@ -39,12 +40,14 @@ export function SignInScreen({ authorize, onSignedIn }: { authorize: Authorizer;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>PhotoChase</Text>
-      <Text style={styles.subtitle}>Sign in to host or join a game.</Text>
+      <Text style={styles.title}>{t('app.title')}</Text>
+      <Text style={styles.subtitle}>{t('auth.prompt')}</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {PROVIDERS.map((provider) => (
         <Pressable key={provider.id} onPress={() => start(provider.id)} style={styles.button}>
-          <Text>{busy === provider.id ? 'Opening…' : provider.label}</Text>
+          <Text>
+            {busy === provider.id ? t('auth.opening') : t('auth.continueWith', { provider: provider.name })}
+          </Text>
         </Pressable>
       ))}
     </View>

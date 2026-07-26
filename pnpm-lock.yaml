@@ -44,6 +44,9 @@ importers:
       '@photochase/client':
         specifier: workspace:*
         version: link:../../packages/client
+      '@photochase/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@photochase/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -63,6 +66,9 @@ importers:
       '@photochase/client':
         specifier: workspace:*
         version: link:../../packages/client
+      '@photochase/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@photochase/shared':
         specifier: workspace:*
         version: link:../../packages/shared

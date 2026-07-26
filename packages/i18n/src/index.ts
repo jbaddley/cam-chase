@@ -41,3 +41,18 @@ export function pseudoLocalize(key: MessageKey, params?: MessageParams): string 
   const accented = [...base].map((ch) => PSEUDO_MAP[ch] ?? ch).join('');
   return `⟦${accented}⟧`;
 }
+
+/**
+ * Pick the best supported locale from an ordered list of BCP 47 preferences
+ * (`navigator.languages`, or `expo-localization`'s locale list). Region
+ * subtags are ignored — `es-MX` and `es-ES` both resolve to `es` — and
+ * anything unsupported falls back to English.
+ */
+export function resolveLocale(preferences: readonly string[] | undefined, fallback: Locale = 'en'): Locale {
+  for (const preference of preferences ?? []) {
+    const base = preference.toLowerCase().split('-')[0];
+    const match = LOCALES.find((locale) => locale === base);
+    if (match) return match;
+  }
+  return fallback;
+}

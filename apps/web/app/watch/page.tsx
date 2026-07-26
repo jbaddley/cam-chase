@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useT } from '../i18n.js';
 
 /**
  * Big-screen spectator entry. Enter a game code to open the reveal/voting view
@@ -10,14 +11,15 @@ import { useRouter } from 'next/navigation';
 export default function WatchPage() {
   const [code, setCode] = useState('');
   const router = useRouter();
+  const t = useT();
   const ready = code.length === 6;
   const open = () => ready && router.push(`/watch/${code}`);
 
   return (
     <main>
-      <h1>Watch a game</h1>
+      <h1>{t('watch.title')}</h1>
       <label>
-        Game code
+        {t('watch.gameCode')}
         <input
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -27,7 +29,7 @@ export default function WatchPage() {
         />
       </label>
       <button disabled={!ready} onClick={open}>
-        Open big-screen view
+        {t('watch.open')}
       </button>
     </main>
   );
