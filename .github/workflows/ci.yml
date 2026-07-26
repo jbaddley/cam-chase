@@ -39,6 +39,15 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Web E2E (docs 05, 09). Hermetic: the suite stubs every API call, so no
+      # backend is needed. Uses the runner's Chromium when CHROMIUM_PATH points
+      # at one, otherwise the browser Playwright installs below.
+      - name: Install Playwright browser
+        run: pnpm --filter @photochase/web exec playwright install --with-deps chromium
+
+      - name: Web E2E
+        run: pnpm --filter @photochase/web test:e2e
+
       # Phase 1 exit criterion (docs/09-roadmap.md): a bot-driven full game must
       # reach its expected scoreboard. Run separately so a break in the game loop
       # is obvious in the build log rather than buried in the unit-test output.
