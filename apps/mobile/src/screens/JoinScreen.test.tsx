@@ -67,7 +67,7 @@ describe('JoinScreen', () => {
     expect(joinGame).not.toHaveBeenCalled();
   });
 
-  it('rejects a whitespace-only name', () => {
+  it('rejects a whitespace-only name', async () => {
     render(<JoinScreen onJoined={vi.fn()} />);
 
     fireEvent.change(screen.getByPlaceholderText('ABC123'), { target: { value: 'ABC123' } });
@@ -75,6 +75,9 @@ describe('JoinScreen', () => {
     fireEvent.change(screen.getByPlaceholderText('Team name'), { target: { value: 'Reds' } });
     fireEvent.click(screen.getByRole('button', { name: 'Join' }));
 
+    // A full code kicks off the mode peek; let it land before asserting, so the
+    // state it sets belongs to this test rather than leaking into the next one.
+    await waitFor(() => expect(spectate).toHaveBeenCalledWith('ABC123'));
     expect(joinGame).not.toHaveBeenCalled();
   });
 

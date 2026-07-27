@@ -1,4 +1,4 @@
-import { AuthSession, buildAuthorizeUrl, createPkceChallenge, parseCallbackCode, type AuthConfig, type IdentityProvider } from '@photochase/client';
+import { AuthSession, buildAuthorizeUrl, createPkceChallenge, parseCallbackCode, webCrypto, type AuthConfig, type CryptoSource, type IdentityProvider } from '@photochase/client';
 
 const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 
@@ -23,6 +23,22 @@ export const session = new AuthSession(authConfig);
  */
 export type Authorizer = (url: string, redirectUri: string) => Promise<string>;
 
+/**
+ * Randomness and SHA-256 for PKCE. Web Crypto by default, because that is what
+ * a browser and the test harness have; React Native's runtime exposes
+ * `crypto.getRandomValues` but **not** `crypto.subtle`, so a native build swaps
+ * in an expo-crypto source at startup (see `src/native/auth.ts`).
+ *
+ * Set rather than injected through the screens: the module already owns the
+ * one long-lived {@link session}, and threading a crypto source through the
+ * sign-in UI would put a native concern in every component that renders it.
+ */
+let cryptoSource: CryptoSource = webCrypto;
+
+export function setCryptoSource(source: CryptoSource): void {
+  cryptoSource = source;
+}
+
 /** Thrown when the user dismisses the sheet without completing sign-in. */
 export class SignInCancelled extends Error {
   constructor() {
@@ -37,7 +53,7 @@ export class SignInCancelled extends Error {
  * skips Cognito's chooser, so "Continue with Google" goes straight to Google.
  */
 export async function signIn(authorize: Authorizer, provider?: IdentityProvider): Promise<void> {
-  const challenge = await createPkceChallenge();
+  const challenge = await createPkceChallenge(cryptoSource);
   const url = buildAuthorizeUrl(authConfig, challenge, provider ? { identityProvider: provider } : {});
 
   const callbackUrl = await authorize(url, REDIRECT_URI);

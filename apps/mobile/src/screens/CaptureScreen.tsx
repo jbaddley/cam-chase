@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type GeoPointInput } from '@photochase/client';
 import { client } from '../api.js';
+import { useViewfinder } from '../viewfinder.js';
 
 /**
  * Produces a photo and its capture location. Injected so the screen is testable
@@ -25,6 +26,7 @@ export function CaptureScreen({
   quota: number;
   capture: CaptureSource;
 }) {
+  useViewfinder();
   const [taken, setTaken] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

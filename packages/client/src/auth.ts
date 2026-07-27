@@ -186,6 +186,33 @@ export function refreshTokens(
 const EXPIRY_SKEW_MS = 60_000;
 
 /**
+ * The `sub` claim of an id token — the user id the API authorizes against.
+ *
+ * Read, deliberately, without verifying the signature: the client is not making
+ * a trust decision here. Every request is authorized by the API from the token
+ * itself, so this is only ever used to label things the user already sees, or
+ * to tell a third party (the store) which account a purchase belongs to. A
+ * forged token would buy nothing, because the entitlement is granted by our
+ * webhook against the same claim the API verified.
+ *
+ * Returns null for anything unparseable rather than throwing, so a malformed
+ * token degrades to "unknown user" instead of crashing the app.
+ */
+export function subjectOf(idToken: string): string | null {
+  const payload = idToken.split('.')[1];
+  if (payload === undefined) return null;
+  try {
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const claims: unknown = JSON.parse(json);
+    if (typeof claims !== 'object' || claims === null) return null;
+    const sub = (claims as { sub?: unknown }).sub;
+    return typeof sub === 'string' && sub !== '' ? sub : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Holds the current token set and keeps it usable. `getAccessToken` is what
  * feeds `ClientConfig.getToken`, so callers never handle a stale token: a
  * single in-flight refresh is shared rather than stampeding.
@@ -205,6 +232,11 @@ export class AuthSession {
 
   get isSignedIn(): boolean {
     return this.tokens !== null;
+  }
+
+  /** The signed-in user's id, or null when signed out. See {@link subjectOf}. */
+  get userId(): string | null {
+    return this.tokens ? subjectOf(this.tokens.idToken) : null;
   }
 
   /** Adopt a token set, e.g. one restored from device storage. */

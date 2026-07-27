@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ApiError } from '@photochase/client';
 import { client } from '../api.js';
+import { useViewfinder } from '../viewfinder.js';
 import type { CaptureSource } from './CaptureScreen.js';
 
 /**
@@ -10,6 +11,7 @@ import type { CaptureSource } from './CaptureScreen.js';
  * larger bonus, so this screen is the whole round for the player.
  */
 export function ReturnScreen({ gameId, round, capture }: { gameId: string; round: 1 | 2; capture: CaptureSource }) {
+  useViewfinder();
   const [checkedIn, setCheckedIn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

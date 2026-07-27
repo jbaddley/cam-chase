@@ -9,5 +9,5 @@
     "verbatimModuleSyntax": false,
     "lib": ["ES2022", "DOM"]
   },
-  "include": ["App.tsx", "src/**/*.ts", "src/**/*.tsx", "types/**/*.d.ts", "test/**/*.tsx", "vitest.config.ts"]
+  "include": ["App.tsx", "index.ts", "src/**/*.ts", "src/**/*.tsx", "test/**/*.tsx", "vitest.config.ts"]
 }

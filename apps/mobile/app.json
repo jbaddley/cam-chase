@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "PhotoChase",
+    "slug": "photochase",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "scheme": "photochase",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.photochase.client",
+      "infoPlist": {
+        "NSCameraUsageDescription": "PhotoChase uses the camera to take the photos the game is played with.",
+        "NSLocationWhenInUseUsageDescription": "PhotoChase records where a photo was taken so the game can score how close a recreation is. Location is only read during a round."
+      }
+    },
+    "android": {
+      "package": "app.photochase.client",
+      "edgeToEdgeEnabled": true,
+      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        { "cameraPermission": "PhotoChase uses the camera to take the photos the game is played with." }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "PhotoChase records where a photo was taken so the game can score how close a recreation is. Location is only read during a round."
+        }
+      ]
+    ],
+    "extra": { "eas": { "projectId": "00000000-0000-0000-0000-000000000000" } }
+  }
+}

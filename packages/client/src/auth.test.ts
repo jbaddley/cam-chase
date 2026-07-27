@@ -7,6 +7,7 @@ import {
   exchangeCodeForTokens,
   parseCallbackCode,
   refreshTokens,
+  subjectOf,
   type AuthConfig,
   type CryptoSource,
 } from './auth.js';
@@ -222,5 +223,49 @@ describe('AuthSession', () => {
     session.signOut();
     expect(session.isSignedIn).toBe(false);
     expect(await session.getAccessToken()).toBeNull();
+  });
+});
+
+describe('subjectOf', () => {
+  /** A minimal unsigned id token: only the payload is ever read. */
+  const token = (payload: unknown) =>
+    `header.${base64UrlEncode(Uint8Array.from(JSON.stringify(payload), (c) => c.charCodeAt(0)))}.signature`;
+
+  it('reads the user id from the claims', () => {
+    expect(subjectOf(token({ sub: 'user-7', email: 'a@b.c' }))).toBe('user-7');
+  });
+
+  it('decodes a payload that uses the base64url alphabet', () => {
+    // A `sub` containing `-` and `_` after encoding is exactly the case a
+    // plain atob would mangle.
+    const sub = 'us-east-1:ab??cd>>ef';
+    expect(subjectOf(token({ sub }))).toBe(sub);
+  });
+
+  it.each([
+    ['not a token at all', 'nonsense'],
+    ['a token with no payload segment', 'header'],
+    ['a payload that is not base64', 'header.!!!!.sig'],
+    ['a payload that is not JSON', `header.${base64UrlEncode(Uint8Array.from('hello', (c) => c.charCodeAt(0)))}.sig`],
+  ])('returns null for %s rather than throwing', (_label, value) => {
+    expect(subjectOf(value)).toBeNull();
+  });
+
+  it('returns null when the claim is missing or empty', () => {
+    // Better an unknown user than an empty-string one, which would look like a
+    // real id to whatever it is handed to.
+    expect(subjectOf(token({ email: 'a@b.c' }))).toBeNull();
+    expect(subjectOf(token({ sub: '' }))).toBeNull();
+  });
+});
+
+describe('AuthSession.userId', () => {
+  it('is null when signed out and the subject once signed in', () => {
+    const session = new AuthSession(config(), () => 0);
+    expect(session.userId).toBeNull();
+
+    const payload = base64UrlEncode(Uint8Array.from(JSON.stringify({ sub: 'user-9' }), (c) => c.charCodeAt(0)));
+    session.setTokens({ accessToken: 'a', idToken: `h.${payload}.s`, expiresAt: 1 });
+    expect(session.userId).toBe('user-9');
   });
 });

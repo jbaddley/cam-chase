@@ -9,7 +9,19 @@
     "noEmit": true,
     "allowJs": true,
     "verbatimModuleSyntax": false,
-    "plugins": [{ "name": "next" }]
+    "plugins": [{ "name": "next" }],
+    // This app is on React 18 while the mobile app is on 19, so two copies of
+    // `@types/react` exist in the monorepo. Next's own .d.ts files do not
+    // declare `@types/react` as a peer, so they resolve it by walking up into
+    // pnpm's hoist directory — and whichever copy landed there decides whether
+    // this project sees one React or two. Two produces TS2742 on every exported
+    // component ("the inferred type cannot be named"). Pinning the resolution
+    // here makes the outcome depend on this file rather than on install order.
+    "baseUrl": ".",
+    "paths": {
+      "react": ["./node_modules/@types/react"],
+      "react-dom": ["./node_modules/@types/react-dom"]
+    }
   },
   "include": ["next-env.d.ts", "app/**/*.ts", "app/**/*.tsx", "e2e/**/*.ts", "playwright.config.ts"]
 }
