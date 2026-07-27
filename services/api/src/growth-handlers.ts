@@ -13,8 +13,6 @@ import {
   StubJudge,
   type AiJudgement,
   type Flair,
-  type Game,
-  type GameEvent,
   type GameMode,
   type Judge,
   type JudgePair,
@@ -22,7 +20,7 @@ import {
 } from '@photochase/shared';
 import { z } from 'zod';
 import type { EntitlementRepository } from './entitlements-repo.js';
-import { advanceGame, type Result } from './handlers.js';
+import type { Result } from './handlers.js';
 import type { AiJudgingRepository, ReferralRepository } from './growth-repo.js';
 import { monthKey } from './growth-repo.js';
 import type { GameRepository } from './repository.js';
@@ -164,28 +162,6 @@ export async function creditReferralsForFinishedGame(
     if (result.ok && result.data.credited) creditedUserIds.push(userId);
   }
   return ok({ creditedUserIds });
-}
-
-/**
- * Advance a game, paying out referrals the moment it reaches results.
- *
- * This is the seam that stops the referral engine being another built-but-never
- * called subsystem: crediting has to happen on the transition itself, not on
- * someone later remembering to run it.
- */
-export async function advanceGameWithRewards(
-  gameRepo: GameRepository,
-  refRepo: ReferralRepository,
-  entRepo: EntitlementRepository,
-  input: { gameId: string; hostUserId: string; event: GameEvent['type'] },
-  now = Date.now,
-): Promise<Result<{ state: Game['state'] }>> {
-  const advanced = await advanceGame(gameRepo, input);
-  if (!advanced.ok) return advanced;
-  if (advanced.data.state === 'results') {
-    await creditReferralsForFinishedGame(gameRepo, refRepo, entRepo, { gameId: input.gameId, finishedAt: now() });
-  }
-  return advanced;
 }
 
 const ConsentInput = z.object({

@@ -56,6 +56,8 @@ const CreateGameInput = z.object({
   hostUserId: z.string().min(1),
   tier: z.enum(['free', 'game_pack', 'unlimited']),
   config: GameConfigSchema,
+  /** The league this game counts toward, already resolved from its code. */
+  tournamentId: z.string().min(1).optional(),
 });
 
 export async function createGame(
@@ -65,7 +67,7 @@ export async function createGame(
 ): Promise<Result<{ gameId: string; code: string }>> {
   const parsed = CreateGameInput.safeParse(raw);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
-  const { hostUserId, tier, config } = parsed.data;
+  const { hostUserId, tier, config, tournamentId } = parsed.data;
 
   const gate = validateConfigForTier(config, tier as Tier);
   if (!gate.ok) return err(gate.errors.join(' '));
@@ -85,6 +87,7 @@ export async function createGame(
     photos: [],
     assignments: [],
     votes: [],
+    ...(tournamentId ? { tournamentId } : {}),
     createdAt: now(),
   };
   if ((config.mode ?? 'photo_chase') === 'scavenger_hunt') {

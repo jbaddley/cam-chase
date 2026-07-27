@@ -14,6 +14,11 @@ export interface TierLimits {
   allowAiJudging: boolean;
   /** Free tier locks photo/minute counts to the defaults below. */
   configurableRounds: boolean;
+  /**
+   * Whether this tier can start a league. Joining and playing in someone
+   * else's league is always free — creating one is the paid power.
+   */
+  allowLeagues: boolean;
   /** Games the tier grants; 'unlimited' for subscriptions. */
   gamesGranted: number | 'unlimited';
 }
@@ -28,6 +33,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     allowGeofencing: false,
     allowAiJudging: false,
     configurableRounds: false,
+    allowLeagues: false,
     gamesGranted: 'unlimited',
   },
   game_pack: {
@@ -39,6 +45,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     allowGeofencing: true,
     allowAiJudging: true,
     configurableRounds: true,
+    allowLeagues: true,
     gamesGranted: 2,
   },
   unlimited: {
@@ -50,6 +57,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     allowGeofencing: true,
     allowAiJudging: true,
     configurableRounds: true,
+    allowLeagues: true,
     gamesGranted: 'unlimited',
   },
 };

@@ -164,6 +164,52 @@ describe('lambda route (authenticated)', () => {
     expect(card.data.shareUrl).toContain('ref=');
   });
 
+  it('creates a league for a paid host and serves its table by code', async () => {
+    await container.entitlements.save({ userId: 'owner', tier: 'unlimited', gameCredits: 0, subscriptionActive: true });
+
+    const created = await call(container, 'POST', '/tournaments', { name: 'Summer League' }, 'owner');
+    expect(created.status).toBe(200);
+
+    // Anyone can read the table — playing in someone else's league is free.
+    const table = await call(container, 'GET', `/tournaments/${created.data.code}/standings`, undefined, 'guest');
+    expect(table.status).toBe(200);
+    expect(table.data.name).toBe('Summer League');
+    expect(table.data.standings).toEqual([]);
+  });
+
+  it('refuses league creation on a free plan, and never from the body’s owner', async () => {
+    expect((await call(container, 'POST', '/tournaments', { name: 'League' }, 'freeloader')).status).toBe(400);
+
+    // A free user cannot pass someone else's id to borrow their plan.
+    await container.entitlements.save({ userId: 'owner', tier: 'unlimited', gameCredits: 0, subscriptionActive: true });
+    const spoof = await call(container, 'POST', '/tournaments', { name: 'League', ownerUserId: 'owner' }, 'freeloader');
+    expect(spoof.status).toBe(400);
+  });
+
+  it('records a finished league game into its table on the results transition', async () => {
+    await container.entitlements.save({ userId: 'owner', tier: 'unlimited', gameCredits: 0, subscriptionActive: true });
+    const { code: leagueCode } = (await call(container, 'POST', '/tournaments', { name: 'League' }, 'owner')).data;
+
+    const created = await call(container, 'POST', '/games', { config: FREE_CONFIG, tournamentCode: leagueCode }, 'owner');
+    const { gameId, code } = created.data;
+    await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'Reds' } }, 'uA');
+    await call(container, 'POST', '/games/join', { code, displayName: 'B', action: { type: 'create_team', name: 'Blues' } }, 'uB');
+    await call(container, 'POST', `/games/${gameId}/start`, {}, 'owner');
+
+    for (const event of ['END_ROUND1', 'COMPLETE_RETURN1', 'END_ROUND2', 'COMPLETE_RETURN2', 'COMPLETE_RATING', 'COMPLETE_FINALS']) {
+      expect((await call(container, 'POST', `/games/${gameId}/advance`, { event }, 'owner')).status).toBe(200);
+    }
+
+    const table = await call(container, 'GET', `/tournaments/${leagueCode}/standings`, undefined, 'uA');
+    expect(table.data.gamesPlayed).toBe(1);
+    expect(table.data.standings.map((s: { teamKey: string }) => s.teamKey).sort()).toEqual(['blues', 'reds']);
+  });
+
+  it('refuses to attach a game to a league that does not exist', async () => {
+    const res = await call(container, 'POST', '/games', { config: FREE_CONFIG, tournamentCode: 'NOSUCH' }, 'host');
+    expect(res.status).toBe(400);
+  });
+
   it('serves the sanitized game state at GET /games/:id', async () => {
     const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
     await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');

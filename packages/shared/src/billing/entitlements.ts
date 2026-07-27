@@ -26,7 +26,8 @@ export type Feature =
   | 'special_categories'
   | 'random_game_type'
   | 'judge_weight_over_1'
-  | 'up_to_6_teams';
+  | 'up_to_6_teams'
+  | 'create_leagues';
 
 export function freeEntitlement(userId: string): Entitlement {
   return { userId, tier: 'free', gameCredits: 0, subscriptionActive: false };
@@ -48,6 +49,8 @@ export function canUseFeature(tier: Tier, feature: Feature): boolean {
       return limits.maxJudgeWeight > 1;
     case 'up_to_6_teams':
       return limits.maxTeams > 2;
+    case 'create_leagues':
+      return limits.allowLeagues;
   }
 }
 

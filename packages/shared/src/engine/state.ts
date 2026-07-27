@@ -35,6 +35,11 @@ export interface Game {
   roundStartedAt?: Partial<Record<'round1' | 'round2', number>>;
   /** Scavenger Hunt: the list every team is hunting, generated at creation. */
   hunt?: HuntState;
+  /**
+   * The league this game counts toward, if any. Set at creation from the
+   * league's code; the result is recorded when the game reaches `results`.
+   */
+  tournamentId?: string;
   createdAt: number;
 }
 

@@ -21,12 +21,13 @@ import {
 } from './handlers.js';
 import { createGameForHost, getMyEntitlement, handlePurchaseWebhook, startGameForHost } from './billing-handlers.js';
 import {
-  advanceGameWithRewards,
   createShareCard,
   getMyReferral,
   redeemReferralCode,
   setSharingConsent,
 } from './growth-handlers.js';
+import { advanceGameAndSettle } from './game-lifecycle.js';
+import { createTournament, generateGameRecap, getStandingsByCode } from './tournament-handlers.js';
 import { requestPhotoDownload, requestPhotoUpload } from './media-handlers.js';
 import { authenticate, type AuthContext } from './auth.js';
 import { buildContainer, type Container } from './container.js';
@@ -70,7 +71,12 @@ const WEBHOOK_PATH = '/webhooks/purchase';
  */
 const ROUTES: Route[] = [
   compile('POST', '/games', ({ container, body, auth }) =>
-    createGameForHost(container.games, container.entitlements, { hostUserId: auth.userId, config: body.config }),
+    createGameForHost(
+      container.games,
+      container.entitlements,
+      { hostUserId: auth.userId, config: body.config, tournamentCode: body.tournamentCode },
+      container.tournaments,
+    ),
   ),
   compile('POST', '/games/join', ({ container, body, auth }) => joinByCode(container.games, { ...body, userId: auth.userId })),
   compile('GET', '/games/:id/teams', ({ container, params }) => listTeams(container.games, params.id!)),
@@ -103,11 +109,7 @@ const ROUTES: Route[] = [
     startGameForHost(container.games, container.entitlements, { gameId: params.id!, hostUserId: auth.userId }),
   ),
   compile('POST', '/games/:id/advance', ({ container, params, body, auth }) =>
-    advanceGameWithRewards(container.games, container.referrals, container.entitlements, {
-      gameId: params.id!,
-      hostUserId: auth.userId,
-      event: body.event as never,
-    }),
+    advanceGameAndSettle(container, { gameId: params.id!, hostUserId: auth.userId, event: body.event as never }),
   ),
   compile('POST', '/games/:id/consent', ({ container, params, body, auth }) =>
     setSharingConsent(container.games, { ...body, gameId: params.id, userId: auth.userId }),
@@ -125,11 +127,18 @@ const ROUTES: Route[] = [
     castVote(container.games, { ...body, gameId: params.id, voterUserId: auth.userId }),
   ),
   compile('GET', '/games/:id/results', ({ container, params }) => getResults(container.games, params.id!)),
+  compile('GET', '/games/:id/recap', ({ container, params }) => generateGameRecap(container.games, { gameId: params.id! })),
   compile('POST', '/games/:id/uploads', ({ container, params, body, auth }) =>
     requestPhotoUpload(container.games, container.media, { gameId: params.id!, teamId: str(body.teamId), userId: auth.userId }),
   ),
   compile('POST', '/games/:id/downloads', ({ container, params, body, auth }) =>
     requestPhotoDownload(container.games, container.media, { gameId: params.id!, photoId: str(body.photoId), userId: auth.userId }),
+  ),
+  compile('POST', '/tournaments', ({ container, body, auth }) =>
+    createTournament(container.tournaments, container.entitlements, { ...body, ownerUserId: auth.userId }),
+  ),
+  compile('GET', '/tournaments/:code/standings', ({ container, params }) =>
+    getStandingsByCode(container.tournaments, params.code!),
   ),
   compile('GET', '/me/entitlement', ({ container, auth }) => getMyEntitlement(container.entitlements, auth.userId)),
   compile('GET', '/me/referral', ({ container, auth }) => getMyReferral(container.referrals, auth.userId)),
