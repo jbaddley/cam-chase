@@ -111,6 +111,59 @@ describe('lambda route (authenticated)', () => {
     expect((await call(container, 'GET', `/games/${gameId}/items`)).status).toBe(401);
   });
 
+  it('serves the caller’s referral standing at GET /me/referral', async () => {
+    const res = await call(container, 'GET', '/me/referral', undefined, 'r1');
+    expect(res.status).toBe(200);
+    expect(res.data.code).toHaveLength(6);
+    expect(res.data.creditedReferrals).toBe(0);
+    expect((await call(container, 'GET', '/me/referral')).status).toBe(401);
+  });
+
+  it('redeems an invite code as the authenticated invitee', async () => {
+    const { code } = (await call(container, 'GET', '/me/referral', undefined, 'r1')).data;
+
+    const redeemed = await call(container, 'POST', '/me/referral/redeem', { code }, 'i1');
+    expect(redeemed.status).toBe(200);
+    expect(redeemed.data.attributed).toBe(true);
+    // The body never names the invitee; the token does.
+    expect((await container.referrals.findByInvitee('i1'))!.referrerUserId).toBe('r1');
+  });
+
+  it('records sharing consent for the token’s owner, not the body’s', async () => {
+    const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
+    await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
+
+    const res = await call(container, 'POST', `/games/${gameId}/consent`, { consent: true, userId: 'someone-else' }, 'uA');
+    expect(res.status).toBe(200);
+    const game = (await container.games.get(gameId))!;
+    expect(game.memberships.find((m) => m.userId === 'uA')!.sharingConsent).toBe(true);
+  });
+
+  it('refuses a share card while anyone depicted has not consented', async () => {
+    const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
+    await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
+    await call(container, 'POST', '/games/join', { code, displayName: 'B', action: { type: 'create_team', name: 'B' } }, 'uB');
+    await call(container, 'POST', `/games/${gameId}/start`, {}, 'host');
+
+    const teams = (await call(container, 'GET', `/games/${gameId}/teams`, undefined, 'host')).data as Array<{
+      teamId: string;
+      name: string;
+    }>;
+    const teamOf = (name: string) => teams.find((t) => t.name === name)!.teamId;
+    const a = await call(container, 'POST', `/games/${gameId}/photos`, { teamId: teamOf('A'), location: { lat: 40, lng: -74 }, s3Key: 'a0' }, 'uA');
+    const b = await call(container, 'POST', `/games/${gameId}/photos`, { teamId: teamOf('B'), location: { lat: 41, lng: -75 }, s3Key: 'b0' }, 'uB');
+    const body = { originalPhotoId: a.data.photoId, chasePhotoId: b.data.photoId, scoreStamp: 'Best match!' };
+
+    // uB has not answered, so the card must not be produced.
+    await call(container, 'POST', `/games/${gameId}/consent`, { consent: true }, 'uA');
+    expect((await call(container, 'POST', `/games/${gameId}/share-cards`, body, 'uA')).status).toBe(400);
+
+    await call(container, 'POST', `/games/${gameId}/consent`, { consent: true }, 'uB');
+    const card = await call(container, 'POST', `/games/${gameId}/share-cards`, body, 'uA');
+    expect(card.status).toBe(200);
+    expect(card.data.shareUrl).toContain('ref=');
+  });
+
   it('serves the sanitized game state at GET /games/:id', async () => {
     const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
     await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');

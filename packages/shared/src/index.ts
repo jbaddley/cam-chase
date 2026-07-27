@@ -17,6 +17,7 @@ export * from './billing/pricing.js';
 export * from './ai/judge.js';
 export * from './ai/recap.js';
 export * from './growth/referrals.js';
+export * from './growth/rewards.js';
 export * from './growth/share-card.js';
 export * from './tournament/standings.js';
 export * from './modes/scavenger/items.js';

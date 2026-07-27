@@ -12,7 +12,11 @@ afterEach(() => {
   startGame.mockReset();
 });
 
-function game(teamCount: number, state: GameStateView['state'] = 'lobby'): GameStateView {
+function game(
+  teamCount: number,
+  state: GameStateView['state'] = 'lobby',
+  hostTier: GameStateView['hostTier'] = 'free',
+): GameStateView {
   return {
     id: 'g1',
     code: 'ABC123',
@@ -24,10 +28,13 @@ function game(teamCount: number, state: GameStateView['state'] = 'lobby'): GameS
       memberCount: i + 1,
     })),
     playerCount: teamCount,
+    hostTier,
   };
 }
 
 const startButton = () => screen.queryByRole('button', { name: 'Start game' });
+
+const HOST_PERK = "Everyone here is playing on the host's unlimited plan.";
 
 describe('LobbyScreen', () => {
   it('shows the code, phase, and roster', () => {
@@ -88,5 +95,16 @@ describe('LobbyScreen', () => {
   it('shows a polling error passed down from the app root', () => {
     render(<LobbyScreen game={game(2)} code="ABC123" error="Reconnecting…" />);
     expect(screen.getByText('Reconnecting…')).toBeTruthy();
+  });
+
+  it('tells the lobby it is playing on the host’s plan', () => {
+    // Only the host's tier gates a game — the clearest reason to invite people.
+    render(<LobbyScreen game={game(2, 'lobby', 'unlimited')} code="ABC123" />);
+    expect(screen.getByText(HOST_PERK)).toBeTruthy();
+  });
+
+  it('says nothing about a plan when the host is on the free tier', () => {
+    render(<LobbyScreen game={game(2, 'lobby', 'free')} code="ABC123" />);
+    expect(screen.queryByText(/playing on the host/)).toBeNull();
   });
 });

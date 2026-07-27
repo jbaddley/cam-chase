@@ -272,6 +272,62 @@ describe('PhotoChaseClient', () => {
     expect(JSON.parse(calls[2]!.init!.body as string)).not.toHaveProperty('itemId');
   });
 
+  it('getReferral GETs the caller’s invite standing', async () => {
+    const view = {
+      code: 'ABC123',
+      inviteUrl: 'https://photochase.app/i/ABC123',
+      creditedReferrals: 2,
+      modesEarned: ['scavenger_hunt'],
+      nextUnlock: { mode: 'color_hunt', referralsAway: 1 },
+      flair: 'scout',
+    };
+    const { config, calls } = recorder(view);
+    const result = await new PhotoChaseClient(config).getReferral();
+
+    expect(calls[0]!.url).toBe('https://api.example.com/me/referral');
+    expect(calls[0]!.init?.method).toBe('GET');
+    expect(result).toEqual(view);
+  });
+
+  it('redeemReferral POSTs only the code — the token names the invitee', async () => {
+    const { config, calls } = recorder({ attributed: true });
+    await new PhotoChaseClient(config).redeemReferral('XYZ789');
+
+    expect(calls[0]!.url).toBe('https://api.example.com/me/referral/redeem');
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual({ code: 'XYZ789' });
+  });
+
+  it('setSharingConsent POSTs the answer to the game’s consent path', async () => {
+    const { config, calls } = recorder({ consent: false });
+    const result = await new PhotoChaseClient(config).setSharingConsent('g1', false);
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/consent');
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual({ consent: false });
+    expect(result).toEqual({ consent: false });
+  });
+
+  it('createShareCard POSTs the comparison, never a consent list', async () => {
+    const card = {
+      gameId: 'g1',
+      originalRef: 'k1',
+      chaseRef: 'k2',
+      originalTeamName: 'Reds',
+      chaseTeamName: 'Blues',
+      scoreStamp: 'Best match!',
+      shareUrl: 'https://photochase.app/s/g1?ref=ABC123',
+      status: 'active',
+    };
+    const { config, calls } = recorder(card);
+    const input = { originalPhotoId: 'p1', chasePhotoId: 'c1', scoreStamp: 'Best match!' };
+    const result = await new PhotoChaseClient(config).createShareCard('g1', input);
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/share-cards');
+    // Consent is the server's to determine; a client-supplied list would be
+    // one person asserting everyone else's permission.
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual(input);
+    expect(result).toEqual(card);
+  });
+
   it('flagFoul POSTs the reason to the photo’s foul path', async () => {
     const { config, calls } = recorder({ fouls: ['missing_face'] });
     const result = await new PhotoChaseClient(config).flagFoul('g1', 'p1', { reason: 'missing_face' });

@@ -35,6 +35,12 @@ export interface Membership {
   role: Role;
   /** Recorded when the team returns to the origin point each round. */
   returnCheckins: Partial<Record<'round1' | 'round2', number>>;
+  /**
+   * Whether this player agreed their photos may appear on a share card.
+   * Undefined means never asked, which is not consent — the share-card gate
+   * treats anything but an explicit `true` as withheld (docs/07).
+   */
+  sharingConsent?: boolean;
 }
 
 export interface Photo {

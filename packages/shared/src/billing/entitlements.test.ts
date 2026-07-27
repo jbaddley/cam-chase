@@ -8,6 +8,7 @@ import {
   canUseFeature,
   consumeGameCredit,
   freeEntitlement,
+  grantModes,
   refundGameCredit,
   type Entitlement,
 } from './entitlements.js';
@@ -108,6 +109,24 @@ describe('mode entitlement', () => {
   it('does not let an earned mode unlock a different one', () => {
     const earned = free({ unlockedModes: ['scavenger_hunt'] });
     expect(canHostConfig(earned, { ...FREE_CONFIG, mode: 'photo_tag' }).ok).toBe(false);
+  });
+
+  it('grants an earned mode additively', () => {
+    const granted = grantModes(free({ unlockedModes: ['scavenger_hunt'] }), ['color_hunt']);
+    expect(granted.unlockedModes).toEqual(['scavenger_hunt', 'color_hunt']);
+  });
+
+  it('is idempotent, so re-granting never duplicates or churns the record', () => {
+    const once = grantModes(free(), ['scavenger_hunt']);
+    expect(grantModes(once, ['scavenger_hunt'])).toBe(once);
+  });
+
+  it('keeps an earned mode after a subscription lapses', () => {
+    // The whole point of earning one: it is owned, not rented.
+    const subscriber = grantModes(free({ tier: 'unlimited', subscriptionActive: true }), ['photo_tag']);
+    const lapsed = applyPurchaseEvent(subscriber, { type: 'subscription_expired' });
+    expect(lapsed.tier).toBe('free');
+    expect(availableModes(lapsed)).toContain('photo_tag');
   });
 
   it('gives paid tiers every mode', () => {

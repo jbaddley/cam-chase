@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { TeamScore } from '@photochase/shared';
 import type { TeamSummary } from '@photochase/client';
 import { client } from '../api.js';
+import { t } from '../i18n.js';
 
 /** Score components shown under each team's total, in scoring order. */
 const BREAKDOWN: Array<{ key: keyof TeamScore; label: string }> = [
@@ -19,6 +20,8 @@ const BREAKDOWN: Array<{ key: keyof TeamScore; label: string }> = [
 export function ResultsScreen({ gameId, teams }: { gameId: string; teams: TeamSummary[] }) {
   const [scoreboard, setScoreboard] = useState<TeamScore[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [consent, setConsent] = useState<boolean | null>(null);
+  const [consentError, setConsentError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -35,7 +38,22 @@ export function ResultsScreen({ gameId, teams }: { gameId: string; teams: TeamSu
     };
   }, [gameId]);
 
-  const nameOf = (teamId: string) => teams.find((t) => t.teamId === teamId)?.name ?? teamId;
+  const nameOf = (teamId: string) => teams.find((team) => team.teamId === teamId)?.name ?? teamId;
+
+  /**
+   * Sharing consent is asked here, at the moment there is something worth
+   * sharing, and it stays answerable both ways — a "yes" that cannot be taken
+   * back is not consent (docs/07).
+   */
+  async function answerConsent(answer: boolean): Promise<void> {
+    setConsentError(null);
+    try {
+      const { consent: saved } = await client.setSharingConsent(gameId, answer);
+      setConsent(saved);
+    } catch {
+      setConsentError(t('share.consentFailed'));
+    }
+  }
 
   if (!scoreboard) {
     return (
@@ -67,6 +85,17 @@ export function ResultsScreen({ gameId, teams }: { gameId: string; teams: TeamSu
           </View>
         ))}
       </ScrollView>
+
+      <Text style={styles.label}>{t('share.consentAsk')}</Text>
+      <View style={styles.consentRow}>
+        <Pressable onPress={() => answerConsent(true)} style={consent === true ? styles.picked : styles.choice}>
+          <Text>{t('share.consentYes')}</Text>
+        </Pressable>
+        <Pressable onPress={() => answerConsent(false)} style={consent === false ? styles.picked : styles.choice}>
+          <Text>{t('share.consentNo')}</Text>
+        </Pressable>
+      </View>
+      {consentError ? <Text style={styles.error}>{consentError}</Text> : null}
     </View>
   );
 }
@@ -81,4 +110,8 @@ const styles = StyleSheet.create({
   total: { fontSize: 20, fontWeight: '700', color: '#1971c2' },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 12 },
   label: { color: '#666' },
+  consentRow: { flexDirection: 'row', gap: 8 },
+  choice: { backgroundColor: '#e9ecef', padding: 12, borderRadius: 8 },
+  picked: { backgroundColor: '#ffd43b', padding: 12, borderRadius: 8 },
+  error: { color: '#c92a2a' },
 });

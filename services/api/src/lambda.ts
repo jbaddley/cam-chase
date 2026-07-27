@@ -1,7 +1,6 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 import { randomUUID } from 'node:crypto';
 import {
-  advanceGame,
   castFinalsVote,
   checkIn,
   clearFoul,
@@ -21,6 +20,13 @@ import {
   type Result,
 } from './handlers.js';
 import { createGameForHost, getMyEntitlement, handlePurchaseWebhook, startGameForHost } from './billing-handlers.js';
+import {
+  advanceGameWithRewards,
+  createShareCard,
+  getMyReferral,
+  redeemReferralCode,
+  setSharingConsent,
+} from './growth-handlers.js';
 import { requestPhotoDownload, requestPhotoUpload } from './media-handlers.js';
 import { authenticate, type AuthContext } from './auth.js';
 import { buildContainer, type Container } from './container.js';
@@ -97,7 +103,17 @@ const ROUTES: Route[] = [
     startGameForHost(container.games, container.entitlements, { gameId: params.id!, hostUserId: auth.userId }),
   ),
   compile('POST', '/games/:id/advance', ({ container, params, body, auth }) =>
-    advanceGame(container.games, { gameId: params.id!, hostUserId: auth.userId, event: body.event as never }),
+    advanceGameWithRewards(container.games, container.referrals, container.entitlements, {
+      gameId: params.id!,
+      hostUserId: auth.userId,
+      event: body.event as never,
+    }),
+  ),
+  compile('POST', '/games/:id/consent', ({ container, params, body, auth }) =>
+    setSharingConsent(container.games, { ...body, gameId: params.id, userId: auth.userId }),
+  ),
+  compile('POST', '/games/:id/share-cards', ({ container, params, body, auth }) =>
+    createShareCard(container.games, { ...body, gameId: params.id, sharerUserId: auth.userId }),
   ),
   compile('POST', '/games/:id/photos', ({ container, params, body, auth }) =>
     submitPhoto(container.games, { ...body, gameId: params.id, shooterUserId: auth.userId }),
@@ -116,6 +132,10 @@ const ROUTES: Route[] = [
     requestPhotoDownload(container.games, container.media, { gameId: params.id!, photoId: str(body.photoId), userId: auth.userId }),
   ),
   compile('GET', '/me/entitlement', ({ container, auth }) => getMyEntitlement(container.entitlements, auth.userId)),
+  compile('GET', '/me/referral', ({ container, auth }) => getMyReferral(container.referrals, auth.userId)),
+  compile('POST', '/me/referral/redeem', ({ container, body, auth }) =>
+    redeemReferralCode(container.referrals, { ...body, inviteeUserId: auth.userId }),
+  ),
   // Big-screen spectator view: reached from a TV browser with nobody signed in.
   compile('GET', '/spectate/:code', ({ container, params }) => getSpectatorView(container.games, params.code!), true),
   // Provider-signed, not user-authenticated: the signature is checked in

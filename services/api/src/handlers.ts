@@ -188,6 +188,13 @@ export interface GameStateView {
   config: Game['config'];
   teams: Array<{ teamId: string; name: string; memberCount: number }>;
   playerCount: number;
+  /**
+   * The tier this lobby plays at — the host's, since only the host's plan gates
+   * a game. Already true of the engine; surfacing it is what lets the lobby say
+   * "you are all playing on the host's plan", which is the most honest reason a
+   * subscriber has to invite people.
+   */
+  hostTier: Tier;
 }
 
 /**
@@ -209,6 +216,7 @@ export async function getGameState(repo: GameRepository, gameId: string): Promis
       memberCount: game.memberships.filter((m) => m.teamId === t.id).length,
     })),
     playerCount: game.memberships.length,
+    hostTier: game.tier,
   });
 }
 

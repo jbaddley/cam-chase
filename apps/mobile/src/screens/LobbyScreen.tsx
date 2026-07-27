@@ -72,6 +72,11 @@ export function LobbyScreen({
       <Text style={styles.code}>{t('lobby.code', { code })}</Text>
       <Text style={styles.phase}>{game ? t(PHASE_KEY[game.state]) : t('watch.connecting')}</Text>
       <Text style={styles.subtitle}>{t('lobby.teamsJoined', { count: teams.length })}</Text>
+      {/* Only the host's plan gates a game, so say so: it is the clearest
+          reason a paying host has to bring more people in. */}
+      {game && game.hostTier !== 'free' ? (
+        <Text style={styles.perk}>{t('lobby.hostPlan', { tier: game.hostTier })}</Text>
+      ) : null}
       {shownError ? <Text style={styles.error}>{shownError}</Text> : null}
       <ScrollView>
         {teams.map((team) => (
@@ -95,6 +100,7 @@ const styles = StyleSheet.create({
   code: { fontSize: 24, fontWeight: '700' },
   phase: { fontSize: 18, color: '#1971c2' },
   subtitle: { color: '#666' },
+  perk: { color: '#2f9e44' },
   error: { color: '#c92a2a' },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12 },
   teamName: { fontSize: 18 },
