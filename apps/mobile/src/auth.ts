@@ -1,13 +1,15 @@
+import { AUTH_DOMAIN, USER_POOL_CLIENT_ID } from './config.js';
 import { AuthSession, buildAuthorizeUrl, createPkceChallenge, parseCallbackCode, webCrypto, type AuthConfig, type CryptoSource, type IdentityProvider } from '@photochase/client';
-
-const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 
 /** Custom scheme registered by the app; must match the Cognito callback URL. */
 export const REDIRECT_URI = 'photochase://auth';
 
+// Empty strings rather than placeholders when unset: `App` refuses to render
+// the app at all in that case (see src/config.ts), so nothing here is ever
+// reached unconfigured — and a blank is at least obviously blank.
 const authConfig: AuthConfig = {
-  domain: env.EXPO_PUBLIC_AUTH_DOMAIN ?? 'https://photochase-dev.auth.us-east-1.amazoncognito.com',
-  clientId: env.EXPO_PUBLIC_USER_POOL_CLIENT_ID ?? 'local-dev-client',
+  domain: AUTH_DOMAIN ?? '',
+  clientId: USER_POOL_CLIENT_ID ?? '',
   redirectUri: REDIRECT_URI,
 };
 

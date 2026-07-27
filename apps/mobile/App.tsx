@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { configError } from './src/config.js';
 import { GameRouter } from './src/GameRouter.js';
 import { DailyHuntScreen } from './src/screens/DailyHuntScreen.js';
 import { JoinScreen, type JoinedGame } from './src/screens/JoinScreen.js';
@@ -38,6 +40,18 @@ export default function App({
   capture = placeholderCapture,
 }: { authorize?: Authorizer; purchases?: PurchaseGateway; capture?: CaptureSource } = {}) {
   const [signedIn, setSignedIn] = useState(session.isSignedIn);
+
+  // Before anything else: an app pointed at nothing cannot sign anyone in, and
+  // the failure it produces otherwise ("Invalid client id" from Cognito, or a
+  // connection refused) points nowhere near the missing variable.
+  if (configError) {
+    return (
+      <View style={styles.configError}>
+        <Text style={styles.configTitle}>Not configured</Text>
+        <Text style={styles.configBody}>{configError}</Text>
+      </View>
+    );
+  }
   const [route, setRoute] = useState<Route>('home');
   const [joined, setJoined] = useState<JoinedGame | null>(null);
 
@@ -79,3 +93,9 @@ export default function App({
       );
   }
 }
+
+const styles = StyleSheet.create({
+  configError: { flex: 1, padding: 24, gap: 12, justifyContent: 'center' },
+  configTitle: { fontSize: 24, fontWeight: '700' },
+  configBody: { fontSize: 15, color: '#495057' },
+});
