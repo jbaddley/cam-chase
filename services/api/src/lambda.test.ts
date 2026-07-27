@@ -210,6 +210,50 @@ describe('lambda route (authenticated)', () => {
     expect(res.status).toBe(400);
   });
 
+  it('serves a colour hunt secret only to its own team', async () => {
+    await container.entitlements.save({ userId: 'host', tier: 'unlimited', gameCredits: 0, subscriptionActive: true });
+    const config = { ...FREE_CONFIG, mode: 'color_hunt' as const, colorSpecificity: 'color_plus' as const };
+    const { gameId, code } = (await call(container, 'POST', '/games', { config }, 'host')).data;
+    await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
+    await call(container, 'POST', '/games/join', { code, displayName: 'B', action: { type: 'create_team', name: 'B' } }, 'uB');
+    await call(container, 'POST', `/games/${gameId}/start`, {}, 'host');
+
+    const forA = await call(container, 'GET', `/games/${gameId}/secret`, undefined, 'uA');
+    const forB = await call(container, 'GET', `/games/${gameId}/secret`, undefined, 'uB');
+    expect(forA.status).toBe(200);
+    // Reading someone else's secret is the game; the route must never do it.
+    expect(forA.data.secret).not.toEqual(forB.data.secret);
+    expect((await call(container, 'GET', `/games/${gameId}/secret`, undefined, 'stranger')).status).toBe(400);
+    expect((await call(container, 'GET', `/games/${gameId}/secret`)).status).toBe(401);
+  });
+
+  it('takes a guess from the token’s team, never the body’s', async () => {
+    await container.entitlements.save({ userId: 'host', tier: 'unlimited', gameCredits: 0, subscriptionActive: true });
+    const config = { ...FREE_CONFIG, mode: 'color_hunt' as const };
+    const { gameId, code } = (await call(container, 'POST', '/games', { config }, 'host')).data;
+    await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
+    await call(container, 'POST', '/games/join', { code, displayName: 'B', action: { type: 'create_team', name: 'B' } }, 'uB');
+    await call(container, 'POST', `/games/${gameId}/start`, {}, 'host');
+    await call(container, 'POST', `/games/${gameId}/advance`, { event: 'END_ROUND1' }, 'host');
+
+    const teams = (await call(container, 'GET', `/games/${gameId}/teams`, undefined, 'host')).data as Array<{
+      teamId: string;
+      name: string;
+    }>;
+    const teamB = teams.find((t) => t.name === 'B')!.teamId;
+
+    const res = await call(
+      container,
+      'POST',
+      `/games/${gameId}/guesses`,
+      { subjectTeamId: teamB, guess: { color: 'red' }, userId: 'uB' },
+      'uA',
+    );
+    expect(res.status).toBe(200);
+    const game = (await container.games.get(gameId))!;
+    expect(game.color!.guesses[0]!.guesserTeamId).toBe(teams.find((t) => t.name === 'A')!.teamId);
+  });
+
   it('serves the sanitized game state at GET /games/:id', async () => {
     const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
     await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');

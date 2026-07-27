@@ -225,6 +225,33 @@ describe('HostScreen', () => {
       expect(screen.queryByText('Hunt theme')).toBeTruthy();
     });
 
+    it('offers the guess level only for a colour hunt', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}, 'unlimited', ['photo_chase', 'color_hunt']));
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/unlimited/);
+      expect(screen.queryByText('Guess level')).toBeNull();
+
+      fireEvent.click(option('Game', 'Colour hunt'));
+      expect(screen.queryByText('Guess level')).toBeTruthy();
+      // The hunt theme belongs to a different mode and must not appear.
+      expect(screen.queryByText('Hunt theme')).toBeNull();
+    });
+
+    it('sends the chosen guess level', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}, 'unlimited', ['photo_chase', 'color_hunt']));
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/unlimited/);
+      fireEvent.click(option('Game', 'Colour hunt'));
+      fireEvent.click(option('Guess level', 'Colour + one more'));
+      fireEvent.click(action('Create game'));
+
+      await waitFor(() => expect(createGame).toHaveBeenCalled());
+      expect(createGame.mock.calls[0]![0]).toMatchObject({ mode: 'color_hunt', colorSpecificity: 'color_plus' });
+    });
+
     it('sends the chosen hunt theme', async () => {
       getEntitlement.mockResolvedValue(entitlement({}, 'unlimited', ['photo_chase', 'scavenger_hunt']));
       createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });

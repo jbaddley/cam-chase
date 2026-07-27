@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { TeamScore } from '@photochase/shared';
+import type { GameMode, TeamScore } from '@photochase/shared';
 import type { TeamSummary } from '@photochase/client';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
 
-/** Score components shown under each team's total, in scoring order. */
+/**
+ * Score components shown under each team's total, in scoring order.
+ *
+ * Every mode emits the same `TeamScore` so results, spectator view and league
+ * standings work without knowing the mode — but the columns mean different
+ * things, so only the labels vary. A colour hunt's `location` is guesses read
+ * right and its `pose` is the bluff bonus; showing those as "Location" and
+ * "Pose" would be actively misleading.
+ */
 const BREAKDOWN: Array<{ key: keyof TeamScore; label: string }> = [
   { key: 'location', label: 'Location' },
   { key: 'pose', label: 'Pose' },
@@ -16,8 +24,22 @@ const BREAKDOWN: Array<{ key: keyof TeamScore; label: string }> = [
   { key: 'foulPenalty', label: 'Fouls' },
 ];
 
+/** Per-mode overrides for the columns whose meaning changes. */
+const MODE_LABELS: Partial<Record<GameMode, Partial<Record<keyof TeamScore, string>>>> = {
+  scavenger_hunt: { location: 'Items found' },
+  color_hunt: { location: 'Guessed right', pose: 'Bluff bonus' },
+};
+
 /** Final standings with each team's score breakdown, highest total first. */
-export function ResultsScreen({ gameId, teams }: { gameId: string; teams: TeamSummary[] }) {
+export function ResultsScreen({
+  gameId,
+  teams,
+  mode = 'photo_chase',
+}: {
+  gameId: string;
+  teams: TeamSummary[];
+  mode?: GameMode;
+}) {
   const [scoreboard, setScoreboard] = useState<TeamScore[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [consent, setConsent] = useState<boolean | null>(null);
@@ -78,7 +100,7 @@ export function ResultsScreen({ gameId, teams }: { gameId: string; teams: TeamSu
             </View>
             {BREAKDOWN.filter(({ key }) => score[key] !== 0).map(({ key, label }) => (
               <View key={key} style={styles.row}>
-                <Text style={styles.label}>{label}</Text>
+                <Text style={styles.label}>{MODE_LABELS[mode]?.[key] ?? label}</Text>
                 <Text>{score[key]}</Text>
               </View>
             ))}

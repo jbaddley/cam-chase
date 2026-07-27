@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type EntitlementView } from '@photochase/client';
 import {
+  COLOR_SPECIFICITIES,
   FREE_CONFIG,
   HUNT_THEMES,
   type GameConfig,
   type GameMode,
   type GameType,
+  type ColorSpecificity,
   type HuntTheme,
 } from '@photochase/shared';
 import { client } from '../api.js';
@@ -27,6 +29,12 @@ const MODE_KEY: Record<GameMode, MessageKey> = {
   scavenger_hunt: 'mode.scavengerHunt',
   color_hunt: 'mode.colorHunt',
   photo_tag: 'mode.photoTag',
+};
+
+/** Catalog key per colour-hunt difficulty, mirroring {@link MODE_KEY}. */
+const LEVEL_KEY: Record<ColorSpecificity, MessageKey> = {
+  simple: 'colorLevel.simple',
+  color_plus: 'colorLevel.color_plus',
 };
 
 /** Catalog key per hunt theme, mirroring {@link MODE_KEY}. */
@@ -80,6 +88,7 @@ export function HostScreen({
   const limits = entitlement?.limits;
   const isChase = config.mode === 'photo_chase';
   const isHunt = config.mode === 'scavenger_hunt';
+  const isColor = config.mode === 'color_hunt';
   const allows = {
     // Modes come from the entitlement, not the tier alone: some are earned.
     // Tolerate a missing list rather than crash the only route to a new game.
@@ -167,6 +176,17 @@ export function HostScreen({
             allowed={() => true}
             onPick={(huntTheme) => setConfig((c) => ({ ...c, huntTheme }))}
             format={(theme) => t(THEME_KEY[theme])}
+          />
+        ) : null}
+        {/* How specific the guess has to be — a colour-hunt concept only. */}
+        {isColor ? (
+          <Choices
+            label={t('config.colorSpecificity')}
+            options={COLOR_SPECIFICITIES}
+            value={config.colorSpecificity ?? 'simple'}
+            allowed={() => true}
+            onPick={(colorSpecificity) => setConfig((c) => ({ ...c, colorSpecificity }))}
+            format={(level) => t(LEVEL_KEY[level])}
           />
         ) : null}
         <Choices

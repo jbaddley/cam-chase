@@ -1,4 +1,6 @@
 import type {
+  AttributeGuess,
+  AttributeSet,
   Flair,
   FoulReason,
   GameConfig,
@@ -34,6 +36,24 @@ export interface ReferralView {
   modesEarned: GameMode[];
   nextUnlock: { mode: GameMode; referralsAway: number } | null;
   flair: Flair | null;
+}
+
+/** The caller team's secret attribute set in a colour hunt. */
+export interface MySecretView {
+  teamId: string;
+  secret: AttributeSet;
+  /** Rendered form, for the brief and for the reveal. */
+  description: string;
+}
+
+/** Another team's photo set, as the caller studies it before guessing. */
+export interface GuessTargetView {
+  teamId: string;
+  teamName: string;
+  /** S3 keys of that team's photos; exchange for URLs via requestDownload. */
+  photoKeys: string[];
+  /** This team's committed guess so far, if any. */
+  myGuess: AttributeGuess | null;
 }
 
 /** A league table: the season's name, code, and standings. */
@@ -295,6 +315,24 @@ export class PhotoChaseClient {
   /** The caller team's Round 2 queue, in delivery order. */
   listAssignments(gameId: string): Promise<AssignmentView[]> {
     return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/assignments`);
+  }
+
+  /** The caller team's own secret. Never anyone else's — reading those is the game. */
+  getMySecret(gameId: string): Promise<MySecretView> {
+    return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/secret`);
+  }
+
+  /** The teams the caller may guess about, with the photos to study. */
+  listGuessTargets(gameId: string): Promise<GuessTargetView[]> {
+    return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/guess-targets`);
+  }
+
+  /** Commit or revise this team's guess about another team's secret. */
+  submitGuess(
+    gameId: string,
+    input: { subjectTeamId: string; guess: AttributeGuess },
+  ): Promise<{ subjectTeamId: string; guess: AttributeGuess }> {
+    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/guesses`, input);
   }
 
   /** The scavenger hunt list, with this team's progress and the wildcard timer. */

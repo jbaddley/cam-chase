@@ -22,3 +22,5 @@ export * from './growth/share-card.js';
 export * from './tournament/standings.js';
 export * from './modes/scavenger/items.js';
 export * from './modes/scavenger/scoring.js';
+export * from './modes/color/attributes.js';
+export * from './modes/color/scoring.js';

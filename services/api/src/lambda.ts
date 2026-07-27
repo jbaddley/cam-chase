@@ -11,11 +11,14 @@ import {
   getSpectatorView,
   getResults,
   joinByCode,
+  getMySecret,
   listAssignments,
+  listGuessTargets,
   listHuntItems,
   listRateable,
   listTeams,
   submitChase,
+  submitGuess,
   submitPhoto,
   type Result,
 } from './handlers.js';
@@ -100,6 +103,15 @@ const ROUTES: Route[] = [
   ),
   compile('GET', '/games/:id/items', ({ container, params, auth }) =>
     listHuntItems(container.games, { gameId: params.id!, userId: auth.userId }),
+  ),
+  compile('GET', '/games/:id/secret', ({ container, params, auth }) =>
+    getMySecret(container.games, { gameId: params.id!, userId: auth.userId }),
+  ),
+  compile('GET', '/games/:id/guess-targets', ({ container, params, auth }) =>
+    listGuessTargets(container.games, { gameId: params.id!, userId: auth.userId }),
+  ),
+  compile('POST', '/games/:id/guesses', ({ container, params, body, auth }) =>
+    submitGuess(container.games, { ...body, gameId: params.id, userId: auth.userId }),
   ),
   compile('GET', '/games/:id/rateable', ({ container, params, auth }) =>
     listRateable(container.games, { gameId: params.id!, userId: auth.userId }),

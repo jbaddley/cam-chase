@@ -1,13 +1,20 @@
 import {
   applyTransition,
   BEST_OVERALL_CATEGORY,
+  assignAttributeSets,
+  describeAttributeSet,
   generateHuntList,
   modeOf,
+  scoreColorHunt,
   pickWildcard,
   resolveHuntFinds,
+  VALIDITY_THRESHOLD,
   scoreScavenger,
   visibleHuntItems,
   computeScoreboard,
+  COLORS,
+  MOTIFS,
+  SHAPES,
   FOUL_REASONS,
   RATING_AXES,
   GameConfigSchema,
@@ -25,6 +32,9 @@ import {
   type ScoreAssignment,
   type ScoreVote,
   type TeamPhotos,
+  type AttributeGuess,
+  type AttributeSet,
+  type ColorGuessRecord,
   type HuntClaim,
   type HuntItem,
   type RatingAxis,
@@ -353,6 +363,135 @@ export async function listHuntItems(
   });
 }
 
+// --- Colour Hunt: secrets and guessing --------------------------------------
+
+/** The caller's own team's secret, and how specific the guess has to be. */
+export interface MySecretView {
+  teamId: string;
+  secret: AttributeSet;
+  /** Rendered form, for the brief and for the reveal. */
+  description: string;
+}
+
+/**
+ * The caller team's secret attribute set.
+ *
+ * Scoped exactly like {@link listAssignments}: a player can only ever read
+ * their own team's secret, because reading someone else's *is* the game. Judges
+ * and spectators have no team and so have no secret to read.
+ */
+export async function getMySecret(
+  repo: GameRepository,
+  input: { gameId: string; userId: string },
+): Promise<Result<MySecretView>> {
+  const game = await repo.get(input.gameId);
+  if (!game) return err('Game not found.');
+  if (modeOf(game) !== 'color_hunt') return err('This game is not a colour hunt.');
+
+  const membership = game.memberships.find((m) => m.userId === input.userId);
+  if (!membership) return err('You are not in this game.');
+  if (!membership.teamId) return err('Only players on a team have a secret.');
+
+  const secret = game.color?.secrets[membership.teamId];
+  if (!secret) return err('Secrets have not been dealt yet.');
+  return ok({ teamId: membership.teamId, secret, description: describeAttributeSet(secret) });
+}
+
+/** Another team's photo set, as the caller studies it before guessing. */
+export interface GuessTargetView {
+  teamId: string;
+  teamName: string;
+  /** S3 keys of that team's photos; exchange for URLs via /downloads. */
+  photoKeys: string[];
+  /** This team's committed guess so far, if any. */
+  myGuess: AttributeGuess | null;
+}
+
+/**
+ * The teams the caller may guess about, with the photos to study.
+ *
+ * Own team is excluded — you already know your own secret — and no secret is
+ * ever included, only the photos. Available during the guessing window and
+ * afterwards, so the results screen can show what was studied.
+ */
+export async function listGuessTargets(
+  repo: GameRepository,
+  input: { gameId: string; userId: string },
+): Promise<Result<GuessTargetView[]>> {
+  const game = await repo.get(input.gameId);
+  if (!game) return err('Game not found.');
+  if (modeOf(game) !== 'color_hunt') return err('This game is not a colour hunt.');
+
+  const membership = game.memberships.find((m) => m.userId === input.userId);
+  if (!membership) return err('You are not in this game.');
+
+  const mine = membership.teamId;
+  const targets = game.teams
+    .filter((team) => team.id !== mine)
+    .map((team): GuessTargetView => ({
+      teamId: team.id,
+      teamName: team.name,
+      photoKeys: game.photos
+        .filter((p) => p.teamId === team.id)
+        .sort((a, b) => a.order - b.order)
+        .map((p) => p.s3Key),
+      myGuess:
+        (mine &&
+          game.color?.guesses.find((g) => g.guesserTeamId === mine && g.subjectTeamId === team.id)?.guess) ||
+        null,
+    }));
+  return ok(targets);
+}
+
+const SubmitGuessInput = z.object({
+  gameId: z.string().min(1),
+  userId: z.string().min(1),
+  subjectTeamId: z.string().min(1),
+  guess: z.object({
+    color: z.enum(COLORS).optional(),
+    shape: z.enum(SHAPES).optional(),
+    motif: z.enum(MOTIFS).optional(),
+  }),
+});
+
+/**
+ * Commit (or change) this team's guess about another team's secret.
+ *
+ * Replaceable while the window is open, so a team can revise as they study —
+ * the guess is only locked when the host closes guessing, which is what
+ * `CLOSE_GUESSING` means.
+ */
+export async function submitGuess(
+  repo: GameRepository,
+  raw: unknown,
+): Promise<Result<{ subjectTeamId: string; guess: AttributeGuess }>> {
+  const parsed = SubmitGuessInput.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
+  const { gameId, userId, subjectTeamId, guess } = parsed.data;
+
+  const game = await repo.get(gameId);
+  if (!game) return err('Game not found.');
+  if (modeOf(game) !== 'color_hunt') return err('This game is not a colour hunt.');
+  if (game.state !== 'guessing') return err('The guessing window is not open.');
+
+  const membership = game.memberships.find((m) => m.userId === userId);
+  if (!membership) return err('You are not in this game.');
+  if (!membership.teamId) return err('Only players on a team guess.');
+  if (membership.teamId === subjectTeamId) return err('You already know your own secret.');
+  if (!game.teams.some((t) => t.id === subjectTeamId)) return err('Team not found.');
+
+  const color = game.color ?? (game.color = { secrets: {}, guesses: [] });
+  const record: ColorGuessRecord = { guesserTeamId: membership.teamId, subjectTeamId, guess };
+  const existing = color.guesses.findIndex(
+    (g) => g.guesserTeamId === membership.teamId && g.subjectTeamId === subjectTeamId,
+  );
+  if (existing >= 0) color.guesses[existing] = record;
+  else color.guesses.push(record);
+
+  await repo.save(game);
+  return ok({ subjectTeamId, guess });
+}
+
 // --- listRateable -----------------------------------------------------------
 
 /**
@@ -399,6 +538,28 @@ export async function listRateable(
   const myVote = (assignmentId: string, axis: RatingAxis): number | null =>
     game.votes.find((v) => v.assignmentId === assignmentId && v.voterUserId === input.userId && v.axis === axis)
       ?.stars ?? null;
+
+  // Colour Hunt: once guessing has closed the secrets are public, so judging is
+  // "does this photo really contain what that team was hiding?". Without that
+  // check the winning strategy is to omit the attribute, which is unguessable.
+  if (modeOf(game) === 'color_hunt') {
+    const claims = game.photos
+      .filter((p) => game.color?.secrets[p.teamId] !== undefined)
+      .filter((p) => membership.teamId === null || p.teamId !== membership.teamId)
+      .sort((a, b) => a.order - b.order)
+      .map((p): RateableView => ({
+        assignmentId: p.id,
+        originalPhotoId: p.id,
+        originalPhotoKey: p.s3Key,
+        chasePhotoId: p.id,
+        chasePhotoKey: p.s3Key,
+        myVotes: { pose: null, angle: null, validity: myVote(p.id, 'validity') },
+        originalFouls: [...p.fouls],
+        itemId: p.teamId,
+        itemLabel: describeAttributeSet(game.color!.secrets[p.teamId]!),
+      }));
+    return ok(claims);
+  }
 
   // A hunt is judged photo by photo against the item claimed, so the queue is
   // built from claim photos rather than assignments — a hunt has none.
@@ -468,6 +629,23 @@ async function requireHost(
   return ok(game);
 }
 
+/**
+ * Deal each team its secret attribute set. Done at start rather than creation
+ * because the teams are not known until then, and seeded from the game's code
+ * so a game is reproducible.
+ */
+function assignColorSecrets(game: Game): void {
+  if (modeOf(game) !== 'color_hunt' || game.color) return;
+  game.color = {
+    secrets: assignAttributeSets({
+      teamIds: game.teams.map((t) => t.id),
+      specificity: game.config.colorSpecificity ?? 'simple',
+      seed: seedFromCode(game.code),
+    }),
+    guesses: [],
+  };
+}
+
 export async function startGame(
   repo: GameRepository,
   input: { gameId: string; hostUserId: string },
@@ -476,6 +654,7 @@ export async function startGame(
   if (!found.ok) return found;
   try {
     const started = applyTransition(found.data, { type: 'START_GAME' });
+    assignColorSecrets(started);
     stampRoundStart(started);
     await repo.save(started);
     return ok({ state: started.state });
@@ -639,13 +818,18 @@ export async function castVote(repo: GameRepository, raw: unknown): Promise<Resu
   if (!voter) return err('Voter is not in this game.');
   const isJudge = voter.role === 'judge' || voter.role === 'spectator';
 
-  if (modeOf(game) === 'scavenger_hunt') {
-    if (axis !== 'validity') return err('A scavenger hunt is rated on validity.');
-    const photo = game.photos.find((p) => p.id === assignmentId && p.itemId !== undefined);
-    if (!photo) return err('Claim not found.');
-    if (!isJudge && voter.teamId === photo.teamId) return err("Cannot rate your own team's find.");
+  const mode = modeOf(game);
+  if (mode === 'scavenger_hunt' || mode === 'color_hunt') {
+    // Both judge a photo against a stated claim, so both use one axis and
+    // reject the chase's two — a stray vote must not land in a column this
+    // mode's scorer never reads.
+    if (axis !== 'validity') return err('This mode is rated on validity.');
+    const photo = game.photos.find((p) => p.id === assignmentId);
+    if (!photo) return err('Photo not found.');
+    if (mode === 'scavenger_hunt' && photo.itemId === undefined) return err('Claim not found.');
+    if (!isJudge && voter.teamId === photo.teamId) return err("Cannot rate your own team's photo.");
   } else {
-    if (axis === 'validity') return err('Validity only applies to a scavenger hunt.');
+    if (axis === 'validity') return err('Validity does not apply to a chase.');
     const assignment = game.assignments.find((a) => a.id === assignmentId);
     if (!assignment) return err('Assignment not found.');
     if (!isJudge && voter.teamId === assignment.chaserTeamId) return err('Cannot rate your own chase.');
@@ -898,6 +1082,42 @@ export async function getResults(
   );
 
   const teamIds = game.teams.map((t) => t.id);
+
+  if (modeOf(game) === 'color_hunt') {
+    // A team is confirmed unless its photos were voted down — same "unjudged
+    // counts" rule the hunt uses, for the same reason: most games have nobody
+    // moderating, and defaulting to void would gut the mode rather than police
+    // it. A team that never showed its attribute keeps no bluff bonus.
+    const confirmed: Record<string, boolean> = {};
+    for (const team of game.teams) {
+      const photoIds = new Set(game.photos.filter((p) => p.teamId === team.id).map((p) => p.id));
+      const votes = game.votes.filter((v) => v.axis === 'validity' && photoIds.has(v.assignmentId));
+      const weight = votes.reduce((sum, v) => sum + weightOf(v.voterUserId), 0);
+      const stars = votes.reduce((sum, v) => sum + v.stars * weightOf(v.voterUserId), 0);
+      const disputed = game.photos.some((p) => p.teamId === team.id && p.fouls.includes('missing_item'));
+      confirmed[team.id] = !disputed && (weight === 0 || stars / weight >= VALIDITY_THRESHOLD);
+    }
+
+    const colorFouls: Record<string, number> = {};
+    for (const p of game.photos) {
+      // As in the hunt: `missing_item` already voids the bluff, so charging a
+      // penalty on top would be double jeopardy.
+      const counted = p.fouls.filter((f) => f !== 'missing_item').length;
+      if (counted > 0) colorFouls[p.teamId] = (colorFouls[p.teamId] ?? 0) + counted;
+    }
+
+    return ok({
+      scoreboard: scoreColorHunt({
+        teamIds,
+        secrets: game.color?.secrets ?? {},
+        guesses: game.color?.guesses ?? [],
+        confirmed,
+        fouls: colorFouls,
+        bestMatchTeamId: finals.bestMatchTeamId,
+        specialWinners: finals.specialWinners,
+      }),
+    });
+  }
 
   if (modeOf(game) === 'scavenger_hunt') {
     // `missing_item` is deliberately left out of the foul tally: it already
