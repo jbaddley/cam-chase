@@ -14,6 +14,13 @@ export interface Entitlement {
   /** Epoch ms the subscription lapses, if any. */
   subscriptionExpiresAt?: number;
   /**
+   * A one-off purchase that never lapses. Kept separate from
+   * `subscriptionActive` rather than modelled as a subscription with a distant
+   * expiry, because a far-future date is a lie that eventually comes true — and
+   * because the two are cancelled by different events.
+   */
+  lifetime?: boolean;
+  /**
    * Modes earned rather than bought — a referral reward. Additive to the tier's
    * own `allowedModes`, and permanent once granted.
    */
@@ -108,10 +115,14 @@ export type PurchaseEvent =
   | { type: 'subscription_started'; expiresAt: number }
   | { type: 'subscription_renewed'; expiresAt: number }
   | { type: 'subscription_cancelled' }
-  | { type: 'subscription_expired' };
+  | { type: 'subscription_expired' }
+  | { type: 'lifetime_purchased' }
+  /** Refunds and chargebacks revoke it; nothing else does. */
+  | { type: 'lifetime_revoked' };
 
 /** Resolve the effective tier from credit/subscription state. */
 function resolveTier(entitlement: Entitlement): Tier {
+  if (entitlement.lifetime === true) return 'unlimited';
   if (entitlement.subscriptionActive) return 'unlimited';
   if (entitlement.gameCredits > 0) return 'game_pack';
   return 'free';
@@ -135,6 +146,12 @@ export function applyPurchaseEvent(entitlement: Entitlement, event: PurchaseEven
     case 'subscription_cancelled':
     case 'subscription_expired':
       next.subscriptionActive = false;
+      break;
+    case 'lifetime_purchased':
+      next.lifetime = true;
+      break;
+    case 'lifetime_revoked':
+      next.lifetime = false;
       break;
   }
   next.tier = resolveTier(next);

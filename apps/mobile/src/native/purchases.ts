@@ -101,5 +101,18 @@ export function makePurchaseGateway(apiKey: string, getAppUserId: () => string |
       await configured();
       await Purchases.restorePurchases();
     },
+
+    subscribe(onChanged) {
+      // Fires on renewals, lapses, refunds and purchases finished elsewhere —
+      // including ones that happen while the app is open. Deliberately drops
+      // the CustomerInfo it is handed: the app re-reads the entitlement from
+      // our own API, which the RevenueCat webhook has updated. Reading the
+      // store's copy instead would move the decision onto the device.
+      const listener = () => onChanged();
+      Purchases.addCustomerInfoUpdateListener(listener);
+      // The SDK returns nothing from `add`, so the same reference has to be
+      // kept to remove it. Dropping this leaks a listener per mount.
+      return () => Purchases.removeCustomerInfoUpdateListener(listener);
+    },
   };
 }

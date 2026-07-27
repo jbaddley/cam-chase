@@ -71,6 +71,7 @@ export const de: Record<MessageKey, string> = {
   'purchase.sku.game_pack': 'Spielpaket',
   'purchase.sku.unlimited_monthly': 'Unbegrenzt, monatlich',
   'purchase.sku.annual': 'Unbegrenzt, jährlich',
+  'purchase.sku.lifetime': 'Lebenslang, eine Zahlung',
   'config.mode': 'Spiel',
   'mode.photoChase': 'Fotojagd',
   'mode.scavengerHunt': 'Schnitzeljagd',

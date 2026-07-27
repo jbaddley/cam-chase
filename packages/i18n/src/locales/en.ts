@@ -70,6 +70,7 @@ export const en = {
   'purchase.sku.game_pack': 'Game pack',
   'purchase.sku.unlimited_monthly': 'Unlimited, monthly',
   'purchase.sku.annual': 'Unlimited, yearly',
+  'purchase.sku.lifetime': 'Lifetime, one payment',
   'config.mode': 'Game',
   'mode.photoChase': 'Photo chase',
   'mode.scavengerHunt': 'Scavenger hunt',

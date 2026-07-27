@@ -140,3 +140,39 @@ describe('mode entitlement', () => {
     expect(canHostConfig(free(), legacy).ok).toBe(true);
   });
 });
+
+describe('lifetime purchases', () => {
+  it('grants unlimited and never lapses', () => {
+    const ent = applyPurchaseEvent(freeEntitlement('u'), { type: 'lifetime_purchased' });
+    expect(ent.lifetime).toBe(true);
+    expect(ent.tier).toBe('unlimited');
+    // No expiry to check against, which is the whole point of the separate
+    // flag: a far-future `subscriptionExpiresAt` would eventually arrive.
+    expect(ent.subscriptionExpiresAt).toBeUndefined();
+  });
+
+  it('outlives a subscription that lapses underneath it', () => {
+    let ent = applyPurchaseEvent(freeEntitlement('u'), { type: 'lifetime_purchased' });
+    ent = applyPurchaseEvent(ent, { type: 'subscription_expired' });
+    expect(ent.tier).toBe('unlimited');
+  });
+
+  it('is revoked by a refund, and only by a refund', () => {
+    let ent = applyPurchaseEvent(freeEntitlement('u'), { type: 'lifetime_purchased' });
+    ent = applyPurchaseEvent(ent, { type: 'subscription_cancelled' });
+    expect(ent.tier).toBe('unlimited');
+
+    ent = applyPurchaseEvent(ent, { type: 'lifetime_revoked' });
+    expect(ent.lifetime).toBe(false);
+    expect(ent.tier).toBe('free');
+  });
+
+  it('leaves game credits alone', () => {
+    let ent = applyPurchaseEvent(freeEntitlement('u'), { type: 'game_pack_purchased', credits: 2 });
+    ent = applyPurchaseEvent(ent, { type: 'lifetime_purchased' });
+    ent = applyPurchaseEvent(ent, { type: 'lifetime_revoked' });
+    // Revoking lifetime must not swallow a separate purchase.
+    expect(ent.gameCredits).toBe(2);
+    expect(ent.tier).toBe('game_pack');
+  });
+});
