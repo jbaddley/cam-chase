@@ -43,6 +43,24 @@ export interface PurchaseGateway {
 export const OFFERED_SKUS: SkuId[] = ['game_pack', 'unlimited_monthly', 'annual'];
 
 /**
+ * Longest SKU first, so a longer name is never swallowed by a shorter one it
+ * contains — `game_pack_launch` must not resolve to `game_pack`.
+ */
+const SKUS_BY_LENGTH: SkuId[] = [...OFFERED_SKUS].sort((a, b) => b.length - a.length);
+
+/**
+ * Resolve a store product identifier to the SKU it sells.
+ *
+ * Identifiers are namespaced per platform — `app.photochase.client.game_pack`
+ * on the App Store, plain `game_pack` on Play — so this matches on suffix. An
+ * unrecognised identifier returns null rather than guessing: a product our
+ * webhook cannot grant is one the app must not offer.
+ */
+export function skuOf(productIdentifier: string): SkuId | null {
+  return SKUS_BY_LENGTH.find((sku) => productIdentifier.endsWith(sku)) ?? null;
+}
+
+/**
  * A fallback price label from the list price, for use only before the store
  * responds. Real prices come from the store front, which handles currency,
  * tax display, and regional pricing — never format money for a user from these.

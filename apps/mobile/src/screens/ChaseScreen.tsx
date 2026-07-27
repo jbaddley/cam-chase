@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type AssignmentView } from '@photochase/client';
 import { client } from '../api.js';
+import { useViewfinder } from '../viewfinder.js';
 import type { CaptureSource } from './CaptureScreen.js';
 
 /**
@@ -17,6 +18,7 @@ export function ChaseScreen({
   teamId: string;
   capture: CaptureSource;
 }) {
+  useViewfinder();
   const [queue, setQueue] = useState<AssignmentView[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

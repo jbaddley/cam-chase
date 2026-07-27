@@ -1,15 +1,23 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const joinGame = vi.fn();
-vi.mock('../api.js', () => ({ client: { joinGame: (input: unknown) => joinGame(input) } }));
+const spectate = vi.fn();
+vi.mock('../api.js', () => ({
+  client: { joinGame: (input: unknown) => joinGame(input), spectate: (code: string) => spectate(code) },
+}));
 
 const { JoinScreen } = await import('./JoinScreen.js');
 
 afterEach(() => {
   cleanup();
-  joinGame.mockReset();
+  [joinGame, spectate].forEach((m) => m.mockReset());
 });
+
+/** The public peek the screen uses to learn a game's mode before joining. */
+const asMode = (mode: string) => spectate.mockResolvedValue({ game: { config: { mode } } });
+
+beforeEach(() => asMode('photo_chase'));
 
 /** Fill the three fields with a valid join. */
 function fillValidForm(code = 'abc123') {
@@ -59,7 +67,7 @@ describe('JoinScreen', () => {
     expect(joinGame).not.toHaveBeenCalled();
   });
 
-  it('rejects a whitespace-only name', () => {
+  it('rejects a whitespace-only name', async () => {
     render(<JoinScreen onJoined={vi.fn()} />);
 
     fireEvent.change(screen.getByPlaceholderText('ABC123'), { target: { value: 'ABC123' } });
@@ -67,6 +75,9 @@ describe('JoinScreen', () => {
     fireEvent.change(screen.getByPlaceholderText('Team name'), { target: { value: 'Reds' } });
     fireEvent.click(screen.getByRole('button', { name: 'Join' }));
 
+    // A full code kicks off the mode peek; let it land before asserting, so the
+    // state it sets belongs to this test rather than leaking into the next one.
+    await waitFor(() => expect(spectate).toHaveBeenCalledWith('ABC123'));
     expect(joinGame).not.toHaveBeenCalled();
   });
 
@@ -99,5 +110,49 @@ describe('JoinScreen', () => {
     rerender(<JoinScreen onJoined={vi.fn()} onHost={onHost} />);
     fireEvent.click(screen.getByRole('button', { name: 'Host a game instead' }));
     expect(onHost).toHaveBeenCalled();
+  });
+});
+
+describe('JoinScreen — tag consent', () => {
+  it('asks for the photography acknowledgement only in a tag game', async () => {
+    asMode('photo_tag');
+    render(<JoinScreen onJoined={vi.fn()} />);
+    fillValidForm();
+
+    expect(
+      await screen.findByText('Other players will photograph you during this game.'),
+    ).toBeTruthy();
+  });
+
+  it('asks nobody joining a chase', async () => {
+    render(<JoinScreen onJoined={vi.fn()} />);
+    fillValidForm();
+
+    await waitFor(() => expect(spectate).toHaveBeenCalled());
+    expect(screen.queryByText('Other players will photograph you during this game.')).toBeNull();
+  });
+
+  it('refuses to join a tag game until the player agrees', async () => {
+    asMode('photo_tag');
+    render(<JoinScreen onJoined={vi.fn()} />);
+    fillValidForm();
+    await screen.findByText('Other players will photograph you during this game.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Join' }));
+    await waitFor(() => expect(joinGame).not.toHaveBeenCalled());
+  });
+
+  it('sends the acknowledgement once given', async () => {
+    asMode('photo_tag');
+    joinGame.mockResolvedValue({ gameId: 'g1', teamId: 't1', role: 'captain' });
+    render(<JoinScreen onJoined={vi.fn()} />);
+    fillValidForm();
+    await screen.findByText('Other players will photograph you during this game.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'I agree' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Join' }));
+
+    await waitFor(() => expect(joinGame).toHaveBeenCalled());
+    expect(joinGame.mock.calls[0]![0]).toMatchObject({ acceptsBeingPhotographed: true });
   });
 });

@@ -5,6 +5,7 @@ import type { CatchStatus, TagRole, TagSubMode } from '@photochase/shared';
 import type { MessageKey } from '@photochase/i18n';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
+import { useViewfinder } from '../viewfinder.js';
 import type { CaptureSource } from './CaptureScreen.js';
 
 const ROLE_KEY: Record<TagRole, MessageKey> = { hunter: 'role.hunter', hider: 'role.hider' };
@@ -37,6 +38,9 @@ export function TagScreen({
   scattering?: boolean;
   capture: CaptureSource;
 }) {
+  // Nothing can be photographed while everyone is still scattering, so the
+  // preview waits until play actually starts.
+  useViewfinder(!scattering);
   const [brief, setBrief] = useState<TagBriefView | null>(null);
   const [claims, setClaims] = useState<CatchClaimView[]>([]);
   const [busy, setBusy] = useState(false);

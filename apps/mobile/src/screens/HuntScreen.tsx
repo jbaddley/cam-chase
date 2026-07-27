@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type HuntItemView, type HuntView } from '@photochase/client';
 import { client } from '../api.js';
+import { useViewfinder } from '../viewfinder.js';
 import type { CaptureSource } from './CaptureScreen.js';
 
 /**
@@ -25,6 +26,7 @@ export function HuntScreen({
   capture: CaptureSource;
   now?: () => number;
 }) {
+  useViewfinder();
   const [hunt, setHunt] = useState<HuntView | null>(null);
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

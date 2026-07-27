@@ -1,92 +1,132 @@
 # @photochase/mobile
 
-Expo (React Native) app — iOS, Android, and web from one codebase.
+The Expo (React Native) app. Real camera, real GPS, real sign-in sheet, real
+store — all behind injected boundaries so the screens stay testable without a
+native build.
 
-## Phase 1 status
+## Layout
 
-This is a **scaffold**. The screens under `src/screens` are real and typecheck
-against `@photochase/shared`, but the React Native / Expo runtime dependencies
-are intentionally not installed in the repo's base workspace to keep CI lean.
-Ambient shims in `types/native-shims.d.ts` let it typecheck standalone.
+| Path | What it is |
+| --- | --- |
+| `index.ts` | Expo entry point; registers `src/root.tsx` |
+| `src/root.tsx` | The **only** file that knows about native modules |
+| `App.tsx` | Route state outside a game; takes its boundaries as props |
+| `src/GameRouter.tsx` | Picks the screen from the polled phase **and** the game's mode |
+| `src/screens/` | Every screen; none import a native module |
+| `src/native/` | The real camera, auth and store implementations |
+| `test/react-native-shim.tsx` | DOM stand-ins for RN primitives, used under Vitest |
 
-## To turn this into a runnable app
+The three seams — `Authorizer`, `PurchaseGateway`, `CaptureSource` — are
+arguments, not imports. That is what lets `pnpm test` render every screen in
+jsdom and drive its real logic. `src/root.tsx` supplies the native versions;
+`App.tsx`'s defaults throw or return a fixture rather than pretending to sign
+someone in, sell them something, or take a photograph.
 
-```bash
-cd apps/mobile
-npx create-expo-app@latest . --template blank-typescript   # or add Expo to this dir
-npx expo install expo-router expo-camera expo-location expo-task-manager
-npx expo install expo-auth-session expo-crypto expo-web-browser
-```
-
-Then delete `types/native-shims.d.ts` (the real package types supersede it) and
-wire `App.tsx` into Expo Router. The screens can be dropped in as-is.
-
-## Wiring the injected boundaries
-
-Two seams are deliberately injected so the app typechecks and can be driven
-without a native build. Both need real implementations in the Expo app.
-
-### Sign-in (`src/auth.ts`)
-
-`App` takes an `authorize` prop of type `Authorizer`. Supply
-`expo-auth-session`'s browser session, which opens
-`ASWebAuthenticationSession` on iOS and Chrome Custom Tabs on Android:
-
-```ts
-import * as WebBrowser from 'expo-web-browser';
-
-const authorize: Authorizer = async (url, redirectUri) => {
-  const result = await WebBrowser.openAuthSessionAsync(url, redirectUri);
-  return result.type === 'success' ? result.url : '';
-};
-```
-
-Register `photochase` as the app's scheme in `app.json` so the callback
-`photochase://auth` returns to the app; it must match the Cognito callback URL
-configured in `infra/cdk`.
-
-`createPkceChallenge` uses Web Crypto. React Native does not ship
-`crypto.subtle`, so either install a polyfill or pass a `CryptoSource` backed by
-`expo-crypto`'s `digestStringAsync` and `getRandomBytesAsync`.
-
-### Purchases (`src/purchases.ts`)
-
-`App` takes a `purchases` prop of type `PurchaseGateway`. Back it with
-RevenueCat, which wraps StoreKit 2 and Google Play Billing behind one interface
-(docs/03):
+## Running the tests
 
 ```bash
-npx expo install react-native-purchases
+pnpm test        # 200+ component tests in jsdom, no device needed
+pnpm typecheck
+pnpm lint
 ```
 
-```ts
-import Purchases from 'react-native-purchases';
+Under Vitest, `react-native` is aliased to `test/react-native-shim.tsx`. Drive
+components with Testing Library's `fireEvent` — a raw `.click()` does not flush
+React state and yields tests that pass vacuously.
 
-const purchases: PurchaseGateway = {
-  listProducts: async () => { /* map RevenueCat offerings to Product[] */ },
-  purchase: async (sku) => { /* purchasePackage; map cancellation to 'cancelled' */ },
-  restore: () => Purchases.restorePurchases().then(() => undefined),
-};
+## Running on a device
+
+Expo Go is **not** enough: this app needs the camera, location, the native auth
+sheet and the store, so it needs a development build.
+
+### 1. Point it at a deployed API
+
+The app talks to a real stack. Deploy one (`infra/cdk`, `pnpm cdk deploy`) and
+take the `ApiUrl` and `UserPoolClientId` outputs, then fill in the `env` block
+of `eas.json` for the `development` profile — the `REPLACE-ME` values there are
+placeholders, and a build made with them will fail to reach anything.
+
+The Cognito app client is created with `photochase://auth` already registered as
+a callback URL, which matches `REDIRECT_URI` in `src/auth.ts`. Change one and
+you must change the other.
+
+### 2. Build
+
+```bash
+npx eas login
+npx eas build:configure          # first time only; writes the EAS project id
+npx eas build --profile development --platform android   # or ios
 ```
 
-The app never grants an entitlement itself. RevenueCat notifies the server's
-purchase webhook, and the app re-reads `GET /me/entitlement` afterwards, so a
-client that claims a purchase gains nothing. Configure the webhook secret as
-described in `infra/cdk`; without it the API rejects every purchase webhook.
+Install the resulting APK (or the iOS build, via TestFlight/ad-hoc), then:
 
-### Capture (`src/capture.ts`)
+```bash
+pnpm start --dev-client
+```
 
-`placeholderCapture` returns a fixed blob and location. Replace it with
-`expo-camera` for the photo and `expo-location` for the GPS fix.
+An iOS device build needs an Apple Developer account. Android does not, which
+makes it the cheaper first target.
+
+### 3. Verify the bundle without a device
+
+This catches most breakage in a minute, offline:
+
+```bash
+npx expo export --platform android --output-dir /tmp/photochase-export
+```
+
+It resolves every module, transforms it, and compiles to Hermes bytecode — the
+same steps EAS runs. A version skew between `expo` and `react-native` shows up
+here as a Hermes compile error rather than as a mysterious crash on device.
+
+### What still cannot be verified offline
+
+- **Photo Tag's proximity warning, scatter timing and catch latency.** Consumer
+  GPS is ±5–10 m and the app polls at 3 s. This is the one mechanic that can
+  only be judged by playing it (docs/01).
+- **Purchases.** They need products configured in App Store Connect and Play
+  Console and a RevenueCat project. Without `EXPO_PUBLIC_REVENUECAT_KEY` the app
+  runs normally and the plan screen simply offers nothing to buy.
+- **The non-English strings.** ES/FR/DE/PT/JA are machine-quality and unreviewed.
 
 ## Environment
 
 | Variable | Purpose |
 | --- | --- |
-| `EXPO_PUBLIC_API_URL` | API base URL |
+| `EXPO_PUBLIC_API_URL` | API base URL (CDK output `ApiUrl`) |
 | `EXPO_PUBLIC_AUTH_DOMAIN` | Cognito domain serving `/oauth2/*` |
-| `EXPO_PUBLIC_USER_POOL_CLIENT_ID` | User pool app client id |
+| `EXPO_PUBLIC_USER_POOL_CLIENT_ID` | User pool app client id (CDK output) |
+| `EXPO_PUBLIC_REVENUECAT_KEY` | RevenueCat public SDK key; omit to disable purchases |
 
-The Cognito stack outputs `UserPoolClientId` and the domain prefix; social
-sign-in additionally needs the per-environment IdP secret described in
-`infra/cdk`.
+Everything prefixed `EXPO_PUBLIC_` is embedded in the bundle and readable by
+anyone with the app. That is fine for all four — none is a secret. The purchase
+webhook secret is a server-side value and lives in `infra/cdk`; it must never
+appear here.
+
+## How the native boundaries work
+
+### Camera and location — `src/native/CameraStage.tsx`, `src/native/capture.ts`
+
+`CameraStage` owns the camera for the whole app and hands the screens a
+`CaptureSource`. The preview runs only while a shooting screen asks for it
+through `src/viewfinder.ts`, so the app does not hold the camera open — or
+prompt for it — on the sign-in screen.
+
+`makeCapture` reads the GPS fix *after* the shutter, so the coordinates belong
+to where the photo was actually taken. If location is denied it throws rather
+than submitting a photo that would silently score zero for accuracy.
+
+### Sign-in — `src/native/auth.ts`
+
+`nativeAuthorizer` opens the OS auth sheet (`ASWebAuthenticationSession` on iOS,
+Chrome Custom Tabs on Android). React Native has no `crypto.subtle`, so
+`src/root.tsx` swaps the PKCE crypto source for an expo-crypto one before any
+screen can start a sign-in.
+
+### Purchases — `src/native/purchases.ts`
+
+RevenueCat, configured with **our** user id: it forwards that id to the server's
+purchase webhook as `app_user_id`, and the webhook is the only thing that can
+change an entitlement. Configure it anonymously and a completed purchase would
+credit nobody. The app grants nothing locally; after a purchase it re-reads
+`GET /me/entitlement`, so a client that lies about a purchase gains nothing.
