@@ -70,4 +70,12 @@ export const es: Record<MessageKey, string> = {
   'purchase.sku.game_pack': 'Pack de partidas',
   'purchase.sku.unlimited_monthly': 'Ilimitado, mensual',
   'purchase.sku.annual': 'Ilimitado, anual',
+  'config.mode': 'Juego',
+  'mode.photoChase': 'Persecución de fotos',
+  'mode.scavengerHunt': 'Búsqueda del tesoro',
+  'mode.colorHunt': 'Caza de colores',
+  'mode.photoTag': 'Pilla-pilla fotográfico',
+  'phase.guessing': 'Hora de adivinar',
+  'phase.scatter': 'A esconderse',
+  'phase.tagActive': '¡Comienza la caza!',
 };

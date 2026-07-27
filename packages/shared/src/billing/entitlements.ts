@@ -1,6 +1,6 @@
 import type { GameConfig } from '../config/schema.js';
 import { validateConfigForTier } from '../config/schema.js';
-import type { Tier } from '../domain/enums.js';
+import type { GameMode, Tier } from '../domain/enums.js';
 import { TIER_LIMITS } from '../config/tiers.js';
 
 /** A user's current monetization entitlement. */
@@ -13,6 +13,11 @@ export interface Entitlement {
   subscriptionActive: boolean;
   /** Epoch ms the subscription lapses, if any. */
   subscriptionExpiresAt?: number;
+  /**
+   * Modes earned rather than bought — a referral reward. Additive to the tier's
+   * own `allowedModes`, and permanent once granted.
+   */
+  unlockedModes?: GameMode[];
 }
 
 export type Feature =
@@ -48,7 +53,13 @@ export function canUseFeature(tier: Tier, feature: Feature): boolean {
 
 /** Validate that an entitlement's tier permits a proposed game config. */
 export function canHostConfig(entitlement: Entitlement, config: GameConfig): { ok: boolean; errors: string[] } {
-  return validateConfigForTier(config, entitlement.tier);
+  return validateConfigForTier(config, entitlement.tier, entitlement.unlockedModes ?? []);
+}
+
+/** Every mode this user may host: the tier's, plus anything they have earned. */
+export function availableModes(entitlement: Entitlement): GameMode[] {
+  const fromTier = TIER_LIMITS[entitlement.tier].allowedModes;
+  return [...new Set([...fromTier, ...(entitlement.unlockedModes ?? [])])];
 }
 
 /** Whether the entitlement currently permits starting a new game. */

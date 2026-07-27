@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FREE_CONFIG, DEFAULT_CONFIG } from '../config/schema.js';
 import {
   applyPurchaseEvent,
+  availableModes,
   canHostConfig,
   canStartGame,
   canUseFeature,
@@ -78,5 +79,45 @@ describe('applyPurchaseEvent', () => {
     const ent = applyPurchaseEvent(freeEntitlement('u'), { type: 'game_pack_refunded', credits: 5 });
     expect(ent.gameCredits).toBe(0);
     expect(ent.tier).toBe('free');
+  });
+});
+
+describe('mode entitlement', () => {
+  const free = (overrides: Partial<Entitlement> = {}): Entitlement => ({
+    ...freeEntitlement('u1'),
+    ...overrides,
+  });
+
+  it('gives the free tier the chase only', () => {
+    expect(availableModes(free())).toEqual(['photo_chase']);
+  });
+
+  it('rejects hosting a mode outside the tier', () => {
+    const result = canHostConfig(free(), { ...FREE_CONFIG, mode: 'scavenger_hunt' });
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(' ')).toMatch(/does not include the "scavenger_hunt" mode/);
+  });
+
+  it('honours a mode earned outside the tier', () => {
+    // Earned by referral: additive to the tier, and permanent.
+    const earned = free({ unlockedModes: ['scavenger_hunt'] });
+    expect(availableModes(earned)).toEqual(['photo_chase', 'scavenger_hunt']);
+    expect(canHostConfig(earned, { ...FREE_CONFIG, mode: 'scavenger_hunt' }).ok).toBe(true);
+  });
+
+  it('does not let an earned mode unlock a different one', () => {
+    const earned = free({ unlockedModes: ['scavenger_hunt'] });
+    expect(canHostConfig(earned, { ...FREE_CONFIG, mode: 'photo_tag' }).ok).toBe(false);
+  });
+
+  it('gives paid tiers every mode', () => {
+    const paid = free({ tier: 'unlimited', subscriptionActive: true });
+    expect(availableModes(paid)).toContain('photo_tag');
+    expect(canHostConfig(paid, { ...DEFAULT_CONFIG, mode: 'color_hunt' }).ok).toBe(true);
+  });
+
+  it('treats a config with no mode as a chase', () => {
+    const legacy = { ...FREE_CONFIG, mode: undefined as never };
+    expect(canHostConfig(free(), legacy).ok).toBe(true);
   });
 });

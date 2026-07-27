@@ -19,6 +19,7 @@ function entitlement(overrides: Partial<EntitlementView> = {}): EntitlementView 
     gameCredits: 0,
     subscriptionActive: false,
     canStartGame: true,
+    modes: ['photo_chase'],
     limits: { maxTeams: 2 },
     features: { ai_judging: false, up_to_6_teams: false },
     ...overrides,

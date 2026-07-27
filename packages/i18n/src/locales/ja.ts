@@ -71,4 +71,12 @@ export const ja: Record<MessageKey, string> = {
   'purchase.sku.game_pack': 'ゲームパック',
   'purchase.sku.unlimited_monthly': '無制限（月額）',
   'purchase.sku.annual': '無制限（年額）',
+  'config.mode': 'ゲーム',
+  'mode.photoChase': 'フォトチェイス',
+  'mode.scavengerHunt': 'スカベンジャーハント',
+  'mode.colorHunt': 'カラーハント',
+  'mode.photoTag': 'フォトタグ',
+  'phase.guessing': '推理タイム',
+  'phase.scatter': '散開して隠れる',
+  'phase.tagActive': '狩りの開始',
 };

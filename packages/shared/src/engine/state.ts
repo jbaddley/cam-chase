@@ -1,5 +1,5 @@
 import type { GameConfig } from '../config/schema.js';
-import type { GameState, Tier } from '../domain/enums.js';
+import type { GameMode, GameState, Tier } from '../domain/enums.js';
 import type {
   Assignment,
   Membership,
@@ -53,6 +53,11 @@ export type GameEvent =
   | { type: 'COMPLETE_RETURN2' }
   | { type: 'COMPLETE_RATING' }
   | { type: 'COMPLETE_FINALS' }
+  // Color Hunt: the guessing window closes and answers are locked in.
+  | { type: 'CLOSE_GUESSING' }
+  // Photo Tag: the hiding window ends, then live play ends.
+  | { type: 'END_SCATTER' }
+  | { type: 'END_TAG' }
   | { type: 'ARCHIVE' };
 
 export type TransitionResult =
@@ -62,18 +67,67 @@ export type TransitionResult =
 const MIN_TEAMS = 2;
 const MAX_TEAMS = 6;
 
-/** Linear happy-path successor for each event, keyed by required source state. */
-const TABLE: Record<GameEvent['type'], { from: GameState; to: GameState }> = {
-  OPEN_LOBBY: { from: 'draft', to: 'lobby' },
-  START_GAME: { from: 'lobby', to: 'round1_active' },
-  END_ROUND1: { from: 'round1_active', to: 'round1_return' },
-  COMPLETE_RETURN1: { from: 'round1_return', to: 'round2_active' },
-  END_ROUND2: { from: 'round2_active', to: 'round2_return' },
-  COMPLETE_RETURN2: { from: 'round2_return', to: 'rating' },
-  COMPLETE_RATING: { from: 'rating', to: 'finals_voting' },
-  COMPLETE_FINALS: { from: 'finals_voting', to: 'results' },
-  ARCHIVE: { from: 'results', to: 'archived' },
+/** One mode's happy-path flow: event → required source state and successor. */
+type ModeTable = Partial<Record<GameEvent['type'], { from: GameState; to: GameState }>>;
+
+/**
+ * Each mode is its own linear flow. Modes share event names where the meaning
+ * matches — every mode opens a lobby and archives at the end — but they differ
+ * in the middle, which is exactly why the table is keyed by mode.
+ */
+const TABLES: Record<GameMode, ModeTable> = {
+  /** Shoot originals, chase them back, rate, vote finals. */
+  photo_chase: {
+    OPEN_LOBBY: { from: 'draft', to: 'lobby' },
+    START_GAME: { from: 'lobby', to: 'round1_active' },
+    END_ROUND1: { from: 'round1_active', to: 'round1_return' },
+    COMPLETE_RETURN1: { from: 'round1_return', to: 'round2_active' },
+    END_ROUND2: { from: 'round2_active', to: 'round2_return' },
+    COMPLETE_RETURN2: { from: 'round2_return', to: 'rating' },
+    COMPLETE_RATING: { from: 'rating', to: 'finals_voting' },
+    COMPLETE_FINALS: { from: 'finals_voting', to: 'results' },
+    ARCHIVE: { from: 'results', to: 'archived' },
+  },
+
+  /**
+   * Chase minus Round 2: one hunt, then straight to judging. Reuses Round 1 and
+   * its return check-in, so first team back still earns the time bonus.
+   */
+  scavenger_hunt: {
+    OPEN_LOBBY: { from: 'draft', to: 'lobby' },
+    START_GAME: { from: 'lobby', to: 'round1_active' },
+    END_ROUND1: { from: 'round1_active', to: 'round1_return' },
+    COMPLETE_RETURN1: { from: 'round1_return', to: 'rating' },
+    COMPLETE_RATING: { from: 'rating', to: 'finals_voting' },
+    COMPLETE_FINALS: { from: 'finals_voting', to: 'results' },
+    ARCHIVE: { from: 'results', to: 'archived' },
+  },
+
+  /** Shoot a secret attribute, then the other team studies and guesses. */
+  color_hunt: {
+    OPEN_LOBBY: { from: 'draft', to: 'lobby' },
+    START_GAME: { from: 'lobby', to: 'round1_active' },
+    END_ROUND1: { from: 'round1_active', to: 'guessing' },
+    CLOSE_GUESSING: { from: 'guessing', to: 'rating' },
+    COMPLETE_RATING: { from: 'rating', to: 'results' },
+    ARCHIVE: { from: 'results', to: 'archived' },
+  },
+
+  /** Scatter, then live play until the end condition; finals is the highlight reel. */
+  photo_tag: {
+    OPEN_LOBBY: { from: 'draft', to: 'lobby' },
+    START_GAME: { from: 'lobby', to: 'scatter' },
+    END_SCATTER: { from: 'scatter', to: 'tag_active' },
+    END_TAG: { from: 'tag_active', to: 'finals_voting' },
+    COMPLETE_FINALS: { from: 'finals_voting', to: 'results' },
+    ARCHIVE: { from: 'results', to: 'archived' },
+  },
 };
+
+/** The mode a game is playing; games persisted before modes shipped are chases. */
+export function modeOf(game: Game): GameMode {
+  return game.config.mode ?? 'photo_chase';
+}
 
 /**
  * Pure state-machine transition. Validates that the event is legal from the
@@ -81,7 +135,11 @@ const TABLE: Record<GameEvent['type'], { from: GameState; to: GameState }> = {
  * Callers apply side effects (assignment, scoring) separately.
  */
 export function nextState(game: Game, event: GameEvent): TransitionResult {
-  const rule = TABLE[event.type];
+  const mode = modeOf(game);
+  const rule = TABLES[mode][event.type];
+  if (!rule) {
+    return { ok: false, error: `Event ${event.type} is not part of the ${mode} flow.` };
+  }
   if (game.state !== rule.from) {
     return {
       ok: false,

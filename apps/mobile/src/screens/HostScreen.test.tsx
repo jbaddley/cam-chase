@@ -16,12 +16,17 @@ afterEach(() => {
 });
 
 /** An entitlement view with the given limits; unlisted fields are harmless. */
-function entitlement(overrides: Partial<EntitlementView['limits']>, tier = 'free'): EntitlementView {
+function entitlement(
+  overrides: Partial<EntitlementView['limits']>,
+  tier = 'free',
+  modes: EntitlementView['modes'] = ['photo_chase'],
+): EntitlementView {
   return {
     tier,
     gameCredits: 0,
     subscriptionActive: false,
     canStartGame: true,
+    modes,
     limits: {
       maxTeams: 2,
       allowedGameTypes: ['round_robin'],
@@ -155,5 +160,58 @@ describe('HostScreen', () => {
     expect(await screen.findByText('Could not load your plan.')).toBeTruthy();
     // Creating must stay possible; the server is the real gate.
     expect(action('Create game')).toBeTruthy();
+  });
+
+  describe('game mode', () => {
+    it('defaults to the photo chase', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}));
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/free/);
+      fireEvent.click(action('Create game'));
+
+      await waitFor(() => expect(createGame).toHaveBeenCalled());
+      expect(createGame.mock.calls[0]![0]).toMatchObject({ mode: 'photo_chase' });
+    });
+
+    it('ignores a mode the entitlement does not include', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}, 'free', ['photo_chase']));
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/free/);
+      fireEvent.click(option('Game', 'Scavenger hunt'));
+      fireEvent.click(action('Create game'));
+
+      await waitFor(() => expect(createGame).toHaveBeenCalled());
+      expect(createGame.mock.calls[0]![0]).toMatchObject({ mode: 'photo_chase' });
+    });
+
+    it('applies a mode earned outside the tier', async () => {
+      // Referral unlocks are additive, so a free user can hold a paid mode.
+      getEntitlement.mockResolvedValue(entitlement({}, 'free', ['photo_chase', 'scavenger_hunt']));
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/free/);
+      fireEvent.click(option('Game', 'Scavenger hunt'));
+      fireEvent.click(action('Create game'));
+
+      await waitFor(() => expect(createGame).toHaveBeenCalled());
+      expect(createGame.mock.calls[0]![0]).toMatchObject({ mode: 'scavenger_hunt' });
+    });
+
+    it('hides the Round 2 assignment strategy outside the chase', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}, 'unlimited', ['photo_chase', 'scavenger_hunt']));
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/unlimited/);
+      expect(screen.queryByText('Game type')).toBeTruthy();
+
+      // Assignment strategy is a Round 2 concept and a hunt has no Round 2.
+      fireEvent.click(option('Game', 'Scavenger hunt'));
+      expect(screen.queryByText('Game type')).toBeNull();
+    });
   });
 });

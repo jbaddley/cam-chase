@@ -70,4 +70,12 @@ export const de: Record<MessageKey, string> = {
   'purchase.sku.game_pack': 'Spielpaket',
   'purchase.sku.unlimited_monthly': 'Unbegrenzt, monatlich',
   'purchase.sku.annual': 'Unbegrenzt, jährlich',
+  'config.mode': 'Spiel',
+  'mode.photoChase': 'Fotojagd',
+  'mode.scavengerHunt': 'Schnitzeljagd',
+  'mode.colorHunt': 'Farbjagd',
+  'mode.photoTag': 'Foto-Fangen',
+  'phase.guessing': 'Ratezeit',
+  'phase.scatter': 'Verteilen und verstecken',
+  'phase.tagActive': 'Die Jagd läuft',
 };

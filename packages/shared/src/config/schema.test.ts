@@ -73,6 +73,7 @@ describe('validateConfigForTier', () => {
 
   it('accepts a fully configured game on paid tiers', () => {
     const config: GameConfig = {
+      mode: 'photo_chase',
       photosPerRound: 20,
       round1Minutes: 20,
       round2Minutes: 20,

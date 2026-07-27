@@ -61,6 +61,7 @@ export function simulateGame(spec: SimSpec): SimResult {
     specialCategories: { presets: [], custom: [] },
     geofencing: false,
     aiJudging: false,
+    mode: 'photo_chase',
   } satisfies GameConfig;
 
   let game: Game = {
