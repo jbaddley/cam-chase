@@ -1,8 +1,10 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 import { randomUUID } from 'node:crypto';
 import {
+  answerCatchClaim,
   castFinalsVote,
   checkIn,
+  claimCatch,
   clearFoul,
   flagFoul,
   castVote,
@@ -12,11 +14,15 @@ import {
   getResults,
   joinByCode,
   getMySecret,
+  getTagBrief,
   listAssignments,
+  listCatchClaims,
   listGuessTargets,
   listHuntItems,
   listRateable,
   listTeams,
+  reportTagPing,
+  resolveCatchDispute,
   submitChase,
   submitGuess,
   submitPhoto,
@@ -112,6 +118,29 @@ const ROUTES: Route[] = [
   ),
   compile('POST', '/games/:id/guesses', ({ container, params, body, auth }) =>
     submitGuess(container.games, { ...body, gameId: params.id, userId: auth.userId }),
+  ),
+  compile('GET', '/games/:id/tag-brief', ({ container, params, auth }) =>
+    getTagBrief(container.games, { gameId: params.id!, userId: auth.userId }),
+  ),
+  compile('POST', '/games/:id/pings', ({ container, params, body, auth }) =>
+    reportTagPing(container.games, { ...body, gameId: params.id, userId: auth.userId }),
+  ),
+  compile('POST', '/games/:id/catches', ({ container, params, body, auth }) =>
+    claimCatch(container.games, { ...body, gameId: params.id, hunterUserId: auth.userId }),
+  ),
+  compile('GET', '/games/:id/catches', ({ container, params, auth }) =>
+    listCatchClaims(container.games, { gameId: params.id!, userId: auth.userId }),
+  ),
+  compile('POST', '/games/:id/catches/:catchId/answer', ({ container, params, body, auth }) =>
+    answerCatchClaim(container.games, { ...body, gameId: params.id, catchId: params.catchId, userId: auth.userId }),
+  ),
+  compile('POST', '/games/:id/catches/:catchId/ruling', ({ container, params, body, auth }) =>
+    resolveCatchDispute(container.games, {
+      ...body,
+      gameId: params.id,
+      catchId: params.catchId,
+      hostUserId: auth.userId,
+    }),
   ),
   compile('GET', '/games/:id/rateable', ({ container, params, auth }) =>
     listRateable(container.games, { gameId: params.id!, userId: auth.userId }),

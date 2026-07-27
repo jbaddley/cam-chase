@@ -22,6 +22,39 @@ PhotoChase's core loop collects the two most sensitive consumer data classes at 
 - **Location permission UX:** pre-permission explainer screens ("we record location only during rounds, for scoring"); background location only for geofenced advanced play, requested separately and only when that config is on.
 - **Age gate:** 13+ globally, 16+ in the EU (no parental-consent flows in v1 — under-age users are simply not supported). Neutral date-of-birth gate, no ad personalization for anyone under 16 anywhere.
 
+## Photo Tag: people photographing people
+
+Every other mode photographs *places*, with teammates in frame by rule. Photo
+Tag photographs *people* — specifically, people who are trying not to be
+photographed — potentially in public, where bystanders never opted into
+anything. That is a materially different risk, so the mode carries extra
+constraints rather than inheriting the defaults.
+
+- **Private lobbies only.** A tag game is reachable by join code alone and is
+  never listed, discoverable, or joinable by strangers. There is no public
+  matchmaking for this mode and there will not be one.
+- **Explicit in-game consent at join, enforced not merely displayed.** Joining a
+  tag game requires acknowledging that other players will photograph you during
+  play. The server refuses the join without it; it is not a screen you can scroll
+  past.
+- **Agree a play area first.** The app prompts the host to set one and shows it
+  to every player before the scatter timer starts. Confining the game to a place
+  everyone agreed on is what keeps it from becoming strangers-in-public.
+- **No relaxation of the retention rules above.** Tag photos are photos: same
+  30-day default, same deletion cascade, same private-by-default storage. A
+  photo of a person who was caught is *more* sensitive than a landmark, not
+  less.
+- **Catches are peer-confirmed, never machine-verified.** The rules above allow
+  face *detection* and forbid face *recognition*, so the app cannot and must not
+  answer "is this person X". The hunter submits, the photo appears on the
+  target's own phone, and they confirm or dispute; disputes go to the host. This
+  is the only route that does not contradict our own stance, and it is also the
+  route the mode was designed around.
+- **Nobody is told who hunts them.** In the dual sub-mode the prey gets a coarse
+  proximity warning only (~50 m granularity, computed from ping locations).
+  Naming the hunter would let a player simply avoid one person, which is both an
+  exploit and an invitation to follow someone specific around.
+
 ## User rights (DSR) flows
 
 In-app (web + mobile) self-service: export my data (photos + history archive), delete my account (cascades to photos, votes, GPS; anonymizes game records others depend on), unlink providers, per-game photo deletion. Target SLA: automated, < 24 h. These flows satisfy GDPR/LGPD/CCPA simultaneously — build once.

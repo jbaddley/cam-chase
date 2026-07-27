@@ -3,6 +3,8 @@ import type { GameMode, GameState, Tier } from '../domain/enums.js';
 import type { AttributeSet } from '../modes/color/attributes.js';
 import type { ColorGuessRecord } from '../modes/color/scoring.js';
 import type { HuntItem } from '../modes/scavenger/items.js';
+import type { TagRole, TagSubMode } from '../modes/tag/roles.js';
+import type { CatchRecord } from '../modes/tag/scoring.js';
 import type {
   Assignment,
   Membership,
@@ -39,6 +41,8 @@ export interface Game {
   hunt?: HuntState;
   /** Colour Hunt: the per-team secrets and the guesses committed against them. */
   color?: ColorState;
+  /** Photo Tag: roles, targets, catch claims and the latest ping per team. */
+  tag?: TagState;
   /**
    * The league this game counts toward, if any. Set at creation from the
    * league's code; the result is recorded when the game reaches `results`.
@@ -69,6 +73,25 @@ export interface ColorState {
   secrets: Record<string, AttributeSet>;
   /** Committed guesses; one per guesser per subject, replaceable while open. */
   guesses: ColorGuessRecord[];
+}
+
+/**
+ * Photo Tag state. Roles and targets are dealt when the game starts and are
+ * readable only by the player they belong to — nobody is ever told who hunts
+ * them (docs/07).
+ */
+export interface TagState {
+  subMode: TagSubMode;
+  /** Hide & Seek: teamId to role. */
+  roles?: Record<string, TagRole>;
+  /** Dual: hunter teamId to the team they hunt. Never sent to the prey. */
+  targets?: Record<string, string>;
+  catches: CatchRecord[];
+  /**
+   * teamId to that team's most recent reported position, used only to compute
+   * the coarse proximity warning. Never returned to another player.
+   */
+  pings?: Record<string, { lat: number; lng: number; at: number }>;
 }
 
 /** One player's finals vote for a category. One vote per voter per category. */

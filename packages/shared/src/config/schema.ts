@@ -3,6 +3,7 @@ import { GAME_MODES, GAME_TYPES, PRESET_CATEGORIES, type GameMode, type Tier } f
 import { FREE_DEFAULT_ROUNDS, TIER_LIMITS } from './tiers.js';
 import { HUNT_THEMES } from '../modes/scavenger/items.js';
 import { COLOR_SPECIFICITIES } from '../modes/color/attributes.js';
+import { TAG_SUB_MODES } from '../modes/tag/roles.js';
 
 const roundMinutes = z.number().int().min(5).max(20);
 
@@ -30,6 +31,8 @@ export const GameConfigSchema = z
     huntTheme: z.enum(HUNT_THEMES).optional(),
     /** Colour Hunt: colour alone, or colour plus exactly one modifier. */
     colorSpecificity: z.enum(COLOR_SPECIFICITIES).optional(),
+    /** Photo Tag: which of the three live-play variants. */
+    tagSubMode: z.enum(TAG_SUB_MODES).optional(),
     /**
      * Where teams check in at the end of each round. Optional: without it,
      * check-ins are accepted anywhere and only their timing counts.

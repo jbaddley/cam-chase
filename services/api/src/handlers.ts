@@ -2,7 +2,10 @@ import {
   applyTransition,
   BEST_OVERALL_CATEGORY,
   assignAttributeSets,
+  assignTagRoles,
   describeAttributeSet,
+  isHunterNearby,
+  scoreTag,
   generateHuntList,
   modeOf,
   scoreColorHunt,
@@ -34,10 +37,12 @@ import {
   type TeamPhotos,
   type AttributeGuess,
   type AttributeSet,
+  type CatchRecord,
   type ColorGuessRecord,
   type HuntClaim,
   type HuntItem,
   type RatingAxis,
+  type TagRole,
   type TeamScore,
   type Tier,
 } from '@photochase/shared';
@@ -131,6 +136,11 @@ const JoinInput = z.object({
     z.object({ type: z.literal('judge') }),
     z.object({ type: z.literal('spectator') }),
   ]),
+  /**
+   * Photo Tag only: acknowledgement that other players will photograph you
+   * during play. Enforced here rather than shown and forgotten (docs/07).
+   */
+  acceptsBeingPhotographed: z.boolean().optional(),
 });
 
 export async function joinByCode(
@@ -139,12 +149,20 @@ export async function joinByCode(
 ): Promise<Result<{ gameId: string; teamId: string | null; role: string }>> {
   const parsed = JoinInput.safeParse(raw);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
-  const { code, userId, action } = parsed.data;
+  const { code, userId, action, acceptsBeingPhotographed } = parsed.data;
 
   const game = await repo.getByCode(code);
   if (!game) return err('Game not found.');
   if (game.state !== 'lobby') return err('Game is not accepting joins.');
   if (game.memberships.some((m) => m.userId === userId)) return err('Already joined.');
+
+  // Photo Tag photographs people who are trying not to be photographed, so the
+  // acknowledgement is a server-side gate, not a screen you can scroll past.
+  // Judges and spectators are exempt: they neither shoot nor are shot.
+  const playing = action.type === 'create_team' || action.type === 'join_team';
+  if (modeOf(game) === 'photo_tag' && playing && acceptsBeingPhotographed !== true) {
+    return err('You must agree to being photographed by other players to join a tag game.');
+  }
 
   let teamId: string | null = null;
   let role: 'captain' | 'member' | 'judge' | 'spectator';
@@ -361,6 +379,258 @@ export async function listHuntItems(
     })),
     wildcardRevealAt: hunt.wildcardRevealAt ?? null,
   });
+}
+
+// --- Photo Tag ---------------------------------------------------------------
+
+/** What one player knows about their own position in a tag round. */
+export interface TagBriefView {
+  teamId: string;
+  subMode: Game['config']['tagSubMode'];
+  /** Hide & Seek: your own role, hidden from you until the scatter ends. */
+  role: TagRole | null;
+  /** Dual: the team you hunt. You are never told who hunts you. */
+  targetTeamId: string | null;
+  targetTeamName: string | null;
+  /**
+   * Dual: whether someone hunting you is close. A boolean, never a distance
+   * and never a name — naming the hunter lets the prey simply avoid one
+   * person, which is the exploit this mode has to design around (docs/07).
+   */
+  hunterNearby: boolean;
+}
+
+/** The tag game and this caller's team, or an error explaining which is wrong. */
+async function requireTagPlayer(
+  repo: GameRepository,
+  input: { gameId: string; userId: string },
+): Promise<Result<{ game: Game; teamId: string }>> {
+  const game = await repo.get(input.gameId);
+  if (!game) return err('Game not found.');
+  if (modeOf(game) !== 'photo_tag') return err('This game is not a tag game.');
+
+  const membership = game.memberships.find((m) => m.userId === input.userId);
+  if (!membership) return err('You are not in this game.');
+  if (!membership.teamId) return err('Only players in the game can do that.');
+  return ok({ game, teamId: membership.teamId });
+}
+
+/**
+ * This caller's own tag brief.
+ *
+ * Scoped like every other secret in the app: your role, your prey, and a coarse
+ * warning about anyone hunting you. Roles stay hidden through the scatter
+ * window — that is what `scatter` is for — and the hunter is never named.
+ */
+export async function getTagBrief(
+  repo: GameRepository,
+  input: { gameId: string; userId: string },
+): Promise<Result<TagBriefView>> {
+  const found = await requireTagPlayer(repo, input);
+  if (!found.ok) return found;
+  const { game, teamId } = found.data;
+
+  const tag = game.tag;
+  const revealed = game.state !== 'scatter';
+  const targetTeamId = revealed ? (tag?.targets?.[teamId] ?? null) : null;
+
+  // The warning is computed from the hunter's ping but never reveals whose it
+  // is; only the boolean crosses the boundary.
+  const hunterTeamId = Object.entries(tag?.targets ?? {}).find(([, prey]) => prey === teamId)?.[0];
+  const hunterNearby =
+    revealed && hunterTeamId !== undefined
+      ? isHunterNearby(tag?.pings?.[teamId], tag?.pings?.[hunterTeamId])
+      : false;
+
+  return ok({
+    teamId,
+    subMode: game.config.tagSubMode ?? 'pure_finder',
+    role: revealed ? (tag?.roles?.[teamId] ?? null) : null,
+    targetTeamId,
+    targetTeamName: targetTeamId ? (game.teams.find((t) => t.id === targetTeamId)?.name ?? null) : null,
+    hunterNearby,
+  });
+}
+
+const PingInput = z.object({
+  gameId: z.string().min(1),
+  userId: z.string().min(1),
+  location: z.object({ lat: z.number(), lng: z.number(), accuracyM: z.number().optional() }),
+});
+
+/**
+ * Report this player's position, used only to compute the proximity warning.
+ *
+ * The ping is never returned to another player — the only thing derived from it
+ * that anyone else sees is a boolean about their own situation.
+ */
+export async function reportTagPing(
+  repo: GameRepository,
+  raw: unknown,
+  now = Date.now,
+): Promise<Result<{ at: number }>> {
+  const parsed = PingInput.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
+
+  const found = await requireTagPlayer(repo, parsed.data);
+  if (!found.ok) return found;
+  const { game, teamId } = found.data;
+  if (game.state !== 'tag_active') return err('The round is not running.');
+
+  const tag = game.tag ?? (game.tag = { subMode: game.config.tagSubMode ?? 'pure_finder', catches: [] });
+  const at = now();
+  tag.pings = { ...(tag.pings ?? {}), [teamId]: { ...parsed.data.location, at } };
+  await repo.save(game);
+  return ok({ at });
+}
+
+const ClaimCatchInput = z.object({
+  gameId: z.string().min(1),
+  hunterUserId: z.string().min(1),
+  targetTeamId: z.string().min(1),
+  photoId: z.string().min(1),
+});
+
+/**
+ * Claim a catch. Nothing is scored yet: the photo goes to the target's own
+ * phone for confirmation, because doc 07 permits face detection and forbids
+ * face recognition — no system here can answer "is this person X".
+ */
+export async function claimCatch(
+  repo: GameRepository,
+  raw: unknown,
+  now = Date.now,
+): Promise<Result<{ catchId: string; status: CatchRecord['status'] }>> {
+  const parsed = ClaimCatchInput.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
+  const { gameId, hunterUserId, targetTeamId, photoId } = parsed.data;
+
+  const found = await requireTagPlayer(repo, { gameId, userId: hunterUserId });
+  if (!found.ok) return found;
+  const { game, teamId } = found.data;
+  if (game.state !== 'tag_active') return err('The round is not running.');
+  if (teamId === targetTeamId) return err('You cannot catch yourself.');
+  if (!game.teams.some((t) => t.id === targetTeamId)) return err('Player not found.');
+
+  const photo = game.photos.find((p) => p.id === photoId);
+  if (!photo) return err('Photo not found.');
+  if (photo.teamId !== teamId) return err('That is not your photo.');
+
+  const tag = game.tag ?? (game.tag = { subMode: game.config.tagSubMode ?? 'pure_finder', catches: [] });
+  const record: CatchRecord = {
+    id: newId('catch'),
+    hunterTeamId: teamId,
+    targetTeamId,
+    photoId,
+    claimedAt: now(),
+    status: 'pending',
+  };
+  tag.catches.push(record);
+  await repo.save(game);
+  return ok({ catchId: record.id, status: record.status });
+}
+
+/** A claim awaiting this caller's ruling: "you've been caught — were you?" */
+export interface CatchClaimView {
+  catchId: string;
+  hunterTeamName: string;
+  /** The photo being claimed; exchange for a URL via /downloads. */
+  photoKey: string;
+  claimedAt: number;
+  status: CatchRecord['status'];
+}
+
+/**
+ * Claims made against this caller's team. The photo is shown so they can judge
+ * it themselves — that peer check is the whole verification mechanism.
+ */
+export async function listCatchClaims(
+  repo: GameRepository,
+  input: { gameId: string; userId: string },
+): Promise<Result<CatchClaimView[]>> {
+  const found = await requireTagPlayer(repo, input);
+  if (!found.ok) return found;
+  const { game, teamId } = found.data;
+
+  const nameOf = (id: string) => game.teams.find((t) => t.id === id)?.name ?? id;
+  const keyOf = (id: string) => game.photos.find((p) => p.id === id)?.s3Key ?? '';
+
+  return ok(
+    (game.tag?.catches ?? [])
+      .filter((c) => c.targetTeamId === teamId)
+      .sort((a, b) => a.claimedAt - b.claimedAt)
+      .map((c) => ({
+        catchId: c.id,
+        hunterTeamName: nameOf(c.hunterTeamId),
+        photoKey: keyOf(c.photoId),
+        claimedAt: c.claimedAt,
+        status: c.status,
+      })),
+  );
+}
+
+const AnswerCatchInput = z.object({
+  gameId: z.string().min(1),
+  userId: z.string().min(1),
+  catchId: z.string().min(1),
+  confirm: z.boolean(),
+});
+
+/** Confirm or dispute a claim made against you. Only the target may answer. */
+export async function answerCatchClaim(
+  repo: GameRepository,
+  raw: unknown,
+): Promise<Result<{ status: CatchRecord['status'] }>> {
+  const parsed = AnswerCatchInput.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
+  const { gameId, userId, catchId, confirm } = parsed.data;
+
+  const found = await requireTagPlayer(repo, { gameId, userId });
+  if (!found.ok) return found;
+  const { game, teamId } = found.data;
+
+  const record = game.tag?.catches.find((c) => c.id === catchId);
+  if (!record) return err('Claim not found.');
+  if (record.targetTeamId !== teamId) return err('Only the player claimed can answer.');
+  if (record.status === 'overruled') return err('The host has already ruled on this claim.');
+
+  record.status = confirm ? 'confirmed' : 'disputed';
+  await repo.save(game);
+  return ok({ status: record.status });
+}
+
+const ResolveDisputeInput = z.object({
+  gameId: z.string().min(1),
+  hostUserId: z.string().min(1),
+  catchId: z.string().min(1),
+  uphold: z.boolean(),
+});
+
+/**
+ * Host ruling on a disputed claim. The host is the backstop precisely because
+ * nothing automated can settle it — and `overruled` is final, so a player
+ * cannot answer their way out of a decision that went against them.
+ */
+export async function resolveCatchDispute(
+  repo: GameRepository,
+  raw: unknown,
+): Promise<Result<{ status: CatchRecord['status'] }>> {
+  const parsed = ResolveDisputeInput.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
+  const { gameId, hostUserId, catchId, uphold } = parsed.data;
+
+  const found = await requireHost(repo, gameId, hostUserId);
+  if (!found.ok) return found;
+  const game = found.data;
+  if (modeOf(game) !== 'photo_tag') return err('This game is not a tag game.');
+
+  const record = game.tag?.catches.find((c) => c.id === catchId);
+  if (!record) return err('Claim not found.');
+  if (record.status !== 'disputed') return err('Only a disputed claim needs a ruling.');
+
+  record.status = uphold ? 'confirmed' : 'overruled';
+  await repo.save(game);
+  return ok({ status: record.status });
 }
 
 // --- Colour Hunt: secrets and guessing --------------------------------------
@@ -646,6 +916,21 @@ function assignColorSecrets(game: Game): void {
   };
 }
 
+/**
+ * Deal tag roles and targets at start. Held on the aggregate through the
+ * scatter window and only revealed to each player once it ends — the point of
+ * `scatter` is that nobody yet knows who they are.
+ */
+function assignTagState(game: Game): void {
+  if (modeOf(game) !== 'photo_tag' || game.tag) return;
+  const subMode = game.config.tagSubMode ?? 'pure_finder';
+  game.tag = {
+    subMode,
+    ...assignTagRoles({ teamIds: game.teams.map((t) => t.id), subMode, seed: seedFromCode(game.code) }),
+    catches: [],
+  };
+}
+
 export async function startGame(
   repo: GameRepository,
   input: { gameId: string; hostUserId: string },
@@ -655,6 +940,7 @@ export async function startGame(
   try {
     const started = applyTransition(found.data, { type: 'START_GAME' });
     assignColorSecrets(started);
+    assignTagState(started);
     stampRoundStart(started);
     await repo.save(started);
     return ok({ state: started.state });
@@ -725,7 +1011,9 @@ export async function submitPhoto(
   const { gameId, teamId, shooterUserId, location, s3Key, itemId } = parsed.data;
   const game = await repo.get(gameId);
   if (!game) return err('Game not found.');
-  if (game.state !== 'round1_active') return err('Not in Round 1.');
+  // A tag photo is shot live during the round rather than in a capture phase.
+  const shootingState = modeOf(game) === 'photo_tag' ? 'tag_active' : 'round1_active';
+  if (game.state !== shootingState) return err('Not in a shooting phase.');
 
   const isHunt = modeOf(game) === 'scavenger_hunt';
   if (isHunt) {
@@ -738,7 +1026,12 @@ export async function submitPhoto(
 
   const order = game.photos.filter((p) => p.teamId === teamId).length;
   // A hunt's quota is its list: every item is claimable, wildcard included.
-  const quota = isHunt ? (game.hunt?.items.length ?? 0) : game.config.photosPerRound;
+  // Tag has no quota at all — you shoot whenever you can get the shot.
+  const quota = isHunt
+    ? (game.hunt?.items.length ?? 0)
+    : modeOf(game) === 'photo_tag'
+      ? Number.POSITIVE_INFINITY
+      : game.config.photosPerRound;
   if (order >= quota) return err('Photo quota reached.');
 
   const photoId = newId('photo');
@@ -1082,6 +1375,25 @@ export async function getResults(
   );
 
   const teamIds = game.teams.map((t) => t.id);
+
+  if (modeOf(game) === 'photo_tag') {
+    const tagFouls: Record<string, number> = {};
+    for (const p of game.photos) {
+      if (p.fouls.length > 0) tagFouls[p.teamId] = (tagFouls[p.teamId] ?? 0) + p.fouls.length;
+    }
+    return ok({
+      scoreboard: scoreTag({
+        teamIds,
+        subMode: game.tag?.subMode ?? 'pure_finder',
+        catches: game.tag?.catches ?? [],
+        ...(game.tag?.roles ? { roles: game.tag.roles } : {}),
+        ...(game.tag?.targets ? { targets: game.tag.targets } : {}),
+        fouls: tagFouls,
+        bestMatchTeamId: finals.bestMatchTeamId,
+        specialWinners: finals.specialWinners,
+      }),
+    });
+  }
 
   if (modeOf(game) === 'color_hunt') {
     // A team is confirmed unless its photos were voted down — same "unjudged

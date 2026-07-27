@@ -28,6 +28,7 @@ const BREAKDOWN: Array<{ key: keyof TeamScore; label: string }> = [
 const MODE_LABELS: Partial<Record<GameMode, Partial<Record<keyof TeamScore, string>>>> = {
   scavenger_hunt: { location: 'Items found' },
   color_hunt: { location: 'Guessed right', pose: 'Bluff bonus' },
+  photo_tag: { location: 'Catches', pose: 'Survival' },
 };
 
 /** Final standings with each team's score breakdown, highest total first. */

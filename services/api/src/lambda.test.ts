@@ -254,6 +254,50 @@ describe('lambda route (authenticated)', () => {
     expect(game.color!.guesses[0]!.guesserTeamId).toBe(teams.find((t) => t.name === 'A')!.teamId);
   });
 
+  it('refuses a tag join without the photography acknowledgement', async () => {
+    await container.entitlements.save({ userId: 'host', tier: 'unlimited', gameCredits: 0, subscriptionActive: true });
+    const config = { ...FREE_CONFIG, mode: 'photo_tag' as const, tagSubMode: 'dual' as const };
+    const { code } = (await call(container, 'POST', '/games', { config }, 'host')).data;
+
+    const join = { code, displayName: 'A', action: { type: 'create_team', name: 'A' } };
+    expect((await call(container, 'POST', '/games/join', join, 'uA')).status).toBe(400);
+    expect(
+      (await call(container, 'POST', '/games/join', { ...join, acceptsBeingPhotographed: true }, 'uA')).status,
+    ).toBe(200);
+  });
+
+  it('never tells a tag player who is hunting them', async () => {
+    await container.entitlements.save({ userId: 'host', tier: 'unlimited', gameCredits: 0, subscriptionActive: true });
+    const config = { ...FREE_CONFIG, mode: 'photo_tag' as const, tagSubMode: 'dual' as const, maxTeams: 3 };
+    const { gameId, code } = (await call(container, 'POST', '/games', { config }, 'host')).data;
+    // Three players, not two: a two-player cycle is necessarily mutual, so
+    // your prey *is* your hunter and there is nothing to withhold.
+    for (const name of ['A', 'B', 'C']) {
+      await call(
+        container,
+        'POST',
+        '/games/join',
+        { code, displayName: name, action: { type: 'create_team', name }, acceptsBeingPhotographed: true },
+        `u${name}`,
+      );
+    }
+    await call(container, 'POST', `/games/${gameId}/start`, {}, 'host');
+    await call(container, 'POST', `/games/${gameId}/advance`, { event: 'END_SCATTER' }, 'host');
+
+    const game = (await container.games.get(gameId))!;
+    const teams = (await call(container, 'GET', `/games/${gameId}/teams`, undefined, 'host')).data as Array<{
+      teamId: string;
+      name: string;
+    }>;
+    const mine = teams.find((t) => t.name === 'A')!.teamId;
+    const hunter = Object.entries(game.tag!.targets!).find(([, prey]) => prey === mine)![0];
+
+    const brief = await call(container, 'GET', `/games/${gameId}/tag-brief`, undefined, 'uA');
+    expect(brief.status).toBe(200);
+    expect(JSON.stringify(brief.data)).not.toContain(hunter);
+    expect((await call(container, 'GET', `/games/${gameId}/tag-brief`)).status).toBe(401);
+  });
+
   it('serves the sanitized game state at GET /games/:id', async () => {
     const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
     await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
