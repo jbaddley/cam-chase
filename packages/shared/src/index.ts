@@ -26,3 +26,5 @@ export * from './modes/color/attributes.js';
 export * from './modes/color/scoring.js';
 export * from './modes/tag/roles.js';
 export * from './modes/tag/scoring.js';
+export * from './modes/scavenger/daily.js';
+export * from './modes/gauntlet/combine.js';

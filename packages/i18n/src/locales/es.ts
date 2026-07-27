@@ -163,6 +163,12 @@ export const es: Record<MessageKey, string> = {
   'join.tagAgree': 'Acepto',
   'score.catches': 'Capturas',
   'score.survival': 'Supervivencia',
+  'daily.title': 'Búsqueda diaria',
+  'daily.start': 'Jugar la de hoy',
+  'daily.resume': 'Volver a la de hoy',
+  'daily.theme': 'Hoy: {theme}',
+  'daily.blurb': 'La misma lista para todo el mundo, solo hoy.',
+  'daily.failed': 'No se pudo empezar la búsqueda de hoy.',
   'score.guessedRight': 'Aciertos',
   'score.bluffBonus': 'Bonus de engaño',
 };

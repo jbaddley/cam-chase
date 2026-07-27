@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { EntitlementRepository } from './entitlements-repo.js';
 import { monthKey, type AiJudgingRepository, type ReferralRepository } from './growth-repo.js';
-import type { Tournament, TournamentRepository } from './tournament-repo.js';
+import type { DailyHuntRepository, Tournament, TournamentRepository } from './tournament-repo.js';
 
 const uid = (prefix: string) => `${prefix}_${randomUUID()}`;
 
@@ -187,6 +187,39 @@ export function tournamentRepositoryContract(
     it('returns null for a code nobody owns', async () => {
       const repo = await makeRepo();
       expect(await repo.getByCode('NOSUCH')).toBeNull();
+    });
+  });
+}
+
+/** Contract for DailyHuntRepository: one solo run per user per UTC day. */
+export function dailyHuntRepositoryContract(
+  name: string,
+  makeRepo: () => DailyHuntRepository | Promise<DailyHuntRepository>,
+): void {
+  describe(name, () => {
+    it('returns null before a user has started a run', async () => {
+      const repo = await makeRepo();
+      expect(await repo.get(uid('u'), '2026-07-27')).toBeNull();
+    });
+
+    it('remembers the run a user started on a day', async () => {
+      const repo = await makeRepo();
+      const userId = uid('u');
+      await repo.set(userId, '2026-07-27', 'game_1');
+      expect(await repo.get(userId, '2026-07-27')).toBe('game_1');
+    });
+
+    it('keeps each day separate, so tomorrow is a fresh run', async () => {
+      const repo = await makeRepo();
+      const userId = uid('u');
+      await repo.set(userId, '2026-07-27', 'game_1');
+      expect(await repo.get(userId, '2026-07-28')).toBeNull();
+    });
+
+    it('keeps one user’s run out of another’s', async () => {
+      const repo = await makeRepo();
+      await repo.set(uid('a'), '2026-07-27', 'game_1');
+      expect(await repo.get(uid('b'), '2026-07-27')).toBeNull();
     });
   });
 }

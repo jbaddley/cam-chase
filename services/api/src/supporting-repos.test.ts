@@ -1,10 +1,11 @@
 import { InMemoryEntitlementRepository } from './entitlements-repo.js';
 import { InMemoryAiJudgingRepository, InMemoryReferralRepository } from './growth-repo.js';
-import { InMemoryTournamentRepository } from './tournament-repo.js';
+import { InMemoryDailyHuntRepository, InMemoryTournamentRepository } from './tournament-repo.js';
 import {
   aiJudgingRepositoryContract,
   entitlementRepositoryContract,
   referralRepositoryContract,
+  dailyHuntRepositoryContract,
   tournamentRepositoryContract,
 } from './repo-contracts.js';
 
@@ -13,3 +14,4 @@ entitlementRepositoryContract('InMemoryEntitlementRepository', () => new InMemor
 referralRepositoryContract('InMemoryReferralRepository', () => new InMemoryReferralRepository());
 aiJudgingRepositoryContract('InMemoryAiJudgingRepository', () => new InMemoryAiJudgingRepository());
 tournamentRepositoryContract('InMemoryTournamentRepository', () => new InMemoryTournamentRepository());
+dailyHuntRepositoryContract('InMemoryDailyHuntRepository', () => new InMemoryDailyHuntRepository());

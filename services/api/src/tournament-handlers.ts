@@ -1,9 +1,15 @@
 import {
   aggregateStandings,
+  applyCatchUp,
   canUseFeature,
+  combineLegs,
   generateRecap,
   placementsFromScoreboard,
+  type GameMode,
+  type GauntletLeg,
+  type GauntletStanding,
   type Standing,
+  type TeamScore,
 } from '@photochase/shared';
 import { z } from 'zod';
 import type { EntitlementRepository } from './entitlements-repo.js';
@@ -19,6 +25,13 @@ const CreateTournamentInput = z.object({
   // Trimmed before the length check, so a name of only spaces is not a name.
   name: z.string().max(60).transform((s) => s.trim()).pipe(z.string().min(1)),
   ownerUserId: z.string().min(1),
+  /**
+   * A gauntlet: a fixed sequence of modes played back to back and scored by
+   * combined game points. Omit for an ordinary open-ended league.
+   */
+  legModes: z.array(z.enum(['photo_chase', 'scavenger_hunt', 'color_hunt', 'photo_tag'])).min(2).max(4).optional(),
+  /** Gauntlet only: scale the final leg for teams trailing after the others. */
+  catchUp: z.boolean().optional(),
 });
 
 /**
@@ -52,6 +65,8 @@ export async function createTournament(
     name: name.trim(),
     ownerUserId,
     results: [],
+    ...(parsed.data.legModes ? { legModes: parsed.data.legModes } : {}),
+    ...(parsed.data.catchUp ? { catchUp: true } : {}),
     createdAt: now(),
   };
   await repo.save(tournament);
@@ -84,12 +99,38 @@ export async function recordGameResult(
   if (!results.ok) return results;
 
   const teamNames = Object.fromEntries(game.teams.map((t) => [t.id, t.name]));
+
+  // The catch-up handicap applies to a gauntlet's *final* leg, and only there:
+  // a gauntlet is the one place a standing exists before the last round begins,
+  // so it is the one place "trailing" means anything. A single game has no
+  // midpoint to trail at, which is why the chase has no handicap.
+  const finalLeg = isFinalGauntletLeg(tournament);
+  const scoreboard: TeamScore[] =
+    finalLeg && tournament.catchUp
+      ? applyCatchUp(results.data.scoreboard, combineLegs(legsOf(tournament)), teamNames)
+      : results.data.scoreboard;
+
   tournament.results.push({
     gameId: input.gameId,
-    placements: placementsFromScoreboard(results.data.scoreboard, teamNames),
+    placements: placementsFromScoreboard(scoreboard, teamNames),
   });
   await repo.save(tournament);
   return ok({ recorded: true });
+}
+
+/** The legs recorded so far, in order. */
+const legsOf = (tournament: Tournament): GauntletLeg[] => tournament.results.map((r) => r.placements);
+
+/** Whether the game about to be recorded completes the gauntlet. */
+function isFinalGauntletLeg(tournament: Tournament): boolean {
+  if (!tournament.legModes) return false;
+  return tournament.results.length === tournament.legModes.length - 1;
+}
+
+/** The mode the next leg of a gauntlet is played in, or null when it is done. */
+export function nextGauntletMode(tournament: Tournament): GameMode | null {
+  if (!tournament.legModes) return null;
+  return tournament.legModes[tournament.results.length] ?? null;
 }
 
 /** A league's public face: its name, its code, and the table. */
@@ -99,6 +140,16 @@ export interface StandingsView {
   name: string;
   gamesPlayed: number;
   standings: Standing[];
+  /**
+   * Gauntlet only: the fixed leg sequence, the combined table, and which mode
+   * comes next. Absent for an ordinary open-ended league.
+   */
+  gauntlet?: {
+    legModes: GameMode[];
+    catchUp: boolean;
+    nextMode: GameMode | null;
+    standings: GauntletStanding[];
+  };
 }
 
 /**
@@ -116,7 +167,19 @@ export async function getStandingsByCode(
     code: tournament.code,
     name: tournament.name,
     gamesPlayed: tournament.results.length,
+    // A gauntlet still carries the placement table, so the same screen renders
+    // both; it just leads with combined points, which is how a gauntlet is won.
     standings: aggregateStandings(tournament.results),
+    ...(tournament.legModes
+      ? {
+          gauntlet: {
+            legModes: tournament.legModes,
+            catchUp: tournament.catchUp === true,
+            nextMode: nextGauntletMode(tournament),
+            standings: combineLegs(legsOf(tournament)),
+          },
+        }
+      : {}),
   });
 }
 
