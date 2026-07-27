@@ -14,6 +14,7 @@ export const ja: Record<MessageKey, string> = {
   'error.gameFull': 'このゲームは満員です。',
   'auth.prompt': 'サインインしてゲームを開催または参加しましょう。',
   'auth.continueWith': '{provider}で続ける',
+  'auth.continueWithEmail': 'メールで続ける',
   'auth.opening': '開いています…',
   'auth.failed': 'サインインに失敗しました。もう一度お試しください。',
   'join.title': 'ゲームに参加',

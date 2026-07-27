@@ -13,6 +13,7 @@ export const es: Record<MessageKey, string> = {
   'error.gameFull': 'Esta partida está completa.',
   'auth.prompt': 'Inicia sesión para organizar o unirte a una partida.',
   'auth.continueWith': 'Continuar con {provider}',
+  'auth.continueWithEmail': 'Continuar con correo electrónico',
   'auth.opening': 'Abriendo…',
   'auth.failed': 'No se pudo iniciar sesión. Inténtalo de nuevo.',
   'join.title': 'Unirse a una partida',

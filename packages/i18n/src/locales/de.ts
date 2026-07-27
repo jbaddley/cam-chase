@@ -13,6 +13,7 @@ export const de: Record<MessageKey, string> = {
   'error.gameFull': 'Dieses Spiel ist voll.',
   'auth.prompt': 'Melde dich an, um ein Spiel zu hosten oder beizutreten.',
   'auth.continueWith': 'Weiter mit {provider}',
+  'auth.continueWithEmail': 'Mit E-Mail fortfahren',
   'auth.opening': 'Wird geöffnet…',
   'auth.failed': 'Anmeldung fehlgeschlagen. Bitte versuche es erneut.',
   'join.title': 'Spiel beitreten',

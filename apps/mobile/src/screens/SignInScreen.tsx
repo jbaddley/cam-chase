@@ -16,19 +16,34 @@ const PROVIDERS: Array<{ id: IdentityProvider; name: string }> = [
 ];
 
 /**
- * Provider picker. Each option opens that provider's page directly in a native
- * browser sheet rather than Cognito's chooser, so it reads as one tap.
+ * What the user picked. `email` is not an identity provider — it means *no*
+ * provider, which is what makes Cognito show its own page.
+ */
+type Choice = IdentityProvider | 'email';
+
+/**
+ * Provider picker. Each social option opens that provider's page directly in a
+ * native browser sheet rather than Cognito's chooser, so it reads as one tap.
+ *
+ * Email is last, and it is the only option that works against a user pool
+ * deployed without social IdP credentials — a bare stack supports `COGNITO`
+ * alone, so without this the app could not be signed into at all until someone
+ * had registered an app with Google or Apple. It is a real sign-in method
+ * rather than a debug affordance: not everyone wants to hand a party game
+ * their social account.
  */
 export function SignInScreen({ authorize, onSignedIn }: { authorize: Authorizer; onSignedIn: () => void }) {
-  const [busy, setBusy] = useState<IdentityProvider | null>(null);
+  const [busy, setBusy] = useState<Choice | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function start(provider: IdentityProvider): Promise<void> {
+  async function start(choice: Choice): Promise<void> {
     if (busy) return;
-    setBusy(provider);
+    setBusy(choice);
     setError(null);
     try {
-      await signIn(authorize, provider);
+      // Naming no provider is what keeps Cognito on its own sign-up/sign-in
+      // page instead of redirecting straight out to somebody else's.
+      await signIn(authorize, choice === 'email' ? undefined : choice);
       onSignedIn();
     } catch (e) {
       // Dismissing the sheet is a normal action, not an error worth shouting.
@@ -50,6 +65,9 @@ export function SignInScreen({ authorize, onSignedIn }: { authorize: Authorizer;
           </Text>
         </Pressable>
       ))}
+      <Pressable onPress={() => start('email')} style={styles.secondaryButton}>
+        <Text>{busy === 'email' ? t('auth.opening') : t('auth.continueWithEmail')}</Text>
+      </Pressable>
     </View>
   );
 }
@@ -60,4 +78,5 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, color: '#666', marginBottom: 12 },
   error: { color: '#c92a2a' },
   button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
+  secondaryButton: { borderColor: '#ced4da', borderWidth: 1, padding: 16, borderRadius: 12, alignItems: 'center' },
 });

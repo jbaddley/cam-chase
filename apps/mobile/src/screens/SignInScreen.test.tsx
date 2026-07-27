@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 describe('SignInScreen', () => {
-  it('offers all four providers, with Apple first', () => {
+  it('offers all four providers plus email, with Apple first', () => {
     render(<SignInScreen authorize={vi.fn()} onSignedIn={vi.fn()} />);
 
     const buttons = screen.getAllByRole('button').map((b) => b.textContent);
@@ -33,7 +33,34 @@ describe('SignInScreen', () => {
       'Continue with Google',
       'Continue with Facebook',
       'Continue with X',
+      'Continue with email',
     ]);
+  });
+
+  it('names no provider for email, so Cognito shows its own page', async () => {
+    // This is the whole point of the option: a user pool with no social IdPs
+    // configured can still be signed into. Passing a provider here would send
+    // the sheet to a provider the pool does not support.
+    signIn.mockResolvedValue(undefined);
+    const onSignedIn = vi.fn();
+    const authorize = vi.fn();
+    render(<SignInScreen authorize={authorize} onSignedIn={onSignedIn} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with email' }));
+
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalled());
+    expect(signIn).toHaveBeenCalledWith(authorize, undefined);
+  });
+
+  it('shows progress on the email button alone while it runs', async () => {
+    signIn.mockImplementation(() => new Promise(() => {}));
+    render(<SignInScreen authorize={vi.fn()} onSignedIn={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with email' }));
+
+    await screen.findByText('Opening…');
+    // The social buttons keep their labels; only the one being used changes.
+    expect(screen.getByRole('button', { name: 'Continue with Apple' })).toBeTruthy();
   });
 
   it('signs in with the chosen provider and reports success', async () => {
