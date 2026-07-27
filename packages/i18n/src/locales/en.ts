@@ -59,6 +59,16 @@ export const en = {
   'config.creating': 'Creating…',
   'config.failed': 'Could not create the game.',
   'common.back': 'Back',
+  'purchase.buy': 'Buy',
+  'purchase.buying': 'Purchasing…',
+  'purchase.restore': 'Restore purchases',
+  'purchase.restored': 'Purchases restored.',
+  'purchase.failed': 'Purchase could not be completed.',
+  'purchase.pending': 'Purchase is pending approval.',
+  'purchase.unavailable': 'Purchases are unavailable right now.',
+  'purchase.sku.game_pack': 'Game pack',
+  'purchase.sku.unlimited_monthly': 'Unlimited, monthly',
+  'purchase.sku.annual': 'Unlimited, yearly',
 } as const;
 
 export type MessageKey = keyof typeof en;
