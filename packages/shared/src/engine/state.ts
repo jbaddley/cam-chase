@@ -1,5 +1,7 @@
 import type { GameConfig } from '../config/schema.js';
 import type { GameMode, GameState, Tier } from '../domain/enums.js';
+import type { AttributeSet } from '../modes/color/attributes.js';
+import type { ColorGuessRecord } from '../modes/color/scoring.js';
 import type { HuntItem } from '../modes/scavenger/items.js';
 import type {
   Assignment,
@@ -35,6 +37,8 @@ export interface Game {
   roundStartedAt?: Partial<Record<'round1' | 'round2', number>>;
   /** Scavenger Hunt: the list every team is hunting, generated at creation. */
   hunt?: HuntState;
+  /** Colour Hunt: the per-team secrets and the guesses committed against them. */
+  color?: ColorState;
   /**
    * The league this game counts toward, if any. Set at creation from the
    * league's code; the result is recorded when the game reaches `results`.
@@ -53,6 +57,18 @@ export interface HuntState {
   wildcardItemId?: string;
   /** Epoch ms the wildcard becomes visible; before this it is withheld. */
   wildcardRevealAt?: number;
+}
+
+/**
+ * Colour Hunt state. Secrets are assigned when the game starts, once the teams
+ * are known, and are readable only by the team they belong to until the
+ * guessing window closes.
+ */
+export interface ColorState {
+  /** teamId to that team's secret attribute set. */
+  secrets: Record<string, AttributeSet>;
+  /** Committed guesses; one per guesser per subject, replaceable while open. */
+  guesses: ColorGuessRecord[];
 }
 
 /** One player's finals vote for a category. One vote per voter per category. */

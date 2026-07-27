@@ -87,6 +87,38 @@ describe('ResultsScreen', () => {
   });
 });
 
+describe('ResultsScreen — per-mode column labels', () => {
+  it('labels the chase columns by default', async () => {
+    getResults.mockResolvedValue({ scoreboard: [score('t1', { location: 500, pose: 40, total: 540 })] });
+    render(<ResultsScreen gameId="g1" teams={TEAMS} />);
+
+    await screen.findByText('1. Reds');
+    expect(screen.getByText('Location')).toBeTruthy();
+    expect(screen.getByText('Pose')).toBeTruthy();
+  });
+
+  it('names what a hunt actually scored', async () => {
+    getResults.mockResolvedValue({ scoreboard: [score('t1', { location: 60, total: 60 })] });
+    render(<ResultsScreen gameId="g1" teams={TEAMS} mode="scavenger_hunt" />);
+
+    await screen.findByText('1. Reds');
+    expect(screen.getByText('Items found')).toBeTruthy();
+    expect(screen.queryByText('Location')).toBeNull();
+  });
+
+  it('names both colour-hunt columns, which mean something else entirely', async () => {
+    // `location` is guesses read right and `pose` is the bluff bonus; showing
+    // them as Location and Pose would be actively misleading.
+    getResults.mockResolvedValue({ scoreboard: [score('t1', { location: 40, pose: 20, total: 60 })] });
+    render(<ResultsScreen gameId="g1" teams={TEAMS} mode="color_hunt" />);
+
+    await screen.findByText('1. Reds');
+    expect(screen.getByText('Guessed right')).toBeTruthy();
+    expect(screen.getByText('Bluff bonus')).toBeTruthy();
+    expect(screen.queryByText('Pose')).toBeNull();
+  });
+});
+
 describe('ResultsScreen — sharing consent', () => {
   it('asks nobody until the results are actually up', async () => {
     getResults.mockImplementation(() => new Promise(() => {}));

@@ -14,7 +14,7 @@ and league standings are shared across all of them.
 |------|------|-------|
 | **Photo Chase** | The two-round game described above | Shipped; the free tier's mode |
 | **Scavenger Hunt** | One round against a generated item list, then judging | Shipped |
-| **Colour Hunt** | Shoot a secret attribute; the opposing team studies and guesses | Planned |
+| **Colour Hunt** | Shoot a secret attribute; the opposing team studies and guesses | Shipped |
 | **Photo Tag** | Live play: catch other players on camera | Planned |
 
 Modes beyond the chase are paid, or earned permanently through referrals.
@@ -45,6 +45,35 @@ reads as unfair rather than hard. The host picks the pool: *mixed*, *outdoors*,
 - **Flow.** `lobby → round1_active → round1_return → rating → finals_voting →
   results`. There is no Round 2, but the return check-in is kept, so the first
   team back still earns the time bonus.
+
+### Colour Hunt
+
+Each team is secretly assigned an attribute, shoots photos that genuinely
+contain it while obscuring which element is theirs, and the other teams then
+study the set and commit a guess.
+
+- **Two specificity levels only**, host-configurable: *colour alone*, or
+  *colour plus exactly one modifier* — a shape **or** a motif, never both. The
+  brainstorm that produced this mode stacked colour + shape + placement + theme
+  and concluded it was getting too complex to play; a guess with four axes is
+  one nobody commits to and a score nobody can reason about.
+- **Secrets are scoped like Round 2 assignments.** A player can only read their
+  own team's secret, because reading someone else's *is* the game. No two teams
+  are given the same colour, or a correct guess would be ambiguous to score.
+- **Scored per element**, so a partial read still pays — spotting the colour but
+  misreading the modifier banks something.
+- **The bluff bonus.** The shooting team scores for every element a guesser got
+  *wrong*. That turns hiding into an active, scored skill rather than a passive
+  hope, mirroring the chase's `decoy` philosophy.
+- **Validity has to have teeth for the bluff to work.** A team that simply left
+  the attribute out of its photos would be unguessable and win by cheating, so
+  once guessing closes the secrets are public and judges confirm the attribute
+  really was there. An unconfirmed team keeps nothing it bluffed — but the
+  guesser still keeps what they read. As elsewhere, an unjudged team counts as
+  confirmed: most games have nobody moderating.
+- **Flow**: `lobby → round1_active → guessing → rating → results`. There is no
+  return phase, so no time bonus.
+- **Stated but unenforced**: you may not move objects to compose a shot.
 
 ## Roles
 
@@ -130,6 +159,7 @@ Judge votes count at the configured multiplier (1x–5x). AI scores (paid) are a
 |---------|-----------------|-------------------|
 | Game mode | Photo Chase, Scavenger Hunt (+Colour Hunt, Photo Tag) | Free: Photo Chase only; Paid: all. Individual modes are also earnable via referrals |
 | Hunt theme (Scavenger Hunt) | Mixed, Outdoors, City, Household, Silly | Any tier that has the mode |
+| Guess level (Colour Hunt) | Colour only, or colour + one modifier | Any tier that has the mode |
 | Photos per team (Round 1) | 5–20 | Free: fixed default (e.g., 5); Paid: full range |
 | Round 1 minutes | 5–20 | Free: fixed default; Paid: full range |
 | Round 2 minutes | 5–20 | Free: fixed default; Paid: full range |

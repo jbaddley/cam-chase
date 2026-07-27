@@ -375,6 +375,34 @@ describe('PhotoChaseClient', () => {
     expect(calls[0]!.init?.method).toBe('GET');
   });
 
+  it('getMySecret GETs only the caller team’s secret', async () => {
+    const view = { teamId: 't1', secret: { color: 'red', shape: 'round' }, description: 'red + round' };
+    const { config, calls } = recorder(view);
+    const result = await new PhotoChaseClient(config).getMySecret('g1');
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/secret');
+    expect(calls[0]!.init?.method).toBe('GET');
+    expect(result).toEqual(view);
+  });
+
+  it('listGuessTargets GETs the teams to study', async () => {
+    const targets = [{ teamId: 't2', teamName: 'Blues', photoKeys: ['k1'], myGuess: null }];
+    const { config, calls } = recorder(targets);
+    const result = await new PhotoChaseClient(config).listGuessTargets('g1');
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/guess-targets');
+    expect(result).toEqual(targets);
+  });
+
+  it('submitGuess POSTs the subject and the guess, never the guesser', async () => {
+    const { config, calls } = recorder({ subjectTeamId: 't2', guess: { color: 'red' } });
+    await new PhotoChaseClient(config).submitGuess('g1', { subjectTeamId: 't2', guess: { color: 'red' } });
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/guesses');
+    // The guessing team comes from the token; the body never names it.
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual({ subjectTeamId: 't2', guess: { color: 'red' } });
+  });
+
   it('flagFoul POSTs the reason to the photo’s foul path', async () => {
     const { config, calls } = recorder({ fouls: ['missing_face'] });
     const result = await new PhotoChaseClient(config).flagFoul('g1', 'p1', { reason: 'missing_face' });
