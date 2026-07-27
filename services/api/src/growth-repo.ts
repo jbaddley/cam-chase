@@ -9,10 +9,23 @@ export interface ReferralRepository {
   save(referral: Referral): Promise<void>;
   findByInvitee(inviteeUserId: string): Promise<Referral | null>;
   countCreditedForReferrerInMonth(referrerUserId: string, month: string): Promise<number>;
+  /**
+   * Lifetime credited referrals, which is what the reward ladder is measured
+   * in — the monthly count is an anti-abuse cap, not progress.
+   */
+  countCreditedForReferrer(referrerUserId: string): Promise<number>;
+  /**
+   * Record which user a referral code belongs to. `generateReferralCode` is a
+   * one-way hash, so redeeming a code needs an index — there is nothing to
+   * invert. Written whenever a user is shown their own code.
+   */
+  registerCode(code: string, userId: string): Promise<void>;
+  findUserByCode(code: string): Promise<string | null>;
 }
 
 export class InMemoryReferralRepository implements ReferralRepository {
   private readonly referrals: Referral[] = [];
+  private readonly codes = new Map<string, string>();
 
   async save(referral: Referral): Promise<void> {
     const idx = this.referrals.findIndex((r) => r.inviteeUserId === referral.inviteeUserId);
@@ -32,6 +45,18 @@ export class InMemoryReferralRepository implements ReferralRepository {
         r.activatedAt !== undefined &&
         monthKey(r.activatedAt) === month,
     ).length;
+  }
+
+  async countCreditedForReferrer(referrerUserId: string): Promise<number> {
+    return this.referrals.filter((r) => r.referrerUserId === referrerUserId && r.credited).length;
+  }
+
+  async registerCode(code: string, userId: string): Promise<void> {
+    this.codes.set(code, userId);
+  }
+
+  async findUserByCode(code: string): Promise<string | null> {
+    return this.codes.get(code) ?? null;
   }
 }
 

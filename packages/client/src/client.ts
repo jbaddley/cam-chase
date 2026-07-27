@@ -1,4 +1,5 @@
 import type {
+  Flair,
   FoulReason,
   GameConfig,
   GameEvent,
@@ -19,6 +20,31 @@ export interface GameStateView {
   config: GameConfig;
   teams: TeamSummary[];
   playerCount: number;
+  /** The tier this lobby plays at — the host's, since only theirs gates a game. */
+  hostTier: Tier;
+}
+
+/** The caller's invite code and what it has earned them. */
+export interface ReferralView {
+  code: string;
+  inviteUrl: string;
+  /** Invitees who installed *and* played a game through to the end. */
+  creditedReferrals: number;
+  modesEarned: GameMode[];
+  nextUnlock: { mode: GameMode; referralsAway: number } | null;
+  flair: Flair | null;
+}
+
+/** A shareable comparison card, produced only once everyone depicted agreed. */
+export interface ShareCardView {
+  gameId: string;
+  originalRef: string;
+  chaseRef: string;
+  originalTeamName: string;
+  chaseTeamName: string;
+  scoreStamp: string;
+  shareUrl: string;
+  status: 'active' | 'taken_down';
 }
 
 /** A location fix attached to a captured photo. */
@@ -222,6 +248,32 @@ export class PhotoChaseClient {
   /** The caller's own tier, credits, limits, and feature flags. */
   getEntitlement(): Promise<EntitlementView> {
     return request(this.config, 'GET', '/me/entitlement');
+  }
+
+  /** The caller's invite code, progress toward the next unlock, and flair. */
+  getReferral(): Promise<ReferralView> {
+    return request(this.config, 'GET', '/me/referral');
+  }
+
+  /** Redeem someone's invite code. Credits nothing until this user finishes a game. */
+  redeemReferral(code: string): Promise<{ attributed: boolean; reason?: string }> {
+    return request(this.config, 'POST', '/me/referral/redeem', { code });
+  }
+
+  /** Agree (or refuse) that this caller's photos may appear on a share card. */
+  setSharingConsent(gameId: string, consent: boolean): Promise<{ consent: boolean }> {
+    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/consent`, { consent });
+  }
+
+  /**
+   * Build a share card for one comparison. Fails while anyone depicted has not
+   * consented — the server decides who that is, not the caller.
+   */
+  createShareCard(
+    gameId: string,
+    input: { originalPhotoId: string; chasePhotoId: string; scoreStamp: string },
+  ): Promise<ShareCardView> {
+    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/share-cards`, input);
   }
 
   /** Check the caller's team in at the return spot during a return phase. */

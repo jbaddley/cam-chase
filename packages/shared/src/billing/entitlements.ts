@@ -62,6 +62,17 @@ export function availableModes(entitlement: Entitlement): GameMode[] {
   return [...new Set([...fromTier, ...(entitlement.unlockedModes ?? [])])];
 }
 
+/**
+ * Permanently grant earned modes. Additive and idempotent: an unlock survives a
+ * lapsed subscription and a re-grant, because it was earned rather than rented.
+ * Modes the tier already covers are still recorded — the tier can go away.
+ */
+export function grantModes(entitlement: Entitlement, modes: readonly GameMode[]): Entitlement {
+  const merged = [...new Set([...(entitlement.unlockedModes ?? []), ...modes])];
+  if (merged.length === (entitlement.unlockedModes ?? []).length) return entitlement;
+  return { ...entitlement, unlockedModes: merged };
+}
+
 /** Whether the entitlement currently permits starting a new game. */
 export function canStartGame(entitlement: Entitlement): { ok: boolean; reason?: string } {
   if (entitlement.subscriptionActive) return { ok: true };

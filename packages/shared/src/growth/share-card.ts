@@ -36,6 +36,11 @@ export function shareUrlFor(referralCode: string, gameId: string): string {
   return `https://photochase.app/s/${gameId}?ref=${referralCode}`;
 }
 
+/** A bare invite link, for sharing a code with no game attached to it yet. */
+export function inviteUrlFor(referralCode: string): string {
+  return `https://photochase.app/i/${referralCode}`;
+}
+
 /**
  * Build a share card only if every depicted participant has consented.
  * Returns the missing consenters otherwise.

@@ -1,15 +1,21 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TeamScore } from '@photochase/shared';
 
 const getResults = vi.fn();
-vi.mock('../api.js', () => ({ client: { getResults: (id: string) => getResults(id) } }));
+const setSharingConsent = vi.fn();
+vi.mock('../api.js', () => ({
+  client: {
+    getResults: (id: string) => getResults(id),
+    setSharingConsent: (id: string, consent: boolean) => setSharingConsent(id, consent),
+  },
+}));
 
 const { ResultsScreen } = await import('./ResultsScreen.js');
 
 afterEach(() => {
   cleanup();
-  getResults.mockReset();
+  [getResults, setSharingConsent].forEach((m) => m.mockReset());
 });
 
 const TEAMS = [
@@ -78,5 +84,51 @@ describe('ResultsScreen', () => {
     render(<ResultsScreen gameId="g1" teams={TEAMS} />);
 
     expect(await screen.findByText('Could not load the results.')).toBeTruthy();
+  });
+});
+
+describe('ResultsScreen — sharing consent', () => {
+  it('asks nobody until the results are actually up', async () => {
+    getResults.mockImplementation(() => new Promise(() => {}));
+    render(<ResultsScreen gameId="g1" teams={TEAMS} />);
+
+    await screen.findByText('Tallying scores…');
+    expect(screen.queryByText('May we use your photos on share cards?')).toBeNull();
+  });
+
+  it('records a yes', async () => {
+    getResults.mockResolvedValue({ scoreboard: [score('t1')] });
+    setSharingConsent.mockResolvedValue({ consent: true });
+    render(<ResultsScreen gameId="g1" teams={TEAMS} />);
+
+    await screen.findByText('May we use your photos on share cards?');
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, share mine' }));
+
+    await waitFor(() => expect(setSharingConsent).toHaveBeenCalledWith('g1', true));
+  });
+
+  it('records a no, and lets a yes be taken back', async () => {
+    // Consent that cannot be withdrawn is not consent.
+    getResults.mockResolvedValue({ scoreboard: [score('t1')] });
+    setSharingConsent.mockImplementation((_id: string, consent: boolean) => Promise.resolve({ consent }));
+    render(<ResultsScreen gameId="g1" teams={TEAMS} />);
+
+    await screen.findByText('May we use your photos on share cards?');
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, share mine' }));
+    await waitFor(() => expect(setSharingConsent).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'No thanks' }));
+
+    await waitFor(() => expect(setSharingConsent).toHaveBeenLastCalledWith('g1', false));
+  });
+
+  it('reports a consent answer that failed to save', async () => {
+    getResults.mockResolvedValue({ scoreboard: [score('t1')] });
+    setSharingConsent.mockRejectedValue(new Error('offline'));
+    render(<ResultsScreen gameId="g1" teams={TEAMS} />);
+
+    await screen.findByText('May we use your photos on share cards?');
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, share mine' }));
+
+    expect(await screen.findByText('Could not save your answer.')).toBeTruthy();
   });
 });

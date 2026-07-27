@@ -80,6 +80,40 @@ export function referralRepositoryContract(
       expect(await repo.countCreditedForReferrerInMonth(referrer, monthKey(feb))).toBe(1);
       expect(await repo.countCreditedForReferrerInMonth(uid('other'), monthKey(jan))).toBe(0);
     });
+
+    it('counts a referrer’s credited referrals across every month', async () => {
+      const repo = await makeRepo();
+      const referrer = uid('ref');
+      await repo.save({ code: 'C1', referrerUserId: referrer, inviteeUserId: uid('inv'), attributedAt: 1, credited: true, activatedAt: jan });
+      await repo.save({ code: 'C2', referrerUserId: referrer, inviteeUserId: uid('inv'), attributedAt: 1, credited: true, activatedAt: feb });
+      await repo.save({ code: 'C3', referrerUserId: referrer, inviteeUserId: uid('inv'), attributedAt: 1, credited: false });
+
+      // The reward ladder is measured in lifetime credits; the monthly count is
+      // only an anti-abuse cap, so the two must not be the same number.
+      expect(await repo.countCreditedForReferrer(referrer)).toBe(2);
+      expect(await repo.countCreditedForReferrerInMonth(referrer, monthKey(jan))).toBe(1);
+      expect(await repo.countCreditedForReferrer(uid('other'))).toBe(0);
+    });
+
+    it('resolves a registered code back to its owner', async () => {
+      const repo = await makeRepo();
+      const owner = uid('owner');
+      await repo.registerCode('ABC123', owner);
+      expect(await repo.findUserByCode('ABC123')).toBe(owner);
+    });
+
+    it('returns null for a code nobody owns', async () => {
+      const repo = await makeRepo();
+      expect(await repo.findUserByCode('NOSUCH')).toBeNull();
+    });
+
+    it('lets a code registration be repeated without changing the owner', async () => {
+      const repo = await makeRepo();
+      const owner = uid('owner');
+      await repo.registerCode('ABC123', owner);
+      await repo.registerCode('ABC123', owner);
+      expect(await repo.findUserByCode('ABC123')).toBe(owner);
+    });
   });
 }
 

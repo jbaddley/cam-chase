@@ -4,6 +4,7 @@ import { monthKey, type ReferralRepository } from './growth-repo.js';
 import type { SupportingRepoConfig } from './dynamodb-supporting-repos.js';
 
 const inviteeKey = (inviteeUserId: string) => ({ pk: `INVITEE#${inviteeUserId}`, sk: 'REFERRAL' });
+const codeKey = (code: string) => ({ pk: `REFCODE#${code}`, sk: 'OWNER' });
 
 /**
  * DynamoDB referral repository. Base item at INVITEE#<id>/REFERRAL. When a
@@ -32,15 +33,42 @@ export class DynamoDBReferralRepository implements ReferralRepository {
   }
 
   async countCreditedForReferrerInMonth(referrerUserId: string, month: string): Promise<number> {
+    return this.countCredited(referrerUserId, `${month}#`);
+  }
+
+  /** Lifetime count: the same GSI partition, with no month prefix to narrow it. */
+  async countCreditedForReferrer(referrerUserId: string): Promise<number> {
+    return this.countCredited(referrerUserId);
+  }
+
+  private async countCredited(referrerUserId: string, sortPrefix?: string): Promise<number> {
     const res = await this.cfg.client.send(
       new QueryCommand({
         TableName: this.cfg.tableName,
         IndexName: 'GSI1',
-        KeyConditionExpression: 'GSI1PK = :pk AND begins_with(GSI1SK, :m)',
-        ExpressionAttributeValues: { ':pk': `REFERRER#${referrerUserId}`, ':m': `${month}#` },
+        KeyConditionExpression: sortPrefix
+          ? 'GSI1PK = :pk AND begins_with(GSI1SK, :m)'
+          : 'GSI1PK = :pk',
+        ExpressionAttributeValues: {
+          ':pk': `REFERRER#${referrerUserId}`,
+          ...(sortPrefix ? { ':m': sortPrefix } : {}),
+        },
         Select: 'COUNT',
       }),
     );
     return res.Count ?? 0;
+  }
+
+  async registerCode(code: string, userId: string): Promise<void> {
+    await this.cfg.client.send(
+      new PutCommand({ TableName: this.cfg.tableName, Item: { ...codeKey(code), entity: 'referral_code', userId } }),
+    );
+  }
+
+  async findUserByCode(code: string): Promise<string | null> {
+    const res = await this.cfg.client.send(
+      new GetCommand({ TableName: this.cfg.tableName, Key: codeKey(code) }),
+    );
+    return (res.Item?.userId as string | undefined) ?? null;
   }
 }
