@@ -72,6 +72,7 @@ export const ja: Record<MessageKey, string> = {
   'purchase.sku.game_pack': 'ゲームパック',
   'purchase.sku.unlimited_monthly': '無制限（月額）',
   'purchase.sku.annual': '無制限（年額）',
+  'purchase.sku.lifetime': '買い切り（永久）',
   'config.mode': 'ゲーム',
   'mode.photoChase': 'フォトチェイス',
   'mode.scavengerHunt': 'スカベンジャーハント',

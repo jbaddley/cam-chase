@@ -37,10 +37,24 @@ export interface PurchaseGateway {
   purchase(sku: SkuId): Promise<PurchaseResult>;
   /** Re-apply purchases already owned; the App Store requires this path. */
   restore(): Promise<void>;
+  /**
+   * Called when the store's view of what this user owns changes — a renewal, a
+   * lapse, a purchase finished on another device, a refund.
+   *
+   * It carries no entitlement data on purpose. The store is a *notification*
+   * here, not a source of truth: what a user owns is decided by the server,
+   * which the provider's webhook updates. So the only correct reaction to this
+   * signal is to re-read `GET /me/entitlement`, and a client that forged the
+   * signal would learn nothing it could not already ask for.
+   *
+   * Returns an unsubscribe. Optional, because a gateway with no store behind it
+   * has nothing to report.
+   */
+  subscribe?(onChanged: () => void): () => void;
 }
 
 /** Products offered in-app, in the order they should be shown. */
-export const OFFERED_SKUS: SkuId[] = ['game_pack', 'unlimited_monthly', 'annual'];
+export const OFFERED_SKUS: SkuId[] = ['game_pack', 'unlimited_monthly', 'annual', 'lifetime'];
 
 /**
  * Longest SKU first, so a longer name is never swallowed by a shorter one it

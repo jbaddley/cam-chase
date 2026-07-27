@@ -71,6 +71,7 @@ export const fr: Record<MessageKey, string> = {
   'purchase.sku.game_pack': 'Pack de parties',
   'purchase.sku.unlimited_monthly': 'Illimité, mensuel',
   'purchase.sku.annual': 'Illimité, annuel',
+  'purchase.sku.lifetime': 'À vie, un seul paiement',
   'config.mode': 'Jeu',
   'mode.photoChase': 'Chasse à la photo',
   'mode.scavengerHunt': 'Chasse au trésor',

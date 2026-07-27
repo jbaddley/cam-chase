@@ -25,8 +25,8 @@ const SKU_KEY: Record<SkuId, MessageKey | undefined> = {
   game_pack: 'purchase.sku.game_pack',
   unlimited_monthly: 'purchase.sku.unlimited_monthly',
   annual: 'purchase.sku.annual',
+  lifetime: 'purchase.sku.lifetime',
   game_pack_launch: undefined,
-  lifetime: undefined,
 };
 
 /**
@@ -53,6 +53,18 @@ export function PlanScreen({
     () => client.getEntitlement().then(setEntitlement),
     [],
   );
+
+  // The store reports renewals, lapses and refunds — including ones that
+  // happened on another device. It carries no entitlement data: the only
+  // correct reaction is to ask our own API again, which the provider's webhook
+  // has already updated. Without this, a subscription that lapsed mid-session
+  // would keep showing as active until the screen was reopened.
+  useEffect(() => {
+    if (!purchases.subscribe) return;
+    return purchases.subscribe(() => {
+      loadEntitlement().catch(() => undefined);
+    });
+  }, [purchases, loadEntitlement]);
 
   useEffect(() => {
     let active = true;

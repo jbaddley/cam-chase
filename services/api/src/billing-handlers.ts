@@ -117,6 +117,8 @@ const PurchaseWebhookInput = z.object({
     z.object({ type: z.literal('subscription_renewed'), expiresAt: z.number().int() }),
     z.object({ type: z.literal('subscription_cancelled') }),
     z.object({ type: z.literal('subscription_expired') }),
+    z.object({ type: z.literal('lifetime_purchased') }),
+    z.object({ type: z.literal('lifetime_revoked') }),
   ]),
 });
 

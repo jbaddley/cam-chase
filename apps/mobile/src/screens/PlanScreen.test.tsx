@@ -177,4 +177,44 @@ describe('PlanScreen', () => {
       expect(screen.queryByRole('button', { name: 'Buy' })).toBeNull();
     });
   });
+
+  it('re-reads the entitlement when the store reports a change', async () => {
+    // The signal carries no entitlement data on purpose. A renewal, a lapse or
+    // a purchase finished on another device must be answered by asking our own
+    // API, never by trusting what the device says it owns.
+    let fire = () => {};
+    const unsubscribe = vi.fn();
+    const gateway: PurchaseGateway = {
+      listProducts: () => Promise.resolve([]),
+      purchase: () => Promise.reject(new Error('no')),
+      restore: () => Promise.resolve(),
+      subscribe: (onChanged) => {
+        fire = onChanged;
+        return unsubscribe;
+      },
+    };
+    getEntitlement.mockResolvedValue(entitlement({ tier: 'free' }));
+    const view = render(<PlanScreen onBack={vi.fn()} purchases={gateway} />);
+    await screen.findByText('Current plan: free');
+
+    getEntitlement.mockResolvedValue(entitlement({ tier: 'unlimited', subscriptionActive: true }));
+    fire();
+
+    expect(await screen.findByText('Current plan: unlimited')).toBeTruthy();
+
+    // And the listener is released, or every visit leaks one.
+    view.unmount();
+    expect(unsubscribe).toHaveBeenCalled();
+  });
+
+  it('works with a gateway that cannot report changes', () => {
+    // `subscribe` is optional; the stand-in gateway has no store behind it.
+    getEntitlement.mockResolvedValue(entitlement());
+    const gateway = {
+      listProducts: () => Promise.resolve([]),
+      purchase: () => Promise.reject(new Error('no')),
+      restore: () => Promise.resolve(),
+    } satisfies PurchaseGateway;
+    expect(() => render(<PlanScreen onBack={vi.fn()} purchases={gateway} />)).not.toThrow();
+  });
 });
