@@ -11,6 +11,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import type { Construct } from 'constructs';
+import { PUBLIC_ROUTES, toApiGatewayPath } from '../../../services/api/src/public-routes.js';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -226,8 +227,17 @@ export class PhotoChaseStack extends cdk.Stack {
 
     const api = new HttpApi(this, 'HttpApi', { apiName: `photochase-${envName}` });
     const integration = new HttpLambdaIntegration('ApiIntegration', apiFn);
-    // Provider webhook stays public; the more specific route wins over the catch-all.
-    api.addRoutes({ path: '/webhooks/purchase', methods: [HttpMethod.POST], integration });
+    // Unauthenticated routes, declared once in services/api and read here, so
+    // the gateway can never guard a route the Lambda believes is open. Each is
+    // more specific than the catch-all below, and HTTP API prefers the more
+    // specific match, so these bypass the authorizer.
+    for (const route of PUBLIC_ROUTES) {
+      api.addRoutes({
+        path: toApiGatewayPath(route.path),
+        methods: [HttpMethod[route.method]],
+        integration,
+      });
+    }
     api.addRoutes({
       path: '/{proxy+}',
       methods: [HttpMethod.ANY],
