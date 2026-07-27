@@ -79,4 +79,10 @@ export const ja: Record<MessageKey, string> = {
   'phase.guessing': '推理タイム',
   'phase.scatter': '散開して隠れる',
   'phase.tagActive': '狩りの開始',
+  'config.huntTheme': 'ハントのテーマ',
+  'huntTheme.mixed': 'ミックス',
+  'huntTheme.outdoors': '野外',
+  'huntTheme.city': '街',
+  'huntTheme.household': '家の中',
+  'huntTheme.silly': 'おふざけ',
 };

@@ -1,4 +1,4 @@
-import { FREE_CONFIG } from '@photochase/shared';
+import { freeEntitlement, FREE_CONFIG } from '@photochase/shared';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { buildContainer, type Container } from './container.js';
@@ -86,6 +86,29 @@ describe('lambda route (authenticated)', () => {
     expect(mine.data).toHaveLength(FREE_CONFIG.photosPerRound);
     expect(mine.data[0].assignmentId).toBeDefined();
     expect(mine.data[0].originalPhotoKey).toMatch(/^b/); // A chases B's photos
+  });
+
+  it('serves the hunt list at GET /games/:id/items, wildcard withheld', async () => {
+    // The hunt is a paid mode, so the host needs an entitlement that has it.
+    await container.entitlements.save({ ...freeEntitlement('host'), tier: 'unlimited', subscriptionActive: true });
+    const config = { ...FREE_CONFIG, mode: 'scavenger_hunt' as const, huntTheme: 'city' as const };
+
+    const { gameId, code } = (await call(container, 'POST', '/games', { config }, 'host')).data;
+    await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
+
+    const res = await call(container, 'GET', `/games/${gameId}/items`, undefined, 'uA');
+    expect(res.status).toBe(200);
+    expect(res.data.items).toHaveLength(config.photosPerRound);
+    expect(res.data.items.some((i: { wildcard: boolean }) => i.wildcard)).toBe(false);
+  });
+
+  it('refuses the hunt list to someone outside the game', async () => {
+    await container.entitlements.save({ ...freeEntitlement('host'), tier: 'unlimited', subscriptionActive: true });
+    const config = { ...FREE_CONFIG, mode: 'scavenger_hunt' as const };
+    const { gameId } = (await call(container, 'POST', '/games', { config }, 'host')).data;
+
+    expect((await call(container, 'GET', `/games/${gameId}/items`, undefined, 'stranger')).status).toBe(400);
+    expect((await call(container, 'GET', `/games/${gameId}/items`)).status).toBe(401);
   });
 
   it('serves the sanitized game state at GET /games/:id', async () => {

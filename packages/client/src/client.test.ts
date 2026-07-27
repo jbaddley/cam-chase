@@ -203,7 +203,7 @@ describe('PhotoChaseClient', () => {
         originalPhotoKey: 'games/g1/t2/p1.jpg',
         chasePhotoId: 'c1',
         chasePhotoKey: 'games/g1/t1/c1.jpg',
-        myVotes: { pose: 4, angle: null },
+        myVotes: { pose: 4, angle: null, validity: null },
       },
     ];
     const { config, calls } = recorder(rateable);
@@ -212,6 +212,64 @@ describe('PhotoChaseClient', () => {
     expect(calls[0]!.url).toBe('https://api.example.com/games/g1/rateable');
     expect(calls[0]!.init?.method).toBe('GET');
     expect(result).toEqual(rateable);
+  });
+
+  it('listHuntItems GETs the scavenger hunt list', async () => {
+    const hunt = {
+      items: [{ itemId: 'leaf', label: 'A leaf', rarity: 'common', wildcard: false, claimedPhotoId: null }],
+      wildcardRevealAt: 1_700_000_000_000,
+    };
+    const { config, calls } = recorder(hunt);
+    const result = await new PhotoChaseClient(config).listHuntItems('g1');
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/items');
+    expect(calls[0]!.init?.method).toBe('GET');
+    expect(result).toEqual(hunt);
+  });
+
+  it('capturePhoto carries the claimed item through to submitPhoto', async () => {
+    const responses = [
+      { objectId: 'o1', key: 'games/g1/t1/o1.jpg', upload: { url: 'https://s3.example.com', fields: {} } },
+      {},
+      { photoId: 'p1' },
+    ];
+    let call = 0;
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl = (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      const body = responses[call++];
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+    };
+
+    await new PhotoChaseClient({
+      baseUrl: 'https://api.example.com',
+      fetch: fetchImpl as unknown as typeof fetch,
+    }).capturePhoto('g1', { teamId: 't1', location: { lat: 40, lng: -74 }, file: new Blob(['x']), itemId: 'leaf' });
+
+    const submit = JSON.parse(calls[2]!.init!.body as string);
+    expect(submit).toMatchObject({ teamId: 't1', s3Key: 'games/g1/t1/o1.jpg', itemId: 'leaf' });
+  });
+
+  it('capturePhoto omits the item entirely in a chase, which has none', async () => {
+    const responses = [
+      { objectId: 'o1', key: 'games/g1/t1/o1.jpg', upload: { url: 'https://s3.example.com', fields: {} } },
+      {},
+      { photoId: 'p1' },
+    ];
+    let call = 0;
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl = (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      const body = responses[call++];
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+    };
+
+    await new PhotoChaseClient({
+      baseUrl: 'https://api.example.com',
+      fetch: fetchImpl as unknown as typeof fetch,
+    }).capturePhoto('g1', { teamId: 't1', location: { lat: 40, lng: -74 }, file: new Blob(['x']) });
+
+    expect(JSON.parse(calls[2]!.init!.body as string)).not.toHaveProperty('itemId');
   });
 
   it('flagFoul POSTs the reason to the photo’s foul path', async () => {

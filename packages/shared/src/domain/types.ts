@@ -48,6 +48,8 @@ export interface Photo {
   location: GeoPoint;
   capturedAt: number;
   s3Key: string;
+  /** Scavenger Hunt: which list item this photo claims. */
+  itemId?: string;
   fouls: FoulReason[];
 }
 

@@ -51,13 +51,21 @@ export const PRESET_CATEGORIES = [
   'most_difficult_angle',
   'most_creative_clue',
   'best_photobomb',
+  // Scavenger Hunt flavours.
+  'biggest_stretch',
+  'best_match',
+  'best_face',
+  'silliest_pose',
 ] as const;
 export type PresetCategory = (typeof PRESET_CATEGORIES)[number];
 
-/** The two rating axes scored by voters for each chase. */
-export const RATING_AXES = ['pose', 'angle'] as const;
+/**
+ * Axes voters score. The chase uses pose and angle; a scavenger hunt uses
+ * validity, since the only question there is whether the find really counts.
+ */
+export const RATING_AXES = ['pose', 'angle', 'validity'] as const;
 export type RatingAxis = (typeof RATING_AXES)[number];
 
 /** Reasons a photo can be penalized. */
-export const FOUL_REASONS = ['missing_clue', 'missing_face'] as const;
+export const FOUL_REASONS = ['missing_clue', 'missing_face', 'missing_item'] as const;
 export type FoulReason = (typeof FOUL_REASONS)[number];

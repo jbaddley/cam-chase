@@ -1,5 +1,6 @@
 import type { GameConfig } from '../config/schema.js';
 import type { GameMode, GameState, Tier } from '../domain/enums.js';
+import type { HuntItem } from '../modes/scavenger/items.js';
 import type {
   Assignment,
   Membership,
@@ -32,7 +33,21 @@ export interface Game {
    * persisted before check-ins shipped still load.
    */
   roundStartedAt?: Partial<Record<'round1' | 'round2', number>>;
+  /** Scavenger Hunt: the list every team is hunting, generated at creation. */
+  hunt?: HuntState;
   createdAt: number;
+}
+
+/**
+ * The list a scavenger hunt is played against. Generated once at creation from
+ * the game's seed, so every team hunts the same items.
+ */
+export interface HuntState {
+  items: HuntItem[];
+  /** An extra item revealed mid-round, worth double. */
+  wildcardItemId?: string;
+  /** Epoch ms the wildcard becomes visible; before this it is withheld. */
+  wildcardRevealAt?: number;
 }
 
 /** One player's finals vote for a category. One vote per voter per category. */

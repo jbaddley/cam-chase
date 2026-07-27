@@ -55,6 +55,67 @@ export interface ScoreVote {
   weight: number;
 }
 
+/** A fresh zeroed score row per team, keyed by id. Shared by every mode. */
+export function emptyScores(teamIds: readonly string[]): Map<string, TeamScore> {
+  return new Map(teamIds.map((id) => [id, emptyScore(id)]));
+}
+
+/** Fouls penalize the team whose photo was called. Shared by every mode. */
+export function applyFouls(scores: Map<string, TeamScore>, fouls?: Record<string, number>): void {
+  for (const [teamId, count] of Object.entries(fouls ?? {})) {
+    const score = scores.get(teamId);
+    if (score) score.foulPenalty += count * FOUL_PENALTY;
+  }
+}
+
+/**
+ * Return-time bonus by rank, faster first. Teams with no recorded duration are
+ * absent from the map and simply place last, rather than scoring as instant.
+ */
+export function applyReturnBonus(
+  scores: Map<string, TeamScore>,
+  returnDurations?: Record<string, number>,
+): void {
+  const ranked = Object.entries(returnDurations ?? {})
+    .filter(([teamId]) => scores.has(teamId))
+    .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]));
+  ranked.forEach(([teamId], rank) => {
+    const score = scores.get(teamId)!;
+    score.timeBonus += TIME_BONUS_BY_RANK[rank] ?? 0;
+  });
+}
+
+/** Finals outcomes: best-overall and one bonus per special category won. */
+export function applyFinalsBonuses(
+  scores: Map<string, TeamScore>,
+  bestMatchTeamId?: string,
+  specialWinners?: readonly string[],
+): void {
+  if (bestMatchTeamId) {
+    const score = scores.get(bestMatchTeamId);
+    if (score) score.bestMatchBonus += BEST_MATCH_BONUS;
+  }
+  for (const teamId of specialWinners ?? []) {
+    const score = scores.get(teamId);
+    if (score) score.specialBonus += SPECIAL_BONUS;
+  }
+}
+
+/** Sum each row and return the scoreboard, highest total first. */
+export function totalise(scores: Map<string, TeamScore>): TeamScore[] {
+  for (const score of scores.values()) {
+    score.total =
+      score.location +
+      score.pose +
+      score.angle +
+      score.timeBonus +
+      score.bestMatchBonus +
+      score.specialBonus -
+      score.foulPenalty;
+  }
+  return [...scores.values()].sort((a, b) => b.total - a.total || a.teamId.localeCompare(b.teamId));
+}
+
 export interface ScoringInput {
   teamIds: string[];
   assignments: ScoreAssignment[];
@@ -90,7 +151,7 @@ function emptyScore(teamId: string): TeamScore {
  * sorted by total descending, then teamId ascending for stable tie-breaking.
  */
 export function computeScoreboard(input: ScoringInput): TeamScore[] {
-  const scores = new Map<string, TeamScore>(input.teamIds.map((id) => [id, emptyScore(id)]));
+  const scores = emptyScores(input.teamIds);
 
   // Location + pose/angle votes, credited to the chasing team.
   for (const a of input.assignments) {
@@ -115,42 +176,8 @@ export function computeScoreboard(input: ScoringInput): TeamScore[] {
     else score.angle += points;
   }
 
-  // Fouls penalize the owning team.
-  for (const [teamId, count] of Object.entries(input.fouls ?? {})) {
-    const score = scores.get(teamId);
-    if (score) score.foulPenalty += count * FOUL_PENALTY;
-  }
-
-  // Return-time bonus by rank (faster = better).
-  const ranked = Object.entries(input.returnDurations ?? {})
-    .filter(([teamId]) => scores.has(teamId))
-    .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]));
-  ranked.forEach(([teamId], rank) => {
-    const score = scores.get(teamId)!;
-    score.timeBonus += TIME_BONUS_BY_RANK[rank] ?? 0;
-  });
-
-  if (input.bestMatchTeamId) {
-    const score = scores.get(input.bestMatchTeamId);
-    if (score) score.bestMatchBonus += BEST_MATCH_BONUS;
-  }
-  for (const teamId of input.specialWinners ?? []) {
-    const score = scores.get(teamId);
-    if (score) score.specialBonus += SPECIAL_BONUS;
-  }
-
-  for (const score of scores.values()) {
-    score.total =
-      score.location +
-      score.pose +
-      score.angle +
-      score.timeBonus +
-      score.bestMatchBonus +
-      score.specialBonus -
-      score.foulPenalty;
-  }
-
-  return [...scores.values()].sort(
-    (a, b) => b.total - a.total || a.teamId.localeCompare(b.teamId),
-  );
+  applyFouls(scores, input.fouls);
+  applyReturnBonus(scores, input.returnDurations);
+  applyFinalsBonuses(scores, input.bestMatchTeamId, input.specialWinners);
+  return totalise(scores);
 }

@@ -19,3 +19,5 @@ export * from './ai/recap.js';
 export * from './growth/referrals.js';
 export * from './growth/share-card.js';
 export * from './tournament/standings.js';
+export * from './modes/scavenger/items.js';
+export * from './modes/scavenger/scoring.js';

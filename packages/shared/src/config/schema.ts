@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { GAME_MODES, GAME_TYPES, PRESET_CATEGORIES, type GameMode, type Tier } from '../domain/enums.js';
 import { FREE_DEFAULT_ROUNDS, TIER_LIMITS } from './tiers.js';
+import { HUNT_THEMES } from '../modes/scavenger/items.js';
 
 const roundMinutes = z.number().int().min(5).max(20);
 
@@ -24,6 +25,8 @@ export const GameConfigSchema = z
     judgeWeight: z.number().int().min(1).max(5),
     specialCategories: SpecialCategoriesSchema,
     geofencing: z.boolean(),
+    /** Scavenger Hunt: which item pool to draw the list from. */
+    huntTheme: z.enum(HUNT_THEMES).optional(),
     /**
      * Where teams check in at the end of each round. Optional: without it,
      * check-ins are accepted anywhere and only their timing counts.

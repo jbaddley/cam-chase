@@ -1,4 +1,14 @@
-import type { FoulReason, GameConfig, GameEvent, GameMode, GameState, TeamScore, Tier, TierLimits } from '@photochase/shared';
+import type {
+  FoulReason,
+  GameConfig,
+  GameEvent,
+  GameMode,
+  GameState,
+  RatingAxis,
+  TeamScore,
+  Tier,
+  TierLimits,
+} from '@photochase/shared';
 import { request, type ClientConfig } from './http.js';
 
 /** Sanitized game view returned by `GET /games/:id`, safe for any player. */
@@ -42,7 +52,11 @@ export interface AssignmentView {
   chasePhotoId: string | null;
 }
 
-/** A chase attempt the caller may rate, paired with the original it recreates. */
+/**
+ * One thing the caller may rate: a chase attempt paired with the original it
+ * recreates, or — in a scavenger hunt, which has no originals — the claim photo
+ * itself, with `itemLabel` naming what it is judged against.
+ */
 export interface RateableView {
   assignmentId: string;
   originalPhotoId: string;
@@ -50,9 +64,29 @@ export interface RateableView {
   chasePhotoId: string;
   chasePhotoKey: string;
   /** Stars this user has already given on each axis, if any. */
-  myVotes: { pose: number | null; angle: number | null };
+  myVotes: { pose: number | null; angle: number | null; validity: number | null };
   /** Fouls currently called on the original photo. */
   originalFouls: FoulReason[];
+  /** Scavenger Hunt: the list item this photo claims. */
+  itemId?: string;
+  itemLabel?: string;
+}
+
+/** One item on a scavenger hunt list, with the caller's team's progress. */
+export interface HuntItemView {
+  itemId: string;
+  label: string;
+  rarity: 'common' | 'rare';
+  /** The mid-round wildcard, which pays double. */
+  wildcard: boolean;
+  /** The caller's team's photo claiming this item, once one is submitted. */
+  claimedPhotoId: string | null;
+}
+
+export interface HuntView {
+  items: HuntItemView[];
+  /** When the wildcard drops, for a countdown. The item stays hidden until then. */
+  wildcardRevealAt: number | null;
 }
 
 /** Finals categories open for voting, plus this caller's picks so far. */
@@ -152,7 +186,7 @@ export class PhotoChaseClient {
 
   submitPhoto(
     gameId: string,
-    input: { teamId: string; location: GeoPointInput; s3Key: string },
+    input: { teamId: string; location: GeoPointInput; s3Key: string; itemId?: string },
   ): Promise<{ photoId: string }> {
     return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/photos`, input);
   }
@@ -166,7 +200,7 @@ export class PhotoChaseClient {
 
   castVote(
     gameId: string,
-    input: { assignmentId: string; axis: 'pose' | 'angle'; stars: number },
+    input: { assignmentId: string; axis: RatingAxis; stars: number },
   ): Promise<{ voteId: string }> {
     return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/votes`, input);
   }
@@ -198,6 +232,11 @@ export class PhotoChaseClient {
   /** The caller team's Round 2 queue, in delivery order. */
   listAssignments(gameId: string): Promise<AssignmentView[]> {
     return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/assignments`);
+  }
+
+  /** The scavenger hunt list, with this team's progress and the wildcard timer. */
+  listHuntItems(gameId: string): Promise<HuntView> {
+    return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/items`);
   }
 
   /** The chases the caller may rate, with any votes they've already cast. */
@@ -256,7 +295,7 @@ export class PhotoChaseClient {
    */
   async capturePhoto(
     gameId: string,
-    input: { teamId: string; location: GeoPointInput; file: Blob },
+    input: { teamId: string; location: GeoPointInput; file: Blob; itemId?: string },
   ): Promise<{ photoId: string; key: string }> {
     const target = await this.requestUpload(gameId, input.teamId);
     await this.uploadPhoto(target.upload, input.file);
@@ -264,6 +303,7 @@ export class PhotoChaseClient {
       teamId: input.teamId,
       location: input.location,
       s3Key: target.key,
+      ...(input.itemId ? { itemId: input.itemId } : {}),
     });
     return { photoId, key: target.key };
   }
