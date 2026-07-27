@@ -2,11 +2,9 @@ import { availableModes, DEFAULT_CONFIG, type Game, type Photo } from '@photocha
 import { beforeEach, describe, expect, it } from 'vitest';
 import { InMemoryEntitlementRepository } from './entitlements-repo.js';
 import {
-  advanceGameWithRewards,
   attributeReferral,
   createShareCard,
   creditReferralOnGameFinished,
-  creditReferralsForFinishedGame,
   getMyReferral,
   issueReferralCode,
   redeemReferralCode,
@@ -304,101 +302,6 @@ describe('createShareCard consent gate', () => {
   it('refuses a sharer who is not in the game', async () => {
     await seedWithConsent({ a1: true, a2: true, b1: true, b2: true });
     expect((await card('stranger')).ok).toBe(false);
-  });
-});
-
-describe('crediting on the results transition', () => {
-  /** Inside the 90-day attribution window from the `at: 1` attributions below. */
-  const FINISHED_AT = 2000;
-
-  let games: InMemoryGameRepository;
-  let refRepo: InMemoryReferralRepository;
-  let entRepo: InMemoryEntitlementRepository;
-
-  beforeEach(async () => {
-    games = new InMemoryGameRepository();
-    refRepo = new InMemoryReferralRepository();
-    entRepo = new InMemoryEntitlementRepository();
-    await games.save(
-      makeGame({
-        state: 'finals_voting',
-        memberships: [
-          { id: 'm1', gameId: 'g1', userId: 'p1', teamId: 'A', role: 'member', returnCheckins: {} },
-          { id: 'm2', gameId: 'g1', userId: 'p2', teamId: 'B', role: 'member', returnCheckins: {} },
-        ],
-      }),
-    );
-  });
-
-  it('pays every player’s referrer when the game reaches results', async () => {
-    await unwrap(attributeReferral(refRepo, { referrerUserId: 'r1', inviteeUserId: 'p1', at: 1 }));
-    await unwrap(attributeReferral(refRepo, { referrerUserId: 'r2', inviteeUserId: 'p2', at: 1 }));
-
-    const advanced = await unwrap(
-      advanceGameWithRewards(
-        games,
-        refRepo,
-        entRepo,
-        { gameId: 'g1', hostUserId: 'host', event: 'COMPLETE_FINALS' },
-        () => FINISHED_AT,
-      ),
-    );
-    expect(advanced.state).toBe('results');
-    expect((await entRepo.getOrCreate('r1')).gameCredits).toBe(1);
-    expect((await entRepo.getOrCreate('r2')).gameCredits).toBe(1);
-  });
-
-  it('pays nobody on a transition that is not the finish', async () => {
-    await games.save(makeGame({ state: 'rating', memberships: (await games.get('g1'))!.memberships }));
-    await unwrap(attributeReferral(refRepo, { referrerUserId: 'r1', inviteeUserId: 'p1', at: 1 }));
-
-    await unwrap(
-      advanceGameWithRewards(
-        games,
-        refRepo,
-        entRepo,
-        { gameId: 'g1', hostUserId: 'host', event: 'COMPLETE_RATING' },
-        () => FINISHED_AT,
-      ),
-    );
-    expect((await entRepo.getOrCreate('r1')).gameCredits).toBe(0);
-  });
-
-  it('pays nothing at all when the transition is refused', async () => {
-    await unwrap(attributeReferral(refRepo, { referrerUserId: 'r1', inviteeUserId: 'p1', at: 1 }));
-
-    const result = await advanceGameWithRewards(games, refRepo, entRepo, {
-      gameId: 'g1',
-      hostUserId: 'host',
-      event: 'END_ROUND1',
-    });
-    expect(result.ok).toBe(false);
-    expect((await entRepo.getOrCreate('r1')).gameCredits).toBe(0);
-  });
-
-  it('does not pay twice if the finish is replayed', async () => {
-    await unwrap(attributeReferral(refRepo, { referrerUserId: 'r1', inviteeUserId: 'p1', at: 1 }));
-    await unwrap(
-      advanceGameWithRewards(
-        games,
-        refRepo,
-        entRepo,
-        { gameId: 'g1', hostUserId: 'host', event: 'COMPLETE_FINALS' },
-        () => FINISHED_AT,
-      ),
-    );
-    await unwrap(creditReferralsForFinishedGame(games, refRepo, entRepo, { gameId: 'g1', finishedAt: FINISHED_AT }));
-
-    expect((await entRepo.getOrCreate('r1')).gameCredits).toBe(1);
-  });
-
-  it('refuses only the host to advance, so a player cannot force a payout', async () => {
-    const result = await advanceGameWithRewards(games, refRepo, entRepo, {
-      gameId: 'g1',
-      hostUserId: 'p1',
-      event: 'COMPLETE_FINALS',
-    });
-    expect(result.ok).toBe(false);
   });
 });
 

@@ -19,6 +19,7 @@ import { z } from 'zod';
 import { createGame, startGame, type Result } from './handlers.js';
 import type { EntitlementRepository } from './entitlements-repo.js';
 import type { GameRepository } from './repository.js';
+import type { TournamentRepository } from './tournament-repo.js';
 
 const ok = <T>(data: T): Result<T> => ({ ok: true, data });
 const err = (error: string): Result<never> => ({ ok: false, error });
@@ -31,16 +32,39 @@ export async function createGameForHost(
   gameRepo: GameRepository,
   entRepo: EntitlementRepository,
   raw: unknown,
+  /** Resolves an optional league code; omitted when leagues are not in play. */
+  tournamentRepo?: TournamentRepository,
 ): Promise<Result<{ gameId: string; code: string }>> {
-  const parsed = z.object({ hostUserId: z.string().min(1), config: GameConfigSchema }).safeParse(raw);
+  const parsed = z
+    .object({
+      hostUserId: z.string().min(1),
+      config: GameConfigSchema,
+      /** Play this game into a league. Any holder of the code may do so. */
+      tournamentCode: z.string().min(1).max(16).optional(),
+    })
+    .safeParse(raw);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
-  const { hostUserId, config } = parsed.data;
+  const { hostUserId, config, tournamentCode } = parsed.data;
 
   const entitlement = await entRepo.getOrCreate(hostUserId);
   const gate = canHostConfig(entitlement, config);
   if (!gate.ok) return err(gate.errors.join(' '));
 
-  return createGame(gameRepo, { hostUserId, tier: entitlement.tier, config });
+  // Holding the code is the whole permission: creating a league is the paid
+  // power, playing into someone else's is free and needs no plan of your own.
+  let tournamentId: string | undefined;
+  if (tournamentCode) {
+    const tournament = await tournamentRepo?.getByCode(tournamentCode.toUpperCase());
+    if (!tournament) return err('League not found.');
+    tournamentId = tournament.id;
+  }
+
+  return createGame(gameRepo, {
+    hostUserId,
+    tier: entitlement.tier,
+    config,
+    ...(tournamentId ? { tournamentId } : {}),
+  });
 }
 
 /**
@@ -121,6 +145,7 @@ const FEATURES: Feature[] = [
   'random_game_type',
   'judge_weight_over_1',
   'up_to_6_teams',
+  'create_leagues',
 ];
 
 /**

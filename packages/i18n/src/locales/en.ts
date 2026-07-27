@@ -105,6 +105,19 @@ export const en = {
   'share.create': 'Make a share card',
   'share.blocked': 'Waiting on everyone in the shot to agree.',
   'share.consentFailed': 'Could not save your answer.',
+  'league.title': 'League',
+  'league.create': 'Start a league',
+  'league.name': 'League name',
+  'league.code': 'League code: {code}',
+  'league.games': '{count} games played',
+  'league.empty': 'No games played yet. Host one with this code.',
+  'league.paidOnly': 'Starting a league needs a paid plan. Joining one is free.',
+  'league.failed': 'Could not load the league.',
+  'league.lookup': 'Look up a league',
+  'league.codePlaceholder': 'League code',
+  'league.played': 'P',
+  'league.won': 'W',
+  'league.points': 'Pts',
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -16,6 +16,8 @@ export interface SupportingRepoConfig {
 const userKey = (userId: string) => ({ pk: `USER#${userId}`, sk: 'ENTITLEMENT' });
 const aiKey = (gameId: string) => ({ pk: `GAME#${gameId}`, sk: 'AIJUDGEMENTS' });
 const tourneyKey = (id: string) => ({ pk: `TOURNEY#${id}`, sk: 'TOURNEY' });
+/** Code → id pointer, so a league is reachable by the code it is shared by. */
+const tourneyCodeKey = (code: string) => ({ pk: `TOURNEYCODE#${code}`, sk: 'POINTER' });
 
 export class DynamoDBEntitlementRepository implements EntitlementRepository {
   constructor(private readonly cfg: SupportingRepoConfig) {}
@@ -62,10 +64,26 @@ export class DynamoDBTournamentRepository implements TournamentRepository {
     await this.cfg.client.send(
       new PutCommand({ TableName: this.cfg.tableName, Item: { ...tourneyKey(tournament.id), entity: 'tournament', tournament } }),
     );
+    // The pointer holds only the id: a league's results change every game, and
+    // duplicating them here would leave two copies to drift apart.
+    await this.cfg.client.send(
+      new PutCommand({
+        TableName: this.cfg.tableName,
+        Item: { ...tourneyCodeKey(tournament.code), entity: 'tournament_code', tournamentId: tournament.id },
+      }),
+    );
   }
 
   async get(id: string): Promise<Tournament | null> {
     const res = await this.cfg.client.send(new GetCommand({ TableName: this.cfg.tableName, Key: tourneyKey(id) }));
     return (res.Item?.tournament as Tournament | undefined) ?? null;
+  }
+
+  async getByCode(code: string): Promise<Tournament | null> {
+    const res = await this.cfg.client.send(
+      new GetCommand({ TableName: this.cfg.tableName, Key: tourneyCodeKey(code) }),
+    );
+    const id = res.Item?.tournamentId as string | undefined;
+    return id ? this.get(id) : null;
   }
 }

@@ -328,6 +328,53 @@ describe('PhotoChaseClient', () => {
     expect(result).toEqual(card);
   });
 
+  it('createGame omits the league entirely when there is none', async () => {
+    const { config, calls } = recorder({ gameId: 'g1', code: 'ABC123' });
+    await new PhotoChaseClient(config).createGame(DEFAULT_CONFIG);
+
+    expect(JSON.parse(calls[0]!.init!.body as string)).not.toHaveProperty('tournamentCode');
+  });
+
+  it('createGame carries a league code when playing into one', async () => {
+    const { config, calls } = recorder({ gameId: 'g1', code: 'ABC123' });
+    await new PhotoChaseClient(config).createGame(DEFAULT_CONFIG, 'LEAG01');
+
+    expect(JSON.parse(calls[0]!.init!.body as string).tournamentCode).toBe('LEAG01');
+  });
+
+  it('createTournament POSTs the league name', async () => {
+    const { config, calls } = recorder({ tournamentId: 't1', code: 'LEAG01' });
+    const result = await new PhotoChaseClient(config).createTournament('Summer League');
+
+    expect(calls[0]!.url).toBe('https://api.example.com/tournaments');
+    // The owner comes from the token, never the body.
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual({ name: 'Summer League' });
+    expect(result.code).toBe('LEAG01');
+  });
+
+  it('getStandings GETs a league table by its code', async () => {
+    const table = {
+      tournamentId: 't1',
+      code: 'LEAG01',
+      name: 'Summer League',
+      gamesPlayed: 2,
+      standings: [{ teamKey: 'reds', teamName: 'Reds', gamesPlayed: 2, wins: 2, placementPoints: 20, totalGamePoints: 380 }],
+    };
+    const { config, calls } = recorder(table);
+    const result = await new PhotoChaseClient(config).getStandings('LEAG01');
+
+    expect(calls[0]!.url).toBe('https://api.example.com/tournaments/LEAG01/standings');
+    expect(result).toEqual(table);
+  });
+
+  it('getRecap GETs the game’s written recap', async () => {
+    const { config, calls } = recorder({ recap: 'Reds took it.' });
+    await new PhotoChaseClient(config).getRecap('g1');
+
+    expect(calls[0]!.url).toBe('https://api.example.com/games/g1/recap');
+    expect(calls[0]!.init?.method).toBe('GET');
+  });
+
   it('flagFoul POSTs the reason to the photo’s foul path', async () => {
     const { config, calls } = recorder({ fouls: ['missing_face'] });
     const result = await new PhotoChaseClient(config).flagFoul('g1', 'p1', { reason: 'missing_face' });

@@ -6,6 +6,7 @@ import type {
   GameMode,
   GameState,
   RatingAxis,
+  Standing,
   TeamScore,
   Tier,
   TierLimits,
@@ -33,6 +34,15 @@ export interface ReferralView {
   modesEarned: GameMode[];
   nextUnlock: { mode: GameMode; referralsAway: number } | null;
   flair: Flair | null;
+}
+
+/** A league table: the season's name, code, and standings. */
+export interface StandingsView {
+  tournamentId: string;
+  code: string;
+  name: string;
+  gamesPlayed: number;
+  standings: Standing[];
 }
 
 /** A shareable comparison card, produced only once everyone depicted agreed. */
@@ -176,8 +186,9 @@ export class PhotoChaseClient {
 
   // --- game lifecycle -------------------------------------------------------
 
-  createGame(config: GameConfig): Promise<{ gameId: string; code: string }> {
-    return request(this.config, 'POST', '/games', { config });
+  /** Create a game, optionally playing it into a league you hold the code for. */
+  createGame(config: GameConfig, tournamentCode?: string): Promise<{ gameId: string; code: string }> {
+    return request(this.config, 'POST', '/games', { config, ...(tournamentCode ? { tournamentCode } : {}) });
   }
 
   joinGame(input: JoinGameInput): Promise<{ gameId: string; teamId: string | null; role: string }> {
@@ -311,6 +322,23 @@ export class PhotoChaseClient {
 
   getResults(gameId: string): Promise<{ scoreboard: TeamScore[] }> {
     return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/results`);
+  }
+
+  /** A short written recap of a finished game, for sharing and the big screen. */
+  getRecap(gameId: string): Promise<{ recap: string }> {
+    return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/recap`);
+  }
+
+  // --- leagues --------------------------------------------------------------
+
+  /** Start a league season. Paid only; joining someone else's is always free. */
+  createTournament(name: string): Promise<{ tournamentId: string; code: string }> {
+    return request(this.config, 'POST', '/tournaments', { name });
+  }
+
+  /** A league's table, resolved by the code it is shared by. */
+  getStandings(code: string): Promise<StandingsView> {
+    return request(this.config, 'GET', `/tournaments/${encodeURIComponent(code)}/standings`);
   }
 
   // --- media ----------------------------------------------------------------

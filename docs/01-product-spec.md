@@ -139,7 +139,28 @@ Judge votes count at the configured multiplier (1x–5x). AI scores (paid) are a
 | Return spot | GPS point captured at game start | Paid: geofenced auto check-in + timing |
 | Special voting categories | 5 presets (Worst Attempt, Craziest Pose, Most Difficult Angle, Most Creative Clue, Best Photobomb) + up to 5 user-created, saved to the host's profile for reuse | Paid |
 | Judge vote weight | 1x–5x | Paid (free fixed at 1x) |
+| League creation | Season table across games | Paid. Joining and playing in someone else's league is free on any plan |
 | AI judging | On/off | Paid only |
+
+## Leagues
+
+A **league** is a season that games are played into, so a group has a reason to
+come back next week rather than treating each game as self-contained.
+
+- **Creating one is the paid power; joining is free.** A league is only worth
+  anything if the people in it can turn up, so the cost sits with the one person
+  organising it. Anyone holding the league's code can host a game into it,
+  whatever their own plan.
+- **Team identity is the team's name**, normalised for case and spacing. A game's
+  `teamId` is minted per game, so keying the table on it would give every team a
+  single-game row and the standings would never accumulate. The trade is
+  deliberate and visible to players: two groups picking the same name in one
+  league merge, and a team that renames itself starts over.
+- **Recording is automatic.** A game reaching `results` is what puts it in the
+  table — nothing depends on someone remembering to record it afterwards.
+  Replaying that transition never double-counts a night.
+- **Points**: 10 for a win, then 6 / 4 / 3 / 2 / 1 by placement. Ties break on
+  total game points, then on the team key, so the order is deterministic.
 
 ## Big screen, casting, and comparison viewing
 

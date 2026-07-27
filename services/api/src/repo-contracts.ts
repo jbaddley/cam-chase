@@ -159,14 +159,34 @@ export function tournamentRepositoryContract(
       const repo = await makeRepo();
       const tournament: Tournament = {
         id: uid('tourney'),
+        code: 'LEAG01',
         name: 'Summer League',
-        results: [{ gameId: 'g1', placements: [{ teamKey: 'A', gamePoints: 200 }, { teamKey: 'B', gamePoints: 150 }] }],
+        ownerUserId: uid('owner'),
+        results: [
+          {
+            gameId: 'g1',
+            placements: [
+              { teamKey: 'reds', teamName: 'Reds', gamePoints: 200 },
+              { teamKey: 'blues', teamName: 'Blues', gamePoints: 150 },
+            ],
+          },
+        ],
+        createdAt: 1,
       };
       await repo.save(tournament);
       expect(await repo.get(tournament.id)).toEqual(tournament);
+      // A league is shared by its code, so it must be reachable by one.
+      expect(await repo.getByCode(tournament.code)).toEqual(tournament);
       const updated: Tournament = { ...tournament, results: [...tournament.results, { gameId: 'g2', placements: [] }] };
       await repo.save(updated);
       expect((await repo.get(tournament.id))?.results).toHaveLength(2);
+      // The code pointer must follow the league, not a stale copy of it.
+      expect((await repo.getByCode(tournament.code))?.results).toHaveLength(2);
+    });
+
+    it('returns null for a code nobody owns', async () => {
+      const repo = await makeRepo();
+      expect(await repo.getByCode('NOSUCH')).toBeNull();
     });
   });
 }
