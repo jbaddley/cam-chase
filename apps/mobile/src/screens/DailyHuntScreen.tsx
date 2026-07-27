@@ -12,7 +12,13 @@ import { t } from '../i18n.js';
  * One run per person per UTC day, resumable, against a list that is identical
  * worldwide.
  */
-export function DailyHuntScreen({ onPlaying }: { onPlaying?: (gameId: string) => void }) {
+export function DailyHuntScreen({
+  onPlaying,
+  onBack,
+}: {
+  onPlaying?: (gameId: string) => void;
+  onBack?: () => void;
+}) {
   const [run, setRun] = useState<DailyHuntView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +48,12 @@ export function DailyHuntScreen({ onPlaying }: { onPlaying?: (gameId: string) =>
         <Text>{run?.resumed ? t('daily.resume') : t('daily.start')}</Text>
       </Pressable>
 
+      {onBack ? (
+        <Pressable onPress={onBack} style={styles.secondary}>
+          <Text>{t('common.back')}</Text>
+        </Pressable>
+      ) : null}
+
       {run ? (
         <View style={styles.list}>
           <Text style={styles.theme}>{t('daily.theme', { theme: run.theme })}</Text>
@@ -64,6 +76,7 @@ const styles = StyleSheet.create({
   blurb: { color: '#666' },
   error: { color: '#c92a2a' },
   button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
+  secondary: { padding: 16, borderRadius: 12, alignItems: 'center' },
   list: { paddingVertical: 12, gap: 6 },
   theme: { fontSize: 18, fontWeight: '600' },
   row: { backgroundColor: '#e9ecef', padding: 12, borderRadius: 10, marginBottom: 6 },
