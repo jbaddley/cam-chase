@@ -49,6 +49,31 @@ configured in `infra/cdk`.
 `crypto.subtle`, so either install a polyfill or pass a `CryptoSource` backed by
 `expo-crypto`'s `digestStringAsync` and `getRandomBytesAsync`.
 
+### Purchases (`src/purchases.ts`)
+
+`App` takes a `purchases` prop of type `PurchaseGateway`. Back it with
+RevenueCat, which wraps StoreKit 2 and Google Play Billing behind one interface
+(docs/03):
+
+```bash
+npx expo install react-native-purchases
+```
+
+```ts
+import Purchases from 'react-native-purchases';
+
+const purchases: PurchaseGateway = {
+  listProducts: async () => { /* map RevenueCat offerings to Product[] */ },
+  purchase: async (sku) => { /* purchasePackage; map cancellation to 'cancelled' */ },
+  restore: () => Purchases.restorePurchases().then(() => undefined),
+};
+```
+
+The app never grants an entitlement itself. RevenueCat notifies the server's
+purchase webhook, and the app re-reads `GET /me/entitlement` afterwards, so a
+client that claims a purchase gains nothing. Configure the webhook secret as
+described in `infra/cdk`; without it the API rejects every purchase webhook.
+
 ### Capture (`src/capture.ts`)
 
 `placeholderCapture` returns a fixed blob and location. Replace it with

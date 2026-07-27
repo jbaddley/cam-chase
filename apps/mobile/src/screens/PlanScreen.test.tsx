@@ -1,6 +1,7 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EntitlementView } from '@photochase/client';
+import type { PurchaseGateway } from '../purchases.js';
 
 const getEntitlement = vi.fn();
 vi.mock('../api.js', () => ({ client: { getEntitlement: () => getEntitlement() } }));
@@ -76,5 +77,103 @@ describe('PlanScreen', () => {
 
     expect(await screen.findByText('Could not load your plan.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Back' })).toBeTruthy();
+  });
+
+  describe('purchases', () => {
+    /** A gateway offering one product, with injectable purchase behaviour. */
+    function gateway(overrides: Partial<PurchaseGateway> = {}): PurchaseGateway {
+      return {
+        listProducts: () =>
+          Promise.resolve([{ sku: 'game_pack', priceLabel: '$3.99', subscription: false }]),
+        purchase: () => Promise.resolve({ status: 'purchased', sku: 'game_pack' }),
+        restore: () => Promise.resolve(),
+        ...overrides,
+      };
+    }
+
+    it('lists the offered products with their store prices', async () => {
+      getEntitlement.mockResolvedValue(entitlement());
+      render(<PlanScreen onBack={vi.fn()} purchases={gateway()} />);
+
+      expect(await screen.findByText(/Game pack · \$3\.99/)).toBeTruthy();
+    });
+
+    it('re-reads the entitlement after a purchase rather than granting locally', async () => {
+      // The store notifies the server; the app only re-reads what it owns.
+      getEntitlement
+        .mockResolvedValueOnce(entitlement({ tier: 'free' }))
+        .mockResolvedValueOnce(entitlement({ tier: 'game_pack', gameCredits: 2 }));
+      render(<PlanScreen onBack={vi.fn()} purchases={gateway()} />);
+
+      await screen.findByText(/free/);
+      fireEvent.click(screen.getByRole('button', { name: 'Buy' }));
+
+      expect(await screen.findByText('2 game credits left')).toBeTruthy();
+      expect(getEntitlement).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not re-read or complain when the user cancels', async () => {
+      // A second read would report game_pack; cancelling must not reach it.
+      getEntitlement
+        .mockResolvedValueOnce(entitlement({ tier: 'free' }))
+        .mockResolvedValue(entitlement({ tier: 'game_pack', gameCredits: 2 }));
+      const purchases = gateway({ purchase: () => Promise.resolve({ status: 'cancelled' }) });
+      render(<PlanScreen onBack={vi.fn()} purchases={purchases} />);
+
+      await screen.findByText(/free/);
+      fireEvent.click(screen.getByRole('button', { name: 'Buy' }));
+
+      // Wait for the purchase to finish (the button leaves its busy label),
+      // so a stray refresh would have landed by the time we assert.
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Buy' })).toBeTruthy());
+      expect(screen.getByText(/free/)).toBeTruthy();
+      expect(screen.queryByText('2 game credits left')).toBeNull();
+      expect(getEntitlement).toHaveBeenCalledTimes(1);
+    });
+
+    it('explains a pending purchase without granting anything', async () => {
+      getEntitlement.mockResolvedValue(entitlement());
+      const purchases = gateway({ purchase: () => Promise.resolve({ status: 'pending' }) });
+      render(<PlanScreen onBack={vi.fn()} purchases={purchases} />);
+
+      await screen.findByText(/free/);
+      fireEvent.click(screen.getByRole('button', { name: 'Buy' }));
+
+      expect(await screen.findByText('Purchase is pending approval.')).toBeTruthy();
+      expect(getEntitlement).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports a failed purchase', async () => {
+      getEntitlement.mockResolvedValue(entitlement());
+      const purchases = gateway({ purchase: () => Promise.reject(new Error('store down')) });
+      render(<PlanScreen onBack={vi.fn()} purchases={purchases} />);
+
+      await screen.findByText(/free/);
+      fireEvent.click(screen.getByRole('button', { name: 'Buy' }));
+
+      expect(await screen.findByText('Purchase could not be completed.')).toBeTruthy();
+    });
+
+    it('restores purchases and refreshes the entitlement', async () => {
+      getEntitlement.mockResolvedValue(entitlement());
+      const restore = vi.fn().mockResolvedValue(undefined);
+      render(<PlanScreen onBack={vi.fn()} purchases={gateway({ restore })} />);
+
+      await screen.findByText(/free/);
+      fireEvent.click(screen.getByRole('button', { name: 'Restore purchases' }));
+
+      expect(await screen.findByText('Purchases restored.')).toBeTruthy();
+      expect(restore).toHaveBeenCalled();
+      expect(getEntitlement).toHaveBeenCalledTimes(2);
+    });
+
+    it('still shows the plan when no store gateway is configured', async () => {
+      getEntitlement.mockResolvedValue(entitlement());
+      render(<PlanScreen onBack={vi.fn()} />);
+
+      // The plan must render even with no products to sell.
+      expect(await screen.findByText(/free/)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Buy' })).toBeNull();
+    });
   });
 });

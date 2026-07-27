@@ -13,6 +13,7 @@ import { PlanScreen } from './src/screens/PlanScreen.js';
 import { placeholderCapture } from './src/capture.js';
 import { useGamePhase } from './src/useGamePhase.js';
 import { session, type Authorizer } from './src/auth.js';
+import { unavailablePurchaseGateway, type PurchaseGateway } from './src/purchases.js';
 
 /**
  * Screen selection for a joined game, driven by the polled phase. Players on a
@@ -78,11 +79,15 @@ const unavailableAuthorizer: Authorizer = () => {
  * → the phase-driven game screens. A real router (Expo Router) lands in a later
  * phase.
  *
- * `authorize` is injected so the app can be driven without a native build. Pass
- * `expo-auth-session`'s `openAuthSessionAsync` in the real client; the default
- * throws rather than pretending to sign anyone in.
+ * `authorize` and `purchases` are injected so the app can be driven without a
+ * native build. Pass `expo-auth-session`'s `openAuthSessionAsync` and the
+ * RevenueCat-backed gateway in the real client; the defaults throw rather than
+ * pretending to sign anyone in or to have sold them anything.
  */
-export default function App({ authorize = unavailableAuthorizer }: { authorize?: Authorizer } = {}) {
+export default function App({
+  authorize = unavailableAuthorizer,
+  purchases = unavailablePurchaseGateway,
+}: { authorize?: Authorizer; purchases?: PurchaseGateway } = {}) {
   const [signedIn, setSignedIn] = useState(session.isSignedIn);
   const [hosting, setHosting] = useState(false);
   const [viewingPlan, setViewingPlan] = useState(false);
@@ -92,7 +97,7 @@ export default function App({ authorize = unavailableAuthorizer }: { authorize?:
 
   if (joined) return <GameRouter joined={joined} />;
 
-  if (viewingPlan) return <PlanScreen onBack={() => setViewingPlan(false)} />;
+  if (viewingPlan) return <PlanScreen onBack={() => setViewingPlan(false)} purchases={purchases} />;
 
   if (hosting) {
     return (
