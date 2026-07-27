@@ -41,14 +41,19 @@ sheet and the store, so it needs a development build.
 
 ### 1. Point it at a deployed API
 
-The app talks to a real stack. Deploy one (`infra/cdk`, `pnpm cdk deploy`) and
-take the `ApiUrl` and `UserPoolClientId` outputs, then fill in the `env` block
-of `eas.json` for the `development` profile — the `REPLACE-ME` values there are
-placeholders, and a build made with them will fail to reach anything.
+`eas.json` already points at the deployed **dev** stack, so a development build
+works as-is. For a new environment, deploy it (`infra/cdk`, `npx cdk deploy
+PhotoChase-<env> -c <env>:account=<id>`) and copy the `ApiUrl` and
+`UserPoolClientId` outputs into that profile's `env` block.
 
 The Cognito app client is created with `photochase://auth` already registered as
 a callback URL, which matches `REDIRECT_URI` in `src/auth.ts`. Change one and
 you must change the other.
+
+**Sign in with email**, not one of the social buttons, unless the stack was
+deployed with `-c <env>:idpSecret=…`. Without that secret the user pool supports
+`COGNITO` alone, so Apple/Google/Facebook/X will all fail — the email option
+lands on Cognito's own hosted sign-up page and works on any stack.
 
 ### 2. Build
 
