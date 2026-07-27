@@ -41,6 +41,7 @@ import { startDailyHunt } from './solo-handlers.js';
 import { requestPhotoDownload, requestPhotoUpload } from './media-handlers.js';
 import { authenticate, type AuthContext } from './auth.js';
 import { buildContainer, type Container } from './container.js';
+import { isPublicRoute } from './public-routes.js';
 
 type Body = Record<string, unknown>;
 type RouteHandler = (ctx: {
@@ -60,14 +61,20 @@ interface Route {
   isPublic: boolean;
 }
 
-/** Compile a path template (`/games/:id/teams`) into a matcher. */
-function compile(method: string, path: string, handler: RouteHandler, isPublic = false): Route {
+/**
+ * Compile a path template (`/games/:id/teams`) into a matcher.
+ *
+ * Whether the route is public is looked up rather than passed in, so this table
+ * and the API Gateway routes in infra/cdk cannot disagree — a route the gateway
+ * still guards would 401 here long before the handler ran.
+ */
+function compile(method: string, path: string, handler: RouteHandler): Route {
   const keys: string[] = [];
   const pattern = path.replace(/:[^/]+/g, (m) => {
     keys.push(m.slice(1));
     return '([^/]+)';
   });
-  return { method, regex: new RegExp(`^${pattern}/?$`), keys, handler, isPublic };
+  return { method, regex: new RegExp(`^${pattern}/?$`), keys, handler, isPublic: isPublicRoute(method, path) };
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
@@ -191,10 +198,10 @@ const ROUTES: Route[] = [
     redeemReferralCode(container.referrals, { ...body, inviteeUserId: auth.userId }),
   ),
   // Big-screen spectator view: reached from a TV browser with nobody signed in.
-  compile('GET', '/spectate/:code', ({ container, params }) => getSpectatorView(container.games, params.code!), true),
+  compile('GET', '/spectate/:code', ({ container, params }) => getSpectatorView(container.games, params.code!)),
   // Provider-signed, not user-authenticated: the signature is checked in
   // `route` against the raw body before this handler ever runs.
-  compile('POST', '/webhooks/purchase', ({ container, body }) => handlePurchaseWebhook(container.entitlements, body), true),
+  compile('POST', '/webhooks/purchase', ({ container, body }) => handlePurchaseWebhook(container.entitlements, body)),
 ];
 
 function json(statusCode: number, payload: unknown): APIGatewayProxyStructuredResultV2 {

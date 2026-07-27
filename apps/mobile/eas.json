@@ -5,9 +5,9 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-ME.execute-api.us-east-1.amazonaws.com",
+        "EXPO_PUBLIC_API_URL": "https://yragu7zl51.execute-api.us-east-1.amazonaws.com",
         "EXPO_PUBLIC_AUTH_DOMAIN": "https://photochase-dev.auth.us-east-1.amazoncognito.com",
-        "EXPO_PUBLIC_USER_POOL_CLIENT_ID": "REPLACE-ME"
+        "EXPO_PUBLIC_USER_POOL_CLIENT_ID": "4dplbp0cg2t06nf272ur32u2od"
       },
       "ios": { "simulator": false },
       "android": { "buildType": "apk" }
@@ -15,9 +15,9 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-ME.execute-api.us-east-1.amazonaws.com",
+        "EXPO_PUBLIC_API_URL": "https://yragu7zl51.execute-api.us-east-1.amazonaws.com",
         "EXPO_PUBLIC_AUTH_DOMAIN": "https://photochase-dev.auth.us-east-1.amazoncognito.com",
-        "EXPO_PUBLIC_USER_POOL_CLIENT_ID": "REPLACE-ME"
+        "EXPO_PUBLIC_USER_POOL_CLIENT_ID": "4dplbp0cg2t06nf272ur32u2od"
       },
       "android": { "buildType": "apk" }
     },
