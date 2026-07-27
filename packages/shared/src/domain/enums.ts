@@ -13,6 +13,11 @@ export const GAME_STATES = [
   'round1_return',
   'round2_active',
   'round2_return',
+  // Color Hunt: the opposing team studies the photos before committing a guess.
+  'guessing',
+  // Photo Tag: players disperse before anyone is assigned a target.
+  'scatter',
+  'tag_active',
   'rating',
   'finals_voting',
   'results',
@@ -21,8 +26,16 @@ export const GAME_STATES = [
 export type GameState = (typeof GAME_STATES)[number];
 
 /**
- * Round 2 photo-assignment strategies. round_robin/random ship in Phase 1;
- * relay (per-member participation) and decoy (bluffing) are added in Phase 4.
+ * The games the app can play. Each mode has its own phase flow and scorer;
+ * see docs/01-product-spec.md.
+ */
+export const GAME_MODES = ['photo_chase', 'scavenger_hunt', 'color_hunt', 'photo_tag'] as const;
+export type GameMode = (typeof GAME_MODES)[number];
+
+/**
+ * Round 2 photo-assignment strategies. These apply to `photo_chase` only — they
+ * are not modes, despite the name. round_robin/random ship in Phase 1; relay
+ * (per-member participation) and decoy (bluffing) are added in Phase 4.
  */
 export const GAME_TYPES = ['round_robin', 'random', 'relay', 'decoy'] as const;
 export type GameType = (typeof GAME_TYPES)[number];

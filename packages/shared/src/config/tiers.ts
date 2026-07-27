@@ -1,6 +1,8 @@
-import type { GameType, Tier } from '../domain/enums.js';
+import type { GameMode, GameType, Tier } from '../domain/enums.js';
 
 export interface TierLimits {
+  /** Games this tier can host. Chase is free; the rest are bought or earned. */
+  allowedModes: readonly GameMode[];
   /** Maximum teams allowed in a game hosted on this tier. */
   maxTeams: number;
   /** Game types the host may choose. */
@@ -18,6 +20,7 @@ export interface TierLimits {
 
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
+    allowedModes: ['photo_chase'],
     maxTeams: 2,
     allowedGameTypes: ['round_robin'],
     maxJudgeWeight: 1,
@@ -28,6 +31,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     gamesGranted: 'unlimited',
   },
   game_pack: {
+    allowedModes: ['photo_chase', 'scavenger_hunt', 'color_hunt', 'photo_tag'],
     maxTeams: 6,
     allowedGameTypes: ['round_robin', 'random', 'relay', 'decoy'],
     maxJudgeWeight: 5,
@@ -38,6 +42,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     gamesGranted: 2,
   },
   unlimited: {
+    allowedModes: ['photo_chase', 'scavenger_hunt', 'color_hunt', 'photo_tag'],
     maxTeams: 6,
     allowedGameTypes: ['round_robin', 'random', 'relay', 'decoy'],
     maxJudgeWeight: 5,

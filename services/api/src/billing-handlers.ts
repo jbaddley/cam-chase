@@ -1,6 +1,7 @@
 import {
   applyPurchaseEvent,
   canHostConfig,
+  availableModes,
   canStartGame,
   canUseFeature,
   consumeGameCredit,
@@ -10,6 +11,7 @@ import {
   type Entitlement,
   type Feature,
   type Game,
+  type GameMode,
   type PurchaseEvent,
   type Tier,
 } from '@photochase/shared';
@@ -106,6 +108,8 @@ export interface EntitlementView {
   cannotStartReason?: string;
   /** The tier's limits, so the client renders real numbers, not guesses. */
   limits: (typeof TIER_LIMITS)[Tier];
+  /** Modes this user may host: the tier's, plus any earned by referral. */
+  modes: GameMode[];
   /** Feature flags keyed by feature name. */
   features: Record<Feature, boolean>;
 }
@@ -146,6 +150,7 @@ export async function getMyEntitlement(
     canStartGame: startable.ok,
     ...(startable.reason ? { cannotStartReason: startable.reason } : {}),
     limits: TIER_LIMITS[entitlement.tier],
+    modes: availableModes(entitlement),
     features,
   });
 }

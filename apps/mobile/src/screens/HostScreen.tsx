@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type EntitlementView } from '@photochase/client';
-import { FREE_CONFIG, type GameConfig, type GameType } from '@photochase/shared';
+import { FREE_CONFIG, type GameConfig, type GameMode, type GameType } from '@photochase/shared';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
+import type { MessageKey } from '@photochase/i18n';
 import type { JoinedGame } from './JoinScreen.js';
 
 const TEAM_CHOICES = [2, 3, 4, 5, 6];
@@ -11,6 +12,15 @@ const PHOTO_CHOICES = [5, 8, 10, 15, 20];
 const MINUTE_CHOICES = [5, 10, 15, 20];
 const JUDGE_WEIGHT_CHOICES = [1, 2, 3, 4, 5];
 const GAME_TYPES: GameType[] = ['round_robin', 'random', 'relay', 'decoy'];
+const MODES: GameMode[] = ['photo_chase', 'scavenger_hunt', 'color_hunt', 'photo_tag'];
+
+/** Catalog key per mode, so the picker follows the active locale. */
+const MODE_KEY: Record<GameMode, MessageKey> = {
+  photo_chase: 'mode.photoChase',
+  scavenger_hunt: 'mode.scavengerHunt',
+  color_hunt: 'mode.colorHunt',
+  photo_tag: 'mode.photoTag',
+};
 
 /**
  * Host a game, with the settings the caller's plan actually permits.
@@ -52,7 +62,11 @@ export function HostScreen({
   }, []);
 
   const limits = entitlement?.limits;
+  const isChase = config.mode === 'photo_chase';
   const allows = {
+    // Modes come from the entitlement, not the tier alone: some are earned.
+    // Tolerate a missing list rather than crash the only route to a new game.
+    mode: (m: GameMode) => !entitlement?.modes || entitlement.modes.includes(m),
     teams: (n: number) => !limits || n <= limits.maxTeams,
     rounds: () => !limits || limits.configurableRounds,
     gameType: (type: GameType) => !limits || limits.allowedGameTypes.includes(type),
@@ -120,6 +134,14 @@ export function HostScreen({
 
       <ScrollView>
         <Choices
+          label={t('config.mode')}
+          options={MODES}
+          value={config.mode}
+          allowed={allows.mode}
+          onPick={(mode) => setConfig((c) => ({ ...c, mode }))}
+          format={(mode) => t(MODE_KEY[mode])}
+        />
+        <Choices
           label={t('config.teams')}
           options={TEAM_CHOICES}
           value={config.maxTeams}
@@ -140,14 +162,17 @@ export function HostScreen({
           allowed={allows.rounds}
           onPick={(minutes) => setConfig((c) => ({ ...c, round1Minutes: minutes, round2Minutes: minutes }))}
         />
-        <Choices
-          label={t('config.gameType')}
-          options={GAME_TYPES}
-          value={config.gameType}
-          allowed={allows.gameType}
-          onPick={(gameType) => setConfig((c) => ({ ...c, gameType }))}
-          format={(type) => type.replace('_', ' ')}
-        />
+        {/* Assignment strategy is a Round 2 concept, so only the chase has it. */}
+        {isChase ? (
+          <Choices
+            label={t('config.gameType')}
+            options={GAME_TYPES}
+            value={config.gameType}
+            allowed={allows.gameType}
+            onPick={(gameType) => setConfig((c) => ({ ...c, gameType }))}
+            format={(type) => type.replace('_', ' ')}
+          />
+        ) : null}
         <Choices
           label={t('config.judgeWeight')}
           options={JUDGE_WEIGHT_CHOICES}

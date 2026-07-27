@@ -69,6 +69,14 @@ export const en = {
   'purchase.sku.game_pack': 'Game pack',
   'purchase.sku.unlimited_monthly': 'Unlimited, monthly',
   'purchase.sku.annual': 'Unlimited, yearly',
+  'config.mode': 'Game',
+  'mode.photoChase': 'Photo chase',
+  'mode.scavengerHunt': 'Scavenger hunt',
+  'mode.colorHunt': 'Colour hunt',
+  'mode.photoTag': 'Photo tag',
+  'phase.guessing': 'Guessing time',
+  'phase.scatter': 'Scatter and hide',
+  'phase.tagActive': 'The hunt is on',
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -70,4 +70,12 @@ export const fr: Record<MessageKey, string> = {
   'purchase.sku.game_pack': 'Pack de parties',
   'purchase.sku.unlimited_monthly': 'Illimité, mensuel',
   'purchase.sku.annual': 'Illimité, annuel',
+  'config.mode': 'Jeu',
+  'mode.photoChase': 'Chasse à la photo',
+  'mode.scavengerHunt': 'Chasse au trésor',
+  'mode.colorHunt': 'Chasse aux couleurs',
+  'mode.photoTag': 'Photo-chat',
+  'phase.guessing': 'À vous de deviner',
+  'phase.scatter': 'Dispersez-vous',
+  'phase.tagActive': 'La chasse est lancée',
 };

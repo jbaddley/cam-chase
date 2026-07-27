@@ -13,6 +13,7 @@ export function makeFullGame(overrides: Partial<Game> = {}): Game {
     code,
     tier: 'game_pack',
     config: {
+      mode: 'photo_chase',
       photosPerRound: 8,
       round1Minutes: 15,
       round2Minutes: 15,

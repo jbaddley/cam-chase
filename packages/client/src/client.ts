@@ -1,4 +1,4 @@
-import type { FoulReason, GameConfig, GameEvent, GameState, TeamScore, Tier, TierLimits } from '@photochase/shared';
+import type { FoulReason, GameConfig, GameEvent, GameMode, GameState, TeamScore, Tier, TierLimits } from '@photochase/shared';
 import { request, type ClientConfig } from './http.js';
 
 /** Sanitized game view returned by `GET /games/:id`, safe for any player. */
@@ -79,6 +79,8 @@ export interface EntitlementView {
   canStartGame: boolean;
   cannotStartReason?: string;
   limits: TierLimits;
+  /** Modes this user may host: the tier's, plus any earned by referral. */
+  modes: GameMode[];
   features: Record<string, boolean>;
 }
 

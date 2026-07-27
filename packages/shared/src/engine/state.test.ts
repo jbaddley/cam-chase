@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG } from '../config/schema.js';
 import type { Team } from '../domain/types.js';
-import { applyTransition, nextState, type Game, type GameEvent } from './state.js';
+import type { GameMode } from '../domain/enums.js';
+import { applyTransition, modeOf, nextState, type Game, type GameEvent } from './state.js';
 
 function makeGame(overrides: Partial<Game> = {}): Game {
   return {
@@ -88,5 +89,96 @@ describe('nextState — START_GAME guards', () => {
   it('allows starting with exactly 2 teams', () => {
     const game = makeGame({ state: 'lobby', teams: [team('a'), team('b')] });
     expect(nextState(game, { type: 'START_GAME' })).toEqual({ ok: true, state: 'round1_active' });
+  });
+});
+
+describe('mode-scoped flows', () => {
+  /** A game in the given mode and state, with enough teams to start. */
+  function inMode(mode: GameMode, state: Game['state']): Game {
+    return makeGame({
+      config: { ...DEFAULT_CONFIG, mode },
+      state,
+      teams: [team('a'), team('b')],
+    });
+  }
+
+  /** Walk a sequence of events, asserting each lands on the expected state. */
+  function walk(mode: GameMode, steps: Array<[GameEvent['type'], Game['state']]>): void {
+    let game = inMode(mode, 'draft');
+    for (const [type, expected] of steps) {
+      game = applyTransition(game, { type } as GameEvent);
+      expect(game.state, `${mode}: after ${type}`).toBe(expected);
+    }
+  }
+
+  it('treats a game with no mode as a photo chase', () => {
+    const legacy = makeGame({ config: { ...DEFAULT_CONFIG, mode: undefined as never } });
+    expect(modeOf(legacy)).toBe('photo_chase');
+  });
+
+  it('runs the photo chase flow unchanged', () => {
+    walk('photo_chase', [
+      ['OPEN_LOBBY', 'lobby'],
+      ['START_GAME', 'round1_active'],
+      ['END_ROUND1', 'round1_return'],
+      ['COMPLETE_RETURN1', 'round2_active'],
+      ['END_ROUND2', 'round2_return'],
+      ['COMPLETE_RETURN2', 'rating'],
+      ['COMPLETE_RATING', 'finals_voting'],
+      ['COMPLETE_FINALS', 'results'],
+      ['ARCHIVE', 'archived'],
+    ]);
+  });
+
+  it('sends a scavenger hunt from the return straight to rating', () => {
+    walk('scavenger_hunt', [
+      ['OPEN_LOBBY', 'lobby'],
+      ['START_GAME', 'round1_active'],
+      ['END_ROUND1', 'round1_return'],
+      // No Round 2: the hunt is one round.
+      ['COMPLETE_RETURN1', 'rating'],
+      ['COMPLETE_RATING', 'finals_voting'],
+      ['COMPLETE_FINALS', 'results'],
+    ]);
+  });
+
+  it('runs colour hunt through its guessing window', () => {
+    walk('color_hunt', [
+      ['OPEN_LOBBY', 'lobby'],
+      ['START_GAME', 'round1_active'],
+      ['END_ROUND1', 'guessing'],
+      ['CLOSE_GUESSING', 'rating'],
+      ['COMPLETE_RATING', 'results'],
+    ]);
+  });
+
+  it('runs photo tag through scatter and live play', () => {
+    walk('photo_tag', [
+      ['OPEN_LOBBY', 'lobby'],
+      ['START_GAME', 'scatter'],
+      ['END_SCATTER', 'tag_active'],
+      ['END_TAG', 'finals_voting'],
+      ['COMPLETE_FINALS', 'results'],
+    ]);
+  });
+
+  it('rejects an event that belongs to another mode', () => {
+    // Round 2 exists only in the chase; a scavenger hunt must not accept it.
+    const hunt = inMode('scavenger_hunt', 'round1_return');
+    const result = nextState(hunt, { type: 'END_ROUND2' });
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.error).toMatch(/not part of the scavenger_hunt flow/);
+  });
+
+  it('rejects a chase event that skips a phase', () => {
+    const chase = inMode('photo_chase', 'round1_active');
+    expect(nextState(chase, { type: 'COMPLETE_RETURN1' }).ok).toBe(false);
+  });
+
+  it('still enforces the minimum team count in every mode', () => {
+    for (const mode of ['photo_chase', 'scavenger_hunt', 'color_hunt', 'photo_tag'] as GameMode[]) {
+      const lonely = makeGame({ config: { ...DEFAULT_CONFIG, mode }, state: 'lobby', teams: [team('a')] });
+      expect(nextState(lonely, { type: 'START_GAME' }).ok, mode).toBe(false);
+    }
   });
 });

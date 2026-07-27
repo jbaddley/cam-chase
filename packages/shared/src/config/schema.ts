@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { GAME_TYPES, PRESET_CATEGORIES, type Tier } from '../domain/enums.js';
+import { GAME_MODES, GAME_TYPES, PRESET_CATEGORIES, type GameMode, type Tier } from '../domain/enums.js';
 import { FREE_DEFAULT_ROUNDS, TIER_LIMITS } from './tiers.js';
 
 const roundMinutes = z.number().int().min(5).max(20);
@@ -13,6 +13,8 @@ export type SpecialCategories = z.infer<typeof SpecialCategoriesSchema>;
 
 export const GameConfigSchema = z
   .object({
+    /** Which game this is. Everything else is interpreted in its light. */
+    mode: z.enum(GAME_MODES).default('photo_chase'),
     photosPerRound: z.number().int().min(5).max(20),
     round1Minutes: roundMinutes,
     round2Minutes: roundMinutes,
@@ -36,6 +38,7 @@ export type GameConfig = z.infer<typeof GameConfigSchema>;
 
 /** A sensible paid-tier default a host can start from. */
 export const DEFAULT_CONFIG: GameConfig = {
+  mode: 'photo_chase',
   photosPerRound: 8,
   round1Minutes: 15,
   round2Minutes: 15,
@@ -49,6 +52,7 @@ export const DEFAULT_CONFIG: GameConfig = {
 
 /** The exact config the free tier plays with. */
 export const FREE_CONFIG: GameConfig = {
+  mode: 'photo_chase',
   ...FREE_DEFAULT_ROUNDS,
   maxTeams: 2,
   gameType: 'round_robin',
@@ -67,10 +71,19 @@ export interface ConfigValidation {
  * Validate a config against a host's tier. Returns structured errors rather
  * than throwing so callers (client and server) can surface them per-field.
  */
-export function validateConfigForTier(config: GameConfig, tier: Tier): ConfigValidation {
+export function validateConfigForTier(
+  config: GameConfig,
+  tier: Tier,
+  /** Modes earned outside the tier (referral unlocks); see billing/entitlements. */
+  unlockedModes: readonly GameMode[] = [],
+): ConfigValidation {
   const errors: string[] = [];
   const limits = TIER_LIMITS[tier];
 
+  const mode = config.mode ?? 'photo_chase';
+  if (!limits.allowedModes.includes(mode) && !unlockedModes.includes(mode)) {
+    errors.push(`Tier "${tier}" does not include the "${mode}" mode.`);
+  }
   if (config.maxTeams > limits.maxTeams) {
     errors.push(`Tier "${tier}" allows at most ${limits.maxTeams} teams.`);
   }

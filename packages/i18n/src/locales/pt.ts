@@ -71,4 +71,12 @@ export const pt: Record<MessageKey, string> = {
   'purchase.sku.game_pack': 'Pacote de jogos',
   'purchase.sku.unlimited_monthly': 'Ilimitado, mensal',
   'purchase.sku.annual': 'Ilimitado, anual',
+  'config.mode': 'Jogo',
+  'mode.photoChase': 'Perseguição de fotos',
+  'mode.scavengerHunt': 'Caça ao tesouro',
+  'mode.colorHunt': 'Caça às cores',
+  'mode.photoTag': 'Pega-pega fotográfico',
+  'phase.guessing': 'Hora de adivinhar',
+  'phase.scatter': 'Espalhem-se e escondam-se',
+  'phase.tagActive': 'A caçada começou',
 };
