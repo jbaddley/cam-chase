@@ -77,6 +77,12 @@ export const en = {
   'phase.guessing': 'Guessing time',
   'phase.scatter': 'Scatter and hide',
   'phase.tagActive': 'The hunt is on',
+  'config.huntTheme': 'Hunt theme',
+  'huntTheme.mixed': 'Mixed',
+  'huntTheme.outdoors': 'Outdoors',
+  'huntTheme.city': 'City',
+  'huntTheme.household': 'Around the house',
+  'huntTheme.silly': 'Silly',
 } as const;
 
 export type MessageKey = keyof typeof en;

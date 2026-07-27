@@ -213,5 +213,30 @@ describe('HostScreen', () => {
       fireEvent.click(option('Game', 'Scavenger hunt'));
       expect(screen.queryByText('Game type')).toBeNull();
     });
+
+    it('offers the hunt theme only once a hunt is chosen', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}, 'unlimited', ['photo_chase', 'scavenger_hunt']));
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/unlimited/);
+      expect(screen.queryByText('Hunt theme')).toBeNull();
+
+      fireEvent.click(option('Game', 'Scavenger hunt'));
+      expect(screen.queryByText('Hunt theme')).toBeTruthy();
+    });
+
+    it('sends the chosen hunt theme', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}, 'unlimited', ['photo_chase', 'scavenger_hunt']));
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/unlimited/);
+      fireEvent.click(option('Game', 'Scavenger hunt'));
+      fireEvent.click(option('Hunt theme', 'City'));
+      fireEvent.click(action('Create game'));
+
+      await waitFor(() => expect(createGame).toHaveBeenCalled());
+      expect(createGame.mock.calls[0]![0]).toMatchObject({ mode: 'scavenger_hunt', huntTheme: 'city' });
+    });
   });
 });

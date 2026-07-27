@@ -4,6 +4,48 @@
 
 PhotoChase is played by 2–6 teams in two rounds. In **Round 1**, each team roams a predefined play area taking a configured number of photos. Every photo must contain (a) at least one visual clue to where it was taken and (b) at least one team member's face — the crazier the pose and odder the angle, the better. In **Round 2**, each team receives other teams' photos and must find each spot and recreate the shot: same location, same angle, same pose, as closely as possible. Everyone then rates the comparisons, points are tallied, and a winner is announced with a full score breakdown.
 
+## Game modes
+
+A **mode** is a whole game with its own phase flow and scorer. Every mode emits
+the same per-team score breakdown, so the lobby, results screen, spectator view
+and league standings are shared across all of them.
+
+| Mode | Flow | State |
+|------|------|-------|
+| **Photo Chase** | The two-round game described above | Shipped; the free tier's mode |
+| **Scavenger Hunt** | One round against a generated item list, then judging | Shipped |
+| **Colour Hunt** | Shoot a secret attribute; the opposing team studies and guesses | Planned |
+| **Photo Tag** | Live play: catch other players on camera | Planned |
+
+Modes beyond the chase are paid, or earned permanently through referrals.
+
+### Scavenger Hunt
+
+Every team hunts the same list, generated at game creation from the game's seed
+so it is identical for all teams and reproducible in tests. Items carry a
+rarity: **common** items pay 10, **rare** ones 25, and rares are capped at about
+a third of the list — a hunt that is mostly rares is one nobody finishes, which
+reads as unfair rather than hard. The host picks the pool: *mixed*, *outdoors*,
+*city*, *household*, or *silly*.
+
+- **Capture.** Each photo is attached to the item it claims; a team scores an
+  item once however many photos it submits.
+- **The pointing rule.** At least one team member must be in the shot pointing at
+  the item. Nothing can verify pointing from pixels, so this is a judging
+  criterion and a foul reason (`missing_item`), not an automated check.
+- **Judging.** Claims are rated on a single **validity** axis rather than pose and
+  angle. An unjudged claim counts: most games are played among friends with
+  nobody moderating, and a hunt where every find scores zero because no one voted
+  is broken rather than strict. Judging is a veto — a weighted mean below 3 stars,
+  or a `missing_item` foul, takes the find away. A rejected claim is a miss, not a
+  foul, so it is not fined on top.
+- **The wildcard.** One extra item, withheld by the server until halfway through
+  the round, then revealed and worth double. It pulls everyone back to their
+  phone mid-game and rewards teams that held time in reserve.
+- **Flow.** `lobby → round1_active → round1_return → rating → finals_voting →
+  results`. There is no Round 2, but the return check-in is kept, so the first
+  team back still earns the time bonus.
+
 ## Roles
 
 | Role | Description | Account required |
@@ -56,6 +98,9 @@ Key rules encoded in the engine:
 
 ## Game types (Round 2 photo assignment)
 
+These are Photo Chase's Round 2 assignment strategies, not modes — no other mode
+has a Round 2 for them to apply to.
+
 | Type | Assignment | Notes |
 |------|-----------|-------|
 | **Round Robin** | Ring order: A chases B's photos, B chases C's, … last chases A's. Photos delivered in original capture order | Deterministic; up to 6 teams on paid plans |
@@ -83,6 +128,8 @@ Judge votes count at the configured multiplier (1x–5x). AI scores (paid) are a
 
 | Setting | Range / options | Tier availability |
 |---------|-----------------|-------------------|
+| Game mode | Photo Chase, Scavenger Hunt (+Colour Hunt, Photo Tag) | Free: Photo Chase only; Paid: all. Individual modes are also earnable via referrals |
+| Hunt theme (Scavenger Hunt) | Mixed, Outdoors, City, Household, Silly | Any tier that has the mode |
 | Photos per team (Round 1) | 5–20 | Free: fixed default (e.g., 5); Paid: full range |
 | Round 1 minutes | 5–20 | Free: fixed default; Paid: full range |
 | Round 2 minutes | 5–20 | Free: fixed default; Paid: full range |

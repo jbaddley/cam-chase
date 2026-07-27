@@ -13,6 +13,7 @@ import {
   getResults,
   joinByCode,
   listAssignments,
+  listHuntItems,
   listRateable,
   listTeams,
   submitChase,
@@ -84,6 +85,9 @@ const ROUTES: Route[] = [
   ),
   compile('POST', '/games/:id/finals', ({ container, params, body, auth }) =>
     castFinalsVote(container.games, { ...body, gameId: params.id, voterUserId: auth.userId }),
+  ),
+  compile('GET', '/games/:id/items', ({ container, params, auth }) =>
+    listHuntItems(container.games, { gameId: params.id!, userId: auth.userId }),
   ),
   compile('GET', '/games/:id/rateable', ({ container, params, auth }) =>
     listRateable(container.games, { gameId: params.id!, userId: auth.userId }),

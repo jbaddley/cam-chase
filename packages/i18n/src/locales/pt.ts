@@ -79,4 +79,10 @@ export const pt: Record<MessageKey, string> = {
   'phase.guessing': 'Hora de adivinhar',
   'phase.scatter': 'Espalhem-se e escondam-se',
   'phase.tagActive': 'A caçada começou',
+  'config.huntTheme': 'Tema da caça',
+  'huntTheme.mixed': 'Misto',
+  'huntTheme.outdoors': 'Ao ar livre',
+  'huntTheme.city': 'Cidade',
+  'huntTheme.household': 'Pela casa',
+  'huntTheme.silly': 'Maluco',
 };

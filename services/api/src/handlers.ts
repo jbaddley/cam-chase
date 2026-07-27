@@ -1,8 +1,15 @@
 import {
   applyTransition,
   BEST_OVERALL_CATEGORY,
+  generateHuntList,
+  modeOf,
+  pickWildcard,
+  resolveHuntFinds,
+  scoreScavenger,
+  visibleHuntItems,
   computeScoreboard,
   FOUL_REASONS,
+  RATING_AXES,
   GameConfigSchema,
   isWithinGeofence,
   planAssignments,
@@ -18,6 +25,9 @@ import {
   type ScoreAssignment,
   type ScoreVote,
   type TeamPhotos,
+  type HuntClaim,
+  type HuntItem,
+  type RatingAxis,
   type TeamScore,
   type Tier,
 } from '@photochase/shared';
@@ -77,6 +87,20 @@ export async function createGame(
     votes: [],
     createdAt: now(),
   };
+  if ((config.mode ?? 'photo_chase') === 'scavenger_hunt') {
+    // One list for the whole game, seeded from the code so it is reproducible
+    // and identical for every team. The wildcard sits on the list from the
+    // start — scoring needs its rarity — but stays hidden until the reveal time
+    // stamped when Round 1 begins; see `stampRoundStart`.
+    const theme = config.huntTheme ?? 'mixed';
+    const seed = seedFromCode(game.code);
+    const items = generateHuntList({ theme, count: config.photosPerRound, seed });
+    const wildcard = pickWildcard({ theme, exclude: items, seed });
+    game.hunt = wildcard
+      ? { items: [...items, wildcard], wildcardItemId: wildcard.id }
+      : { items };
+  }
+
   const opened = applyTransition(game, { type: 'OPEN_LOBBY' });
   await repo.save(opened);
   return ok({ gameId: opened.id, code: opened.code });
@@ -258,9 +282,76 @@ export async function listAssignments(
   return ok(mine);
 }
 
+// --- listHuntItems ----------------------------------------------------------
+
+/** One item on a scavenger hunt list, with the caller's team's progress on it. */
+export interface HuntItemView {
+  itemId: string;
+  label: string;
+  rarity: HuntItem['rarity'];
+  /** The mid-round wildcard, which pays double. */
+  wildcard: boolean;
+  /** The caller's team's photo claiming this item, once one is submitted. */
+  claimedPhotoId: string | null;
+}
+
+export interface HuntView {
+  items: HuntItemView[];
+  /**
+   * When the wildcard drops, so the client can run a countdown. Present before
+   * the reveal too — knowing one is coming is the tension; the item itself is
+   * withheld until the time passes.
+   */
+  wildcardRevealAt: number | null;
+}
+
+/**
+ * The hunt list as this caller may see it. Every team hunts the same items, so
+ * nothing here is secret except the wildcard before its reveal time — which is
+ * why the list is filtered through {@link visibleHuntItems} rather than served
+ * raw. Judges and spectators see the list with no progress marked.
+ */
+export async function listHuntItems(
+  repo: GameRepository,
+  input: { gameId: string; userId: string },
+  now = Date.now,
+): Promise<Result<HuntView>> {
+  const game = await repo.get(input.gameId);
+  if (!game) return err('Game not found.');
+  if (modeOf(game) !== 'scavenger_hunt') return err('This game is not a scavenger hunt.');
+
+  const membership = game.memberships.find((m) => m.userId === input.userId);
+  if (!membership) return err('You are not in this game.');
+
+  const hunt = game.hunt ?? { items: [] };
+  const claimed = new Map(
+    game.photos
+      .filter((p) => p.itemId !== undefined && p.teamId === membership.teamId)
+      .map((p) => [p.itemId!, p.id]),
+  );
+
+  return ok({
+    items: visibleHuntItems(hunt, now()).map((item): HuntItemView => ({
+      itemId: item.id,
+      label: item.label,
+      rarity: item.rarity,
+      wildcard: item.id === hunt.wildcardItemId,
+      claimedPhotoId: claimed.get(item.id) ?? null,
+    })),
+    wildcardRevealAt: hunt.wildcardRevealAt ?? null,
+  });
+}
+
 // --- listRateable -----------------------------------------------------------
 
-/** A chase attempt the caller is allowed to rate, paired with its original. */
+/**
+ * One thing the caller is allowed to rate.
+ *
+ * In a chase that is an attempt paired with the original it recreates. In a
+ * scavenger hunt there is no original — the subject is the claim photo itself,
+ * so both ids point at that one photo and `itemLabel` carries what it is being
+ * judged against. `assignmentId` is the vote's subject either way.
+ */
 export interface RateableView {
   assignmentId: string;
   originalPhotoId: string;
@@ -268,9 +359,12 @@ export interface RateableView {
   chasePhotoId: string;
   chasePhotoKey: string;
   /** Stars this user has already given on each axis, if any. */
-  myVotes: { pose: number | null; angle: number | null };
+  myVotes: { pose: number | null; angle: number | null; validity: number | null };
   /** Fouls currently called on the original photo. */
   originalFouls: FoulReason[];
+  /** Scavenger Hunt: the list item this photo claims. */
+  itemId?: string;
+  itemLabel?: string;
 }
 
 /**
@@ -291,9 +385,31 @@ export async function listRateable(
 
   const photoKey = new Map(game.photos.map((p) => [p.id, p.s3Key]));
   const photoFouls = new Map(game.photos.map((p) => [p.id, p.fouls]));
-  const myVote = (assignmentId: string, axis: 'pose' | 'angle'): number | null =>
+  const myVote = (assignmentId: string, axis: RatingAxis): number | null =>
     game.votes.find((v) => v.assignmentId === assignmentId && v.voterUserId === input.userId && v.axis === axis)
       ?.stars ?? null;
+
+  // A hunt is judged photo by photo against the item claimed, so the queue is
+  // built from claim photos rather than assignments — a hunt has none.
+  if (modeOf(game) === 'scavenger_hunt') {
+    const labels = new Map((game.hunt?.items ?? []).map((i) => [i.id, i.label]));
+    const claims = game.photos
+      .filter((p) => p.itemId !== undefined)
+      .filter((p) => membership.teamId === null || p.teamId !== membership.teamId)
+      .sort((a, b) => a.order - b.order)
+      .map((p): RateableView => ({
+        assignmentId: p.id,
+        originalPhotoId: p.id,
+        originalPhotoKey: p.s3Key,
+        chasePhotoId: p.id,
+        chasePhotoKey: p.s3Key,
+        myVotes: { pose: null, angle: null, validity: myVote(p.id, 'validity') },
+        originalFouls: [...p.fouls],
+        itemId: p.itemId!,
+        itemLabel: labels.get(p.itemId!) ?? p.itemId!,
+      }));
+    return ok(claims);
+  }
 
   const rateable = game.assignments
     .filter((a) => a.chasePhotoId !== null)
@@ -305,7 +421,7 @@ export async function listRateable(
       originalPhotoKey: photoKey.get(a.originalPhotoId) ?? '',
       chasePhotoId: a.chasePhotoId!,
       chasePhotoKey: photoKey.get(a.chasePhotoId!) ?? '',
-      myVotes: { pose: myVote(a.id, 'pose'), angle: myVote(a.id, 'angle') },
+      myVotes: { pose: myVote(a.id, 'pose'), angle: myVote(a.id, 'angle'), validity: null },
       originalFouls: [...(photoFouls.get(a.originalPhotoId) ?? [])],
     }));
   return ok(rateable);
@@ -322,6 +438,12 @@ function stampRoundStart(game: Game, now = Date.now): void {
   if (!round) return;
   game.roundStartedAt ??= {};
   game.roundStartedAt[round] ??= now();
+
+  // A hunt's wildcard drops halfway through the round: late enough that teams
+  // have committed to a route, early enough that they can still act on it.
+  if (round === 'round1' && game.hunt?.wildcardItemId && game.hunt.wildcardRevealAt === undefined) {
+    game.hunt.wildcardRevealAt = game.roundStartedAt.round1! + (game.config.round1Minutes * 60_000) / 2;
+  }
 }
 
 async function requireHost(
@@ -399,17 +521,36 @@ const SubmitPhotoInput = z.object({
   shooterUserId: z.string(),
   location: z.object({ lat: z.number(), lng: z.number(), accuracyM: z.number().optional() }),
   s3Key: z.string(),
+  /** Scavenger Hunt: which list item this photo claims. */
+  itemId: z.string().min(1).optional(),
 });
 
-export async function submitPhoto(repo: GameRepository, raw: unknown): Promise<Result<{ photoId: string }>> {
+export async function submitPhoto(
+  repo: GameRepository,
+  raw: unknown,
+  now = Date.now,
+): Promise<Result<{ photoId: string }>> {
   const parsed = SubmitPhotoInput.safeParse(raw);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
-  const { gameId, teamId, shooterUserId, location, s3Key } = parsed.data;
+  const { gameId, teamId, shooterUserId, location, s3Key, itemId } = parsed.data;
   const game = await repo.get(gameId);
   if (!game) return err('Game not found.');
   if (game.state !== 'round1_active') return err('Not in Round 1.');
+
+  const isHunt = modeOf(game) === 'scavenger_hunt';
+  if (isHunt) {
+    if (!itemId) return err('Pick the item this photo claims.');
+    // Checked against the *visible* list, so an unrevealed wildcard cannot be
+    // claimed by a client that guessed its id.
+    const visible = visibleHuntItems(game.hunt ?? { items: [] }, now());
+    if (!visible.some((i) => i.id === itemId)) return err('That item is not on this hunt.');
+  }
+
   const order = game.photos.filter((p) => p.teamId === teamId).length;
-  if (order >= game.config.photosPerRound) return err('Photo quota reached.');
+  // A hunt's quota is its list: every item is claimable, wildcard included.
+  const quota = isHunt ? (game.hunt?.items.length ?? 0) : game.config.photosPerRound;
+  if (order >= quota) return err('Photo quota reached.');
+
   const photoId = newId('photo');
   game.photos.push({
     id: photoId,
@@ -418,8 +559,9 @@ export async function submitPhoto(repo: GameRepository, raw: unknown): Promise<R
     shooterUserId,
     order,
     location: location as GeoPoint,
-    capturedAt: Date.now(),
+    capturedAt: now(),
     s3Key,
+    ...(itemId ? { itemId } : {}),
     fouls: [],
   });
   await repo.save(game);
@@ -464,10 +606,16 @@ const CastVoteInput = z.object({
   gameId: z.string(),
   assignmentId: z.string(),
   voterUserId: z.string(),
-  axis: z.enum(['pose', 'angle']),
+  axis: z.enum(RATING_AXES),
   stars: z.number().int().min(1).max(5),
 });
 
+/**
+ * Rate one subject. In a chase the subject is an assignment, scored on pose and
+ * angle; in a hunt it is a claim photo, scored only on validity. Each mode
+ * rejects the other's axes so a stray vote cannot land in a column its scorer
+ * never reads.
+ */
 export async function castVote(repo: GameRepository, raw: unknown): Promise<Result<{ voteId: string }>> {
   const parsed = CastVoteInput.safeParse(raw);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
@@ -475,12 +623,23 @@ export async function castVote(repo: GameRepository, raw: unknown): Promise<Resu
   const game = await repo.get(gameId);
   if (!game) return err('Game not found.');
   if (game.state !== 'rating') return err('Not in the rating phase.');
-  const assignment = game.assignments.find((a) => a.id === assignmentId);
-  if (!assignment) return err('Assignment not found.');
+
   const voter = game.memberships.find((m) => m.userId === voterUserId);
   if (!voter) return err('Voter is not in this game.');
   const isJudge = voter.role === 'judge' || voter.role === 'spectator';
-  if (!isJudge && voter.teamId === assignment.chaserTeamId) return err('Cannot rate your own chase.');
+
+  if (modeOf(game) === 'scavenger_hunt') {
+    if (axis !== 'validity') return err('A scavenger hunt is rated on validity.');
+    const photo = game.photos.find((p) => p.id === assignmentId && p.itemId !== undefined);
+    if (!photo) return err('Claim not found.');
+    if (!isJudge && voter.teamId === photo.teamId) return err("Cannot rate your own team's find.");
+  } else {
+    if (axis === 'validity') return err('Validity only applies to a scavenger hunt.');
+    const assignment = game.assignments.find((a) => a.id === assignmentId);
+    if (!assignment) return err('Assignment not found.');
+    if (!isJudge && voter.teamId === assignment.chaserTeamId) return err('Cannot rate your own chase.');
+  }
+
   const voteId = newId('vote');
   game.votes.push({ id: voteId, gameId, assignmentId, voterUserId, axis, stars });
   await repo.save(game);
@@ -713,6 +872,56 @@ export async function getResults(
     return err('Results are not available yet.');
   }
 
+  const roleByUser = new Map(game.memberships.map((m) => [m.userId, m.role]));
+  const weightOf = (userId: string): number =>
+    resolveVoteWeight(roleByUser.get(userId) ?? 'member', game.config.judgeWeight);
+
+  // Finals bonuses come from the actual weighted finals votes. With no finals
+  // votes cast, no best-match or special bonus is awarded.
+  const finals = resolveFinals(
+    (game.finalsVotes ?? []).map((v) => ({
+      category: v.category,
+      teamId: v.teamId,
+      weight: weightOf(v.voterUserId),
+    })),
+  );
+
+  const teamIds = game.teams.map((t) => t.id);
+
+  if (modeOf(game) === 'scavenger_hunt') {
+    // `missing_item` is deliberately left out of the foul tally: it already
+    // voids the find below, and charging for it as well is double jeopardy.
+    const huntFouls: Record<string, number> = {};
+    for (const p of game.photos) {
+      const counted = p.fouls.filter((f) => f !== 'missing_item').length;
+      if (counted > 0) huntFouls[p.teamId] = (huntFouls[p.teamId] ?? 0) + counted;
+    }
+
+    const claims: HuntClaim[] = game.photos
+      .filter((p) => p.itemId !== undefined)
+      .map((p) => ({
+        teamId: p.teamId,
+        itemId: p.itemId!,
+        validityVotes: game.votes
+          .filter((v) => v.assignmentId === p.id && v.axis === 'validity')
+          .map((v) => ({ stars: v.stars, weight: weightOf(v.voterUserId) })),
+        disputed: p.fouls.includes('missing_item'),
+      }));
+
+    return ok({
+      scoreboard: scoreScavenger({
+        teamIds,
+        items: game.hunt?.items ?? [],
+        ...(game.hunt?.wildcardItemId ? { wildcardItemId: game.hunt.wildcardItemId } : {}),
+        finds: resolveHuntFinds(claims),
+        fouls: huntFouls,
+        bestMatchTeamId: finals.bestMatchTeamId,
+        specialWinners: finals.specialWinners,
+        returnDurations: returnDurations(game),
+      }),
+    });
+  }
+
   const locations: Record<string, GeoPoint> = {};
   for (const p of game.photos) locations[p.id] = p.location;
 
@@ -724,12 +933,11 @@ export async function getResults(
     chasePhotoId: a.chasePhotoId,
   }));
 
-  const roleByUser = new Map(game.memberships.map((m) => [m.userId, m.role]));
   const votes: ScoreVote[] = game.votes.map((v) => ({
     assignmentId: v.assignmentId,
     axis: v.axis,
     stars: v.stars,
-    weight: resolveVoteWeight(roleByUser.get(v.voterUserId) ?? 'member', game.config.judgeWeight),
+    weight: weightOf(v.voterUserId),
   }));
 
   const fouls: Record<string, number> = {};
@@ -737,17 +945,6 @@ export async function getResults(
     if (p.fouls.length > 0) fouls[p.teamId] = (fouls[p.teamId] ?? 0) + p.fouls.length;
   }
 
-  // Finals bonuses come from the actual weighted finals votes. With no finals
-  // votes cast, no best-match or special bonus is awarded.
-  const finals = resolveFinals(
-    (game.finalsVotes ?? []).map((v) => ({
-      category: v.category,
-      teamId: v.teamId,
-      weight: resolveVoteWeight(roleByUser.get(v.voterUserId) ?? 'member', game.config.judgeWeight),
-    })),
-  );
-
-  const teamIds = game.teams.map((t) => t.id);
   const scoreboard = computeScoreboard({
     teamIds,
     assignments,

@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type EntitlementView } from '@photochase/client';
-import { FREE_CONFIG, type GameConfig, type GameMode, type GameType } from '@photochase/shared';
+import {
+  FREE_CONFIG,
+  HUNT_THEMES,
+  type GameConfig,
+  type GameMode,
+  type GameType,
+  type HuntTheme,
+} from '@photochase/shared';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
 import type { MessageKey } from '@photochase/i18n';
@@ -20,6 +27,15 @@ const MODE_KEY: Record<GameMode, MessageKey> = {
   scavenger_hunt: 'mode.scavengerHunt',
   color_hunt: 'mode.colorHunt',
   photo_tag: 'mode.photoTag',
+};
+
+/** Catalog key per hunt theme, mirroring {@link MODE_KEY}. */
+const THEME_KEY: Record<HuntTheme, MessageKey> = {
+  mixed: 'huntTheme.mixed',
+  outdoors: 'huntTheme.outdoors',
+  city: 'huntTheme.city',
+  household: 'huntTheme.household',
+  silly: 'huntTheme.silly',
 };
 
 /**
@@ -63,6 +79,7 @@ export function HostScreen({
 
   const limits = entitlement?.limits;
   const isChase = config.mode === 'photo_chase';
+  const isHunt = config.mode === 'scavenger_hunt';
   const allows = {
     // Modes come from the entitlement, not the tier alone: some are earned.
     // Tolerate a missing list rather than crash the only route to a new game.
@@ -141,6 +158,17 @@ export function HostScreen({
           onPick={(mode) => setConfig((c) => ({ ...c, mode }))}
           format={(mode) => t(MODE_KEY[mode])}
         />
+        {/* Which pool the list is drawn from — a hunt concept, nothing else's. */}
+        {isHunt ? (
+          <Choices
+            label={t('config.huntTheme')}
+            options={HUNT_THEMES}
+            value={config.huntTheme ?? 'mixed'}
+            allowed={() => true}
+            onPick={(huntTheme) => setConfig((c) => ({ ...c, huntTheme }))}
+            format={(theme) => t(THEME_KEY[theme])}
+          />
+        ) : null}
         <Choices
           label={t('config.teams')}
           options={TEAM_CHOICES}

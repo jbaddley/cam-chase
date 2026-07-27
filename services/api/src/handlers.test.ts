@@ -286,7 +286,8 @@ describe('listRateable', () => {
 
     const after = await unwrap(listRateable(repo, { gameId, userId: 'uA' }));
     const rated = after.find((r) => r.assignmentId === first!.assignmentId)!;
-    expect(rated.myVotes).toEqual({ pose: 4, angle: null });
+    // `validity` is a scavenger axis and never scored in a chase.
+    expect(rated.myVotes).toEqual({ pose: 4, angle: null, validity: null });
   });
 
   it('omits assignments with no chase submitted', async () => {

@@ -78,4 +78,10 @@ export const de: Record<MessageKey, string> = {
   'phase.guessing': 'Ratezeit',
   'phase.scatter': 'Verteilen und verstecken',
   'phase.tagActive': 'Die Jagd läuft',
+  'config.huntTheme': 'Thema der Jagd',
+  'huntTheme.mixed': 'Gemischt',
+  'huntTheme.outdoors': 'Draußen',
+  'huntTheme.city': 'Stadt',
+  'huntTheme.household': 'Im Haus',
+  'huntTheme.silly': 'Albern',
 };

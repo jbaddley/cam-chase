@@ -78,4 +78,10 @@ export const fr: Record<MessageKey, string> = {
   'phase.guessing': 'À vous de deviner',
   'phase.scatter': 'Dispersez-vous',
   'phase.tagActive': 'La chasse est lancée',
+  'config.huntTheme': 'Thème de la chasse',
+  'huntTheme.mixed': 'Mixte',
+  'huntTheme.outdoors': 'Plein air',
+  'huntTheme.city': 'Ville',
+  'huntTheme.household': 'À la maison',
+  'huntTheme.silly': 'Loufoque',
 };

@@ -4,8 +4,13 @@ import { ApiError, type RateableView } from '@photochase/client';
 import type { FoulReason } from '@photochase/shared';
 import { client } from '../api.js';
 
-const AXES = ['pose', 'angle'] as const;
-type Axis = (typeof AXES)[number];
+type Axis = 'pose' | 'angle' | 'validity';
+
+const AXIS_LABEL: Record<Axis, string> = {
+  pose: 'Pose match',
+  angle: 'Angle match',
+  validity: 'Does it count?',
+};
 const STARS = [1, 2, 3, 4, 5] as const;
 
 /** Rule-2 fouls a rater can call on the original photo (doc 01). */
@@ -14,9 +19,20 @@ const FOULS: Array<{ reason: FoulReason; label: string }> = [
   { reason: 'missing_face', label: 'No face' },
 ];
 
+/** The foul that says a hunt photo does not show the item it claims. */
+const HUNT_FOULS: Array<{ reason: FoulReason; label: string }> = [
+  { reason: 'missing_item', label: "Item isn't there" },
+  { reason: 'missing_face', label: 'No face' },
+];
+
+/** A hunt claim is judged on validity alone; a chase on pose and angle. */
+const axesFor = (r: RateableView): Axis[] => (r.itemId ? ['validity'] : ['pose', 'angle']);
+
 /**
- * Rating phase: score other teams' chase attempts on pose and angle. The server
- * decides what the player may rate — you never see your own team's chases.
+ * Rating phase: score other teams' work. In a chase that means pose and angle
+ * against the original; in a scavenger hunt, whether the photo really shows the
+ * item claimed. The server decides what the player may rate — you never see
+ * your own team's entries.
  */
 export function RatingScreen({ gameId }: { gameId: string }) {
   const [queue, setQueue] = useState<RateableView[] | null>(null);
@@ -38,7 +54,7 @@ export function RatingScreen({ gameId }: { gameId: string }) {
     };
   }, [gameId]);
 
-  const rated = (r: RateableView) => r.myVotes.pose !== null && r.myVotes.angle !== null;
+  const rated = (r: RateableView) => axesFor(r).every((axis) => r.myVotes[axis] !== null);
   const current = queue?.find((r) => !rated(r)) ?? null;
   const done = queue?.filter(rated).length ?? 0;
   const total = queue?.length ?? 0;
@@ -101,9 +117,10 @@ export function RatingScreen({ gameId }: { gameId: string }) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {current ? (
         <View style={styles.card}>
-          {AXES.map((axis) => (
+          {current.itemLabel ? <Text style={styles.itemLabel}>Claimed: {current.itemLabel}</Text> : null}
+          {axesFor(current).map((axis) => (
             <View key={axis} style={styles.axisRow}>
-              <Text style={styles.axisLabel}>{axis === 'pose' ? 'Pose match' : 'Angle match'}</Text>
+              <Text style={styles.axisLabel}>{AXIS_LABEL[axis]}</Text>
               <View style={styles.stars}>
                 {STARS.map((n) => (
                   <Pressable
@@ -118,9 +135,9 @@ export function RatingScreen({ gameId }: { gameId: string }) {
             </View>
           ))}
           <View style={styles.axisRow}>
-            <Text style={styles.axisLabel}>Call a foul on the original</Text>
+            <Text style={styles.axisLabel}>{current.itemId ? 'Call a foul' : 'Call a foul on the original'}</Text>
             <View style={styles.stars}>
-              {FOULS.map(({ reason, label }) => (
+              {(current.itemId ? HUNT_FOULS : FOULS).map(({ reason, label }) => (
                 <Pressable
                   key={reason}
                   onPress={() => toggleFoul(reason)}
@@ -147,6 +164,7 @@ const styles = StyleSheet.create({
   card: { gap: 16, paddingVertical: 16 },
   axisRow: { gap: 8 },
   axisLabel: { fontSize: 18 },
+  itemLabel: { fontSize: 20, fontWeight: '600' },
   stars: { flexDirection: 'row', gap: 8 },
   star: { backgroundColor: '#e9ecef', paddingVertical: 12, paddingHorizontal: 18, borderRadius: 8 },
   starPicked: { backgroundColor: '#ffd43b', paddingVertical: 12, paddingHorizontal: 18, borderRadius: 8 },
