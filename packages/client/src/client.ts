@@ -1,6 +1,9 @@
 import type {
   AttributeGuess,
   AttributeSet,
+  CatchStatus,
+  TagRole,
+  TagSubMode,
   Flair,
   FoulReason,
   GameConfig,
@@ -56,6 +59,29 @@ export interface GuessTargetView {
   myGuess: AttributeGuess | null;
 }
 
+/** What one player knows about their own position in a tag round. */
+export interface TagBriefView {
+  teamId: string;
+  subMode: TagSubMode;
+  /** Hide & Seek: your own role, withheld until the scatter window ends. */
+  role: TagRole | null;
+  /** Dual: the team you hunt. You are never told who hunts you. */
+  targetTeamId: string | null;
+  targetTeamName: string | null;
+  /** Whether someone hunting you is close — a boolean, never a name. */
+  hunterNearby: boolean;
+}
+
+/** A claim made against the caller: "you've been caught — were you?" */
+export interface CatchClaimView {
+  catchId: string;
+  hunterTeamName: string;
+  /** The photo being claimed; exchange for a URL via requestDownload. */
+  photoKey: string;
+  claimedAt: number;
+  status: CatchStatus;
+}
+
 /** A league table: the season's name, code, and standings. */
 export interface StandingsView {
   tournamentId: string;
@@ -95,6 +121,11 @@ export interface JoinGameInput {
   code: string;
   displayName: string;
   action: JoinAction;
+  /**
+   * Photo Tag only: acknowledgement that other players will photograph you.
+   * The server refuses a playing join without it (docs/07).
+   */
+  acceptsBeingPhotographed?: boolean;
 }
 
 /** One Round 2 task in the caller team's queue. */
@@ -333,6 +364,45 @@ export class PhotoChaseClient {
     input: { subjectTeamId: string; guess: AttributeGuess },
   ): Promise<{ subjectTeamId: string; guess: AttributeGuess }> {
     return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/guesses`, input);
+  }
+
+  // --- photo tag ------------------------------------------------------------
+
+  /** This caller's own role, prey and proximity warning. Never anyone else's. */
+  getTagBrief(gameId: string): Promise<TagBriefView> {
+    return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/tag-brief`);
+  }
+
+  /** Report position, used only to compute the caller's own proximity warning. */
+  reportTagPing(gameId: string, location: GeoPointInput): Promise<{ at: number }> {
+    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/pings`, { location });
+  }
+
+  /** Claim a catch. Scores nothing until the target confirms it. */
+  claimCatch(
+    gameId: string,
+    input: { targetTeamId: string; photoId: string },
+  ): Promise<{ catchId: string; status: CatchStatus }> {
+    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/catches`, input);
+  }
+
+  /** Claims made against this caller, for them to confirm or dispute. */
+  listCatchClaims(gameId: string): Promise<CatchClaimView[]> {
+    return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/catches`);
+  }
+
+  /** Answer a claim made against you. Only the target may answer. */
+  answerCatchClaim(gameId: string, catchId: string, confirm: boolean): Promise<{ status: CatchStatus }> {
+    return request(this.config, 'POST', this.catchPath(gameId, catchId, 'answer'), { confirm });
+  }
+
+  /** Host ruling on a disputed claim; nothing automated can settle it. */
+  resolveCatchDispute(gameId: string, catchId: string, uphold: boolean): Promise<{ status: CatchStatus }> {
+    return request(this.config, 'POST', this.catchPath(gameId, catchId, 'ruling'), { uphold });
+  }
+
+  private catchPath(gameId: string, catchId: string, action: string): string {
+    return `/games/${encodeURIComponent(gameId)}/catches/${encodeURIComponent(catchId)}/${action}`;
   }
 
   /** The scavenger hunt list, with this team's progress and the wildcard timer. */

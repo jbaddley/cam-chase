@@ -15,7 +15,7 @@ and league standings are shared across all of them.
 | **Photo Chase** | The two-round game described above | Shipped; the free tier's mode |
 | **Scavenger Hunt** | One round against a generated item list, then judging | Shipped |
 | **Colour Hunt** | Shoot a secret attribute; the opposing team studies and guesses | Shipped |
-| **Photo Tag** | Live play: catch other players on camera | Planned |
+| **Photo Tag** | Live play: catch other players on camera | Shipped |
 
 Modes beyond the chase are paid, or earned permanently through referrals.
 
@@ -74,6 +74,43 @@ study the set and commit a guess.
 - **Flow**: `lobby → round1_active → guessing → rating → results`. There is no
   return phase, so no time bonus.
 - **Stated but unenforced**: you may not move objects to compose a shot.
+
+### Photo Tag
+
+Live play: catch other players on camera. Individuals play as **teams of one**,
+so scoring, results and league standings work unchanged rather than needing a
+parallel player model.
+
+**Three sub-modes**, host-configurable:
+
+| Sub-mode | Loop |
+|---|---|
+| *Everyone hunts* | Everybody is fair game; catch whoever you can |
+| *Hide and seek* | Roles hidden until the scatter timer ends. A hider who photographs their hunter **first** blocks the score and banks a counter bonus — the distinctive mechanic, and the reason this variant earns its complexity |
+| *Hunter and prey* | Everyone hunts exactly one person and is hunted by exactly one, arranged as a single cycle so nobody is stranded. Only a catch of your **own** assigned prey pays: the mode is your chase, not opportunism |
+
+**Catches are peer-confirmed.** A hunter submits, the photo appears on the
+target's phone, and they confirm or dispute; the host rules on disputes and that
+ruling is final. This is not a fallback for missing face recognition — doc 07
+forbids identity matching outright, so a person deciding is the only route
+consistent with our own stance. Nothing scores until the target agrees.
+
+**Nobody is told who hunts them.** The prey gets a coarse "a hunter is nearby"
+(~50 m, computed from pings) and never a name — naming the hunter would let a
+player simply avoid one person, the flaw the brainstorm flagged and never
+resolved. With exactly two players the pairing is necessarily mutual, so the
+variant only becomes interesting from three up.
+
+**Safety constraints** are in `docs/07-privacy-security.md` and are enforced,
+not merely displayed: private lobbies only, an acknowledgement at join that the
+server refuses to skip, an agreed play area, and no relaxation of the retention
+rules.
+
+**Flow**: `lobby → scatter → tag_active → finals_voting → results`.
+
+**Unverifiable offline.** Proximity thresholds, scatter length and catch latency
+depend on real GPS on real phones. The logic is tested; the feel is not, and
+cannot be until this runs on hardware.
 
 ## Roles
 
@@ -160,6 +197,7 @@ Judge votes count at the configured multiplier (1x–5x). AI scores (paid) are a
 | Game mode | Photo Chase, Scavenger Hunt (+Colour Hunt, Photo Tag) | Free: Photo Chase only; Paid: all. Individual modes are also earnable via referrals |
 | Hunt theme (Scavenger Hunt) | Mixed, Outdoors, City, Household, Silly | Any tier that has the mode |
 | Guess level (Colour Hunt) | Colour only, or colour + one modifier | Any tier that has the mode |
+| Tag style (Photo Tag) | Everyone hunts, Hide and seek, Hunter and prey | Any tier that has the mode |
 | Photos per team (Round 1) | 5–20 | Free: fixed default (e.g., 5); Paid: full range |
 | Round 1 minutes | 5–20 | Free: fixed default; Paid: full range |
 | Round 2 minutes | 5–20 | Free: fixed default; Paid: full range |

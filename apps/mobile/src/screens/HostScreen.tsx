@@ -5,11 +5,13 @@ import {
   COLOR_SPECIFICITIES,
   FREE_CONFIG,
   HUNT_THEMES,
+  TAG_SUB_MODES,
   type GameConfig,
   type GameMode,
   type GameType,
   type ColorSpecificity,
   type HuntTheme,
+  type TagSubMode,
 } from '@photochase/shared';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
@@ -35,6 +37,13 @@ const MODE_KEY: Record<GameMode, MessageKey> = {
 const LEVEL_KEY: Record<ColorSpecificity, MessageKey> = {
   simple: 'colorLevel.simple',
   color_plus: 'colorLevel.color_plus',
+};
+
+/** Catalog key per tag style, mirroring {@link MODE_KEY}. */
+const TAG_MODE_KEY: Record<TagSubMode, MessageKey> = {
+  pure_finder: 'tagMode.pure_finder',
+  hide_seek: 'tagMode.hide_seek',
+  dual: 'tagMode.dual',
 };
 
 /** Catalog key per hunt theme, mirroring {@link MODE_KEY}. */
@@ -89,6 +98,7 @@ export function HostScreen({
   const isChase = config.mode === 'photo_chase';
   const isHunt = config.mode === 'scavenger_hunt';
   const isColor = config.mode === 'color_hunt';
+  const isTag = config.mode === 'photo_tag';
   const allows = {
     // Modes come from the entitlement, not the tier alone: some are earned.
     // Tolerate a missing list rather than crash the only route to a new game.
@@ -187,6 +197,17 @@ export function HostScreen({
             allowed={() => true}
             onPick={(colorSpecificity) => setConfig((c) => ({ ...c, colorSpecificity }))}
             format={(level) => t(LEVEL_KEY[level])}
+          />
+        ) : null}
+        {/* Which of the three live-play variants — a tag concept only. */}
+        {isTag ? (
+          <Choices
+            label={t('config.tagSubMode')}
+            options={TAG_SUB_MODES}
+            value={config.tagSubMode ?? 'pure_finder'}
+            allowed={() => true}
+            onPick={(tagSubMode) => setConfig((c) => ({ ...c, tagSubMode }))}
+            format={(sub) => t(TAG_MODE_KEY[sub])}
           />
         ) : null}
         <Choices
