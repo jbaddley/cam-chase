@@ -403,6 +403,37 @@ describe('PhotoChaseClient', () => {
     expect(JSON.parse(calls[0]!.init!.body as string)).toEqual({ subjectTeamId: 't2', guess: { color: 'red' } });
   });
 
+  it('startDailyHunt POSTs with no body — the token is the whole request', async () => {
+    const view = { gameId: 'g1', dateKey: '2026-07-27', theme: 'city', items: [], resumed: false };
+    const { config, calls } = recorder(view);
+    const result = await new PhotoChaseClient(config).startDailyHunt();
+
+    expect(calls[0]!.url).toBe('https://api.example.com/solo/daily');
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect(result).toEqual(view);
+  });
+
+  it('createTournament carries a gauntlet’s legs when given them', async () => {
+    const { config, calls } = recorder({ tournamentId: 't1', code: 'LEAG01' });
+    await new PhotoChaseClient(config).createTournament('Gauntlet', {
+      legModes: ['photo_chase', 'scavenger_hunt'],
+      catchUp: true,
+    });
+
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual({
+      name: 'Gauntlet',
+      legModes: ['photo_chase', 'scavenger_hunt'],
+      catchUp: true,
+    });
+  });
+
+  it('createTournament sends only a name for an ordinary league', async () => {
+    const { config, calls } = recorder({ tournamentId: 't1', code: 'LEAG01' });
+    await new PhotoChaseClient(config).createTournament('Summer League');
+
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual({ name: 'Summer League' });
+  });
+
   it('flagFoul POSTs the reason to the photo’s foul path', async () => {
     const { config, calls } = recorder({ fouls: ['missing_face'] });
     const result = await new PhotoChaseClient(config).flagFoul('g1', 'p1', { reason: 'missing_face' });

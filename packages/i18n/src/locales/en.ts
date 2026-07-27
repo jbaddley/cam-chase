@@ -162,6 +162,12 @@ export const en = {
   'join.tagAgree': 'I agree',
   'score.catches': 'Catches',
   'score.survival': 'Survival',
+  'daily.title': 'Daily hunt',
+  'daily.start': 'Play today\'s hunt',
+  'daily.resume': 'Back to today\'s hunt',
+  'daily.theme': 'Today: {theme}',
+  'daily.blurb': 'Same list for everyone, everywhere, today only.',
+  'daily.failed': 'Could not start today\'s hunt.',
   'score.guessedRight': 'Guessed right',
   'score.bluffBonus': 'Bluff bonus',
 } as const;

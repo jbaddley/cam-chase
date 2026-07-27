@@ -298,6 +298,44 @@ describe('lambda route (authenticated)', () => {
     expect((await call(container, 'GET', `/games/${gameId}/tag-brief`)).status).toBe(401);
   });
 
+  it('starts a free solo daily hunt on any plan, and resumes it', async () => {
+    // Deliberately free: gating the daily run would starve the funnel it feeds.
+    const first = await call(container, 'POST', '/solo/daily', {}, 'freeloader');
+    expect(first.status).toBe(200);
+    expect(first.data.resumed).toBe(false);
+    expect(first.data.items.length).toBeGreaterThan(0);
+
+    const again = await call(container, 'POST', '/solo/daily', {}, 'freeloader');
+    expect(again.data.gameId).toBe(first.data.gameId);
+    expect(again.data.resumed).toBe(true);
+
+    expect((await call(container, 'POST', '/solo/daily')).status).toBe(401);
+  });
+
+  it('gives two players the same daily list', async () => {
+    const mine = await call(container, 'POST', '/solo/daily', {}, 'u1');
+    const theirs = await call(container, 'POST', '/solo/daily', {}, 'u2');
+    expect(mine.data.items).toEqual(theirs.data.items);
+    expect(mine.data.gameId).not.toBe(theirs.data.gameId);
+  });
+
+  it('creates a gauntlet and reports the leg it is on', async () => {
+    await container.entitlements.save({ userId: 'owner', tier: 'unlimited', gameCredits: 0, subscriptionActive: true });
+    const created = await call(
+      container,
+      'POST',
+      '/tournaments',
+      { name: 'Gauntlet', legModes: ['photo_chase', 'scavenger_hunt'], catchUp: true },
+      'owner',
+    );
+    expect(created.status).toBe(200);
+
+    const table = await call(container, 'GET', `/tournaments/${created.data.code}/standings`, undefined, 'guest');
+    expect(table.data.gauntlet.legModes).toEqual(['photo_chase', 'scavenger_hunt']);
+    expect(table.data.gauntlet.nextMode).toBe('photo_chase');
+    expect(table.data.gauntlet.catchUp).toBe(true);
+  });
+
   it('serves the sanitized game state at GET /games/:id', async () => {
     const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
     await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');

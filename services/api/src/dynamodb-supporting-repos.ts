@@ -2,7 +2,7 @@ import { freeEntitlement, type AiJudgement, type Entitlement } from '@photochase
 import { GetCommand, PutCommand, type DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import type { EntitlementRepository } from './entitlements-repo.js';
 import type { AiJudgingRepository } from './growth-repo.js';
-import type { Tournament, TournamentRepository } from './tournament-repo.js';
+import type { DailyHuntRepository, Tournament, TournamentRepository } from './tournament-repo.js';
 
 /**
  * DynamoDB implementations of the supporting repositories, co-located on the
@@ -18,6 +18,7 @@ const aiKey = (gameId: string) => ({ pk: `GAME#${gameId}`, sk: 'AIJUDGEMENTS' })
 const tourneyKey = (id: string) => ({ pk: `TOURNEY#${id}`, sk: 'TOURNEY' });
 /** Code → id pointer, so a league is reachable by the code it is shared by. */
 const tourneyCodeKey = (code: string) => ({ pk: `TOURNEYCODE#${code}`, sk: 'POINTER' });
+const dailyKeyFor = (userId: string, dateKey: string) => ({ pk: `USER#${userId}`, sk: `DAILY#${dateKey}` });
 
 export class DynamoDBEntitlementRepository implements EntitlementRepository {
   constructor(private readonly cfg: SupportingRepoConfig) {}
@@ -85,5 +86,29 @@ export class DynamoDBTournamentRepository implements TournamentRepository {
     );
     const id = res.Item?.tournamentId as string | undefined;
     return id ? this.get(id) : null;
+  }
+}
+
+/**
+ * One solo daily run per user per UTC day. A pointer rather than a copy: the
+ * game itself lives in the game table and must not be duplicated here.
+ */
+export class DynamoDBDailyHuntRepository implements DailyHuntRepository {
+  constructor(private readonly cfg: SupportingRepoConfig) {}
+
+  async get(userId: string, dateKey: string): Promise<string | null> {
+    const res = await this.cfg.client.send(
+      new GetCommand({ TableName: this.cfg.tableName, Key: dailyKeyFor(userId, dateKey) }),
+    );
+    return (res.Item?.gameId as string | undefined) ?? null;
+  }
+
+  async set(userId: string, dateKey: string, gameId: string): Promise<void> {
+    await this.cfg.client.send(
+      new PutCommand({
+        TableName: this.cfg.tableName,
+        Item: { ...dailyKeyFor(userId, dateKey), entity: 'daily_hunt', gameId },
+      }),
+    );
   }
 }

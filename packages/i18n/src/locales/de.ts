@@ -163,6 +163,12 @@ export const de: Record<MessageKey, string> = {
   'join.tagAgree': 'Ich stimme zu',
   'score.catches': 'Treffer',
   'score.survival': 'Überleben',
+  'daily.title': 'Tagesjagd',
+  'daily.start': 'Heutige Jagd spielen',
+  'daily.resume': 'Zurück zur heutigen Jagd',
+  'daily.theme': 'Heute: {theme}',
+  'daily.blurb': 'Für alle dieselbe Liste, nur heute.',
+  'daily.failed': 'Die heutige Jagd konnte nicht gestartet werden.',
   'score.guessedRight': 'Richtig geraten',
   'score.bluffBonus': 'Bluff-Bonus',
 };

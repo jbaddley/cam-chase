@@ -2,6 +2,7 @@ import { DynamoDBGameRepository, makeDynamoDocumentClient } from './dynamodb-rep
 import { DynamoDBReferralRepository } from './dynamodb-referral-repository.js';
 import {
   DynamoDBAiJudgingRepository,
+  DynamoDBDailyHuntRepository,
   DynamoDBEntitlementRepository,
   DynamoDBTournamentRepository,
 } from './dynamodb-supporting-repos.js';
@@ -17,7 +18,12 @@ import { webhookVerifierFromEnv, type WebhookVerifier } from './webhook-auth.js'
 import { consoleSink, Logger, noopSink } from './logger.js';
 import { makeS3Client, S3MediaService, type MediaService } from './media.js';
 import { InMemoryGameRepository, type GameRepository } from './repository.js';
-import { InMemoryTournamentRepository, type TournamentRepository } from './tournament-repo.js';
+import {
+  InMemoryDailyHuntRepository,
+  InMemoryTournamentRepository,
+  type DailyHuntRepository,
+  type TournamentRepository,
+} from './tournament-repo.js';
 
 /** Everything the API handlers depend on. */
 export interface Container {
@@ -26,6 +32,7 @@ export interface Container {
   referrals: ReferralRepository;
   ai: AiJudgingRepository;
   tournaments: TournamentRepository;
+  dailyHunts: DailyHuntRepository;
   media: MediaService;
   /** JWT verifier for the bearer-token fallback; undefined if Cognito isn't configured. */
   verifier?: TokenVerifier;
@@ -63,6 +70,7 @@ export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container 
       referrals: new DynamoDBReferralRepository(cfg),
       ai: new DynamoDBAiJudgingRepository(cfg),
       tournaments: new DynamoDBTournamentRepository(cfg),
+      dailyHunts: new DynamoDBDailyHuntRepository(cfg),
       media,
       verifier,
       webhookVerifier,
@@ -76,6 +84,7 @@ export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container 
     referrals: new InMemoryReferralRepository(),
     ai: new InMemoryAiJudgingRepository(),
     tournaments: new InMemoryTournamentRepository(),
+    dailyHunts: new InMemoryDailyHuntRepository(),
     media,
     verifier,
     webhookVerifier,

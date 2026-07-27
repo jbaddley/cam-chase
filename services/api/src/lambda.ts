@@ -37,6 +37,7 @@ import {
 } from './growth-handlers.js';
 import { advanceGameAndSettle } from './game-lifecycle.js';
 import { createTournament, generateGameRecap, getStandingsByCode } from './tournament-handlers.js';
+import { startDailyHunt } from './solo-handlers.js';
 import { requestPhotoDownload, requestPhotoUpload } from './media-handlers.js';
 import { authenticate, type AuthContext } from './auth.js';
 import { buildContainer, type Container } from './container.js';
@@ -180,6 +181,9 @@ const ROUTES: Route[] = [
   ),
   compile('GET', '/tournaments/:code/standings', ({ container, params }) =>
     getStandingsByCode(container.tournaments, params.code!),
+  ),
+  compile('POST', '/solo/daily', ({ container, auth }) =>
+    startDailyHunt(container.games, container.dailyHunts, { userId: auth.userId }),
   ),
   compile('GET', '/me/entitlement', ({ container, auth }) => getMyEntitlement(container.entitlements, auth.userId)),
   compile('GET', '/me/referral', ({ container, auth }) => getMyReferral(container.referrals, auth.userId)),

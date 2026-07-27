@@ -1,4 +1,4 @@
-import type { GameResult } from '@photochase/shared';
+import type { GameMode, GameResult } from '@photochase/shared';
 
 /**
  * A league season. Created by a paid user; anyone holding the code can attach a
@@ -11,7 +11,35 @@ export interface Tournament {
   name: string;
   ownerUserId: string;
   results: GameResult[];
+  /**
+   * A gauntlet: a fixed sequence of modes played back to back, scored by
+   * combined game points rather than placement. Absent for an ordinary league,
+   * which is open-ended and placement-scored.
+   */
+  legModes?: GameMode[];
+  /** Gauntlet only: scale the final leg for teams trailing after the others. */
+  catchUp?: boolean;
   createdAt: number;
+}
+
+/** A finished gauntlet leg, kept so the combined table can be rebuilt. */
+export interface DailyHuntRepository {
+  /** The game id of this user's run for a date key, if they started one. */
+  get(userId: string, dateKey: string): Promise<string | null>;
+  set(userId: string, dateKey: string, gameId: string): Promise<void>;
+}
+
+export class InMemoryDailyHuntRepository implements DailyHuntRepository {
+  private readonly byUserDay = new Map<string, string>();
+  private key = (userId: string, dateKey: string) => `${userId}::${dateKey}`;
+
+  async get(userId: string, dateKey: string): Promise<string | null> {
+    return this.byUserDay.get(this.key(userId, dateKey)) ?? null;
+  }
+
+  async set(userId: string, dateKey: string, gameId: string): Promise<void> {
+    this.byUserDay.set(this.key(userId, dateKey), gameId);
+  }
 }
 
 export interface TournamentRepository {

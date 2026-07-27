@@ -164,6 +164,12 @@ export const ja: Record<MessageKey, string> = {
   'join.tagAgree': '同意します',
   'score.catches': '捕獲',
   'score.survival': '生存',
+  'daily.title': 'デイリーハント',
+  'daily.start': '今日のハントで遊ぶ',
+  'daily.resume': '今日のハントに戻る',
+  'daily.theme': '今日：{theme}',
+  'daily.blurb': '世界中で同じリスト。今日だけです。',
+  'daily.failed': '今日のハントを開始できませんでした。',
   'score.guessedRight': '的中',
   'score.bluffBonus': 'ブラフボーナス',
 };

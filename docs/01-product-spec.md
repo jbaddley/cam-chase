@@ -230,6 +230,49 @@ come back next week rather than treating each game as self-contained.
 - **Points**: 10 for a win, then 6 / 4 / 3 / 2 / 1 by placement. Ties break on
   total game points, then on the team key, so the order is deterministic.
 
+## Retention features
+
+### The solo daily hunt
+
+A single-player scavenger run against a date-seeded list, with no lobby. It
+exists for the moment someone opens the app and nobody else is around — the
+failure state every party game has, and a natural daily-streak hook.
+
+Everyone in the world gets the same list on the same UTC day, which is what
+makes a score worth comparing. One run per person per day, resumable: reopening
+the app mid-walk returns you to the run you were on. The theme rotates daily so
+a week is not the same walk five times, and there is no wildcard — its reveal is
+timed per player, which would make the lists diverge.
+
+**Deliberately free on every plan**, unlike the Scavenger Hunt it is built from.
+A daily run is the mode's best advert, and the person who plays it every day is
+exactly the person who eventually unlocks the full version; gating it would
+protect the paywall by starving the funnel that feeds it.
+
+### The gauntlet
+
+A fixed sequence of modes played back to back and scored by **combined game
+points** rather than placement — a league whose legs are decided in advance.
+Because every mode emits the same score shape, this is mostly sequencing; the
+gauntlet is the payoff for building four modes on one scoreboard.
+
+Identity across legs is the team's name, exactly as in league standings.
+
+### The catch-up handicap
+
+Optional, off by default. A team's **final-leg** score is scaled by up to 1.25x,
+in proportion to how far it trails the leader going into that leg.
+
+- **Continuous, not banded**, so nobody gains by losing *more* — a step function
+  would reward tanking a leg to drop into a lower band.
+- **Small enough that the first leg still matters.** A handicap should keep a
+  blowout worth playing, not hand the game to whoever lost early.
+- **The foul penalty scales too**, or a trailing team would be fined less for
+  the same foul; a handicap is not also an amnesty.
+- **A gauntlet is the only place it means anything.** It is the one format with
+  a standing *before* the last round begins. A single game has no midpoint to
+  trail at, which is why the chase has no handicap and will not get one.
+
 ## Big screen, casting, and comparison viewing
 
 Comparisons (original vs. chase side-by-side) are the emotional peak of the game and are best on a large screen, while remaining fully usable on mobile.

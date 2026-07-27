@@ -11,6 +11,8 @@ import type {
   GameMode,
   GameState,
   RatingAxis,
+  GauntletStanding,
+  HuntItem,
   Standing,
   TeamScore,
   Tier,
@@ -89,6 +91,24 @@ export interface StandingsView {
   name: string;
   gamesPlayed: number;
   standings: Standing[];
+  /** Gauntlet only: the leg sequence and the combined table. */
+  gauntlet?: {
+    legModes: GameMode[];
+    catchUp: boolean;
+    nextMode: GameMode | null;
+    standings: GauntletStanding[];
+  };
+}
+
+/** Today's solo run: the game to play it in, and the list it is played against. */
+export interface DailyHuntView {
+  gameId: string;
+  /** UTC date this run belongs to. */
+  dateKey: string;
+  theme: string;
+  items: HuntItem[];
+  /** True when this call resumed a run already in progress. */
+  resumed: boolean;
 }
 
 /** A shareable comparison card, produced only once everyone depicted agreed. */
@@ -440,8 +460,19 @@ export class PhotoChaseClient {
   // --- leagues --------------------------------------------------------------
 
   /** Start a league season. Paid only; joining someone else's is always free. */
-  createTournament(name: string): Promise<{ tournamentId: string; code: string }> {
-    return request(this.config, 'POST', '/tournaments', { name });
+  createTournament(
+    name: string,
+    gauntlet?: { legModes: GameMode[]; catchUp?: boolean },
+  ): Promise<{ tournamentId: string; code: string }> {
+    return request(this.config, 'POST', '/tournaments', { name, ...(gauntlet ?? {}) });
+  }
+
+  /**
+   * Start or resume today's solo daily hunt. Free on every plan — see the
+   * handler for why gating it would starve the funnel it feeds.
+   */
+  startDailyHunt(): Promise<DailyHuntView> {
+    return request(this.config, 'POST', '/solo/daily');
   }
 
   /** A league's table, resolved by the code it is shared by. */

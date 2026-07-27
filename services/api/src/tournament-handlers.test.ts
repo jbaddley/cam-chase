@@ -1,6 +1,7 @@
 import { DEFAULT_CONFIG, type Game, type Photo } from '@photochase/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { InMemoryEntitlementRepository } from './entitlements-repo.js';
+import { getResults } from './handlers.js';
 import { InMemoryGameRepository } from './repository.js';
 import { InMemoryTournamentRepository } from './tournament-repo.js';
 import {
@@ -173,6 +174,137 @@ describe('getStandingsByCode', () => {
 
   it('refuses a code nobody owns', async () => {
     expect((await getStandingsByCode(repo, 'NOSUCH')).ok).toBe(false);
+  });
+});
+
+describe('gauntlet', () => {
+  async function gauntlet(overrides: { catchUp?: boolean } = {}) {
+    await makePaid('owner');
+    return unwrap(
+      createTournament(repo, entRepo, {
+        name: 'Gauntlet',
+        ownerUserId: 'owner',
+        legModes: ['photo_chase', 'scavenger_hunt'],
+        ...overrides,
+      }),
+    );
+  }
+
+  /** Play both legs of a two-leg gauntlet, with Reds winning the first. */
+  async function playBothLegs(tournamentId: string) {
+    await finishedGame('g1', ['Reds', 'Blues']);
+    await finishedGame('g2', ['Blues', 'Reds']);
+    await unwrap(recordGameResult(repo, games, { tournamentId, gameId: 'g1' }));
+    await unwrap(recordGameResult(repo, games, { tournamentId, gameId: 'g2' }));
+  }
+
+  const bluesFinalLeg = async (code: string) =>
+    (await unwrap(getStandingsByCode(repo, code))).gauntlet!.standings.find((s) => s.teamKey === 'blues')!
+      .legTotals[1]!;
+
+  it('records the leg sequence and reports what comes next', async () => {
+    const { code } = await gauntlet();
+    const view = await unwrap(getStandingsByCode(repo, code));
+    expect(view.gauntlet!.legModes).toEqual(['photo_chase', 'scavenger_hunt']);
+    expect(view.gauntlet!.nextMode).toBe('photo_chase');
+  });
+
+  it('advances the next mode as legs are recorded', async () => {
+    const { tournamentId, code } = await gauntlet();
+    await finishedGame('g1', ['Reds', 'Blues']);
+    await unwrap(recordGameResult(repo, games, { tournamentId, gameId: 'g1' }));
+
+    expect((await unwrap(getStandingsByCode(repo, code))).gauntlet!.nextMode).toBe('scavenger_hunt');
+  });
+
+  it('reports nothing left once every leg is played', async () => {
+    const { tournamentId, code } = await gauntlet();
+    await playBothLegs(tournamentId);
+    expect((await unwrap(getStandingsByCode(repo, code))).gauntlet!.nextMode).toBeNull();
+  });
+
+  it('combines legs into one table by team name', async () => {
+    const { tournamentId, code } = await gauntlet();
+    await playBothLegs(tournamentId);
+
+    const combined = (await unwrap(getStandingsByCode(repo, code))).gauntlet!.standings;
+    expect(combined).toHaveLength(2);
+    expect(combined[0]!.legsPlayed).toBe(2);
+    expect(combined[0]!.legTotals).toHaveLength(2);
+    // Summed, not taken from the last leg.
+    expect(combined[0]!.total).toBe(combined[0]!.legTotals.reduce((a, b) => a + b, 0));
+  });
+
+  it('leaves an ordinary league with no gauntlet section at all', async () => {
+    await makePaid('owner');
+    const { code } = await unwrap(createTournament(repo, entRepo, { name: 'League', ownerUserId: 'owner' }));
+    expect((await unwrap(getStandingsByCode(repo, code))).gauntlet).toBeUndefined();
+  });
+
+  it('boosts a trailing team’s final leg when the handicap is on', async () => {
+    const withHandicap = await gauntlet({ catchUp: true });
+    await playBothLegs(withHandicap.tournamentId);
+    const boosted = await bluesFinalLeg(withHandicap.code);
+
+    // The same two legs with the handicap off, for comparison.
+    repo = new InMemoryTournamentRepository();
+    games = new InMemoryGameRepository();
+    const plain = await gauntlet();
+    await playBothLegs(plain.tournamentId);
+
+    expect(boosted).toBeGreaterThan(await bluesFinalLeg(plain.code));
+  });
+
+  it('records the first leg exactly as scored, with nobody yet trailing', async () => {
+    const { tournamentId, code } = await gauntlet({ catchUp: true });
+    await finishedGame('g1', ['Reds', 'Blues']);
+    const scored = await unwrap(getResults(games, 'g1'));
+    await unwrap(recordGameResult(repo, games, { tournamentId, gameId: 'g1' }));
+
+    const table = (await unwrap(getStandingsByCode(repo, code))).gauntlet!.standings;
+    const redsScored = scored.scoreboard.find((s) => s.teamId === 'g1_win')!.total;
+    expect(table.find((s) => s.teamKey === 'reds')!.legTotals[0]).toBe(redsScored);
+  });
+
+  it('leaves a middle leg unscaled, however far a team is trailing', async () => {
+    // With only two legs the second *is* the final one, so a three-leg gauntlet
+    // is what actually distinguishes "final leg" from "every leg".
+    await makePaid('owner');
+    const { tournamentId } = await unwrap(
+      createTournament(repo, entRepo, {
+        name: 'Gauntlet',
+        ownerUserId: 'owner',
+        legModes: ['photo_chase', 'scavenger_hunt', 'color_hunt'],
+        catchUp: true,
+      }),
+    );
+    await finishedGame('g1', ['Reds', 'Blues']);
+    await finishedGame('g2', ['Blues', 'Reds']);
+    await unwrap(recordGameResult(repo, games, { tournamentId, gameId: 'g1' }));
+
+    const scored = await unwrap(getResults(games, 'g2'));
+    await unwrap(recordGameResult(repo, games, { tournamentId, gameId: 'g2' }));
+
+    const stored = (await repo.get(tournamentId))!.results[1]!.placements;
+    const bluesStored = stored.find((p) => p.teamKey === 'blues')!.gamePoints;
+    const bluesScored = scored.scoreboard.find((s) => s.teamId === 'g2_win')!.total;
+    expect(bluesStored).toBe(bluesScored);
+  });
+
+  it('leaves the final leg exactly as scored when the handicap is off', async () => {
+    const { tournamentId } = await gauntlet();
+    await finishedGame('g1', ['Reds', 'Blues']);
+    await finishedGame('g2', ['Blues', 'Reds']);
+    await unwrap(recordGameResult(repo, games, { tournamentId, gameId: 'g1' }));
+
+    const scored = await unwrap(getResults(games, 'g2'));
+    await unwrap(recordGameResult(repo, games, { tournamentId, gameId: 'g2' }));
+
+    const stored = (await repo.get(tournamentId))!.results[1]!.placements;
+    for (const placement of stored) {
+      const match = scored.scoreboard.find((s) => s.total === placement.gamePoints);
+      expect(match).toBeTruthy();
+    }
   });
 });
 

@@ -8,11 +8,13 @@ import { gameTableDefinition, makeDynamoDocumentClient } from './dynamodb-reposi
 import {
   DynamoDBAiJudgingRepository,
   DynamoDBEntitlementRepository,
+  DynamoDBDailyHuntRepository,
   DynamoDBTournamentRepository,
 } from './dynamodb-supporting-repos.js';
 import {
   aiJudgingRepositoryContract,
   entitlementRepositoryContract,
+  dailyHuntRepositoryContract,
   tournamentRepositoryContract,
 } from './repo-contracts.js';
 
@@ -35,3 +37,4 @@ afterAll(async () => {
 entitlementRepositoryContract('DynamoDBEntitlementRepository', () => new DynamoDBEntitlementRepository({ tableName: TABLE, client }));
 aiJudgingRepositoryContract('DynamoDBAiJudgingRepository', () => new DynamoDBAiJudgingRepository({ tableName: TABLE, client }));
 tournamentRepositoryContract('DynamoDBTournamentRepository', () => new DynamoDBTournamentRepository({ tableName: TABLE, client }));
+dailyHuntRepositoryContract('DynamoDBDailyHuntRepository', () => new DynamoDBDailyHuntRepository({ tableName: TABLE, client }));
