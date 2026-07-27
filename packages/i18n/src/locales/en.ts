@@ -12,6 +12,7 @@ export const en = {
   'error.gameFull': 'This game is full.',
   'auth.prompt': 'Sign in to host or join a game.',
   'auth.continueWith': 'Continue with {provider}',
+  'auth.continueWithEmail': 'Continue with email',
   'auth.opening': 'Opening…',
   'auth.failed': 'Sign-in failed. Please try again.',
   'join.title': 'Join a game',

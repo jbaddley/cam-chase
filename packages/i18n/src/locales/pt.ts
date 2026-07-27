@@ -14,6 +14,7 @@ export const pt: Record<MessageKey, string> = {
   'error.gameFull': 'Este jogo está cheio.',
   'auth.prompt': 'Entre para criar ou participar de um jogo.',
   'auth.continueWith': 'Continuar com {provider}',
+  'auth.continueWithEmail': 'Continuar com e-mail',
   'auth.opening': 'Abrindo…',
   'auth.failed': 'Falha ao entrar. Tente novamente.',
   'join.title': 'Entrar em um jogo',
