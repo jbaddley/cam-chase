@@ -58,10 +58,15 @@ lands on Cognito's own hosted sign-up page and works on any stack.
 ### 2. Build
 
 ```bash
-npx eas login
-npx eas build:configure          # first time only; writes the EAS project id
-npx eas build --profile development --platform android   # or ios
+npx eas-cli login
+npx eas-cli init
+npx eas-cli build --profile development --platform android
 ```
+
+`eas-cli init` creates the Expo project and writes `extra.eas.projectId` into
+`app.json`. That field is deliberately absent from the repo — EAS treats any
+value there as "already linked" and refuses to re-link, so a placeholder is
+worse than nothing. Commit the real id once it exists.
 
 Install the resulting APK (or the iOS build, via TestFlight/ad-hoc), then:
 
