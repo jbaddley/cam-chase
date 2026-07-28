@@ -11,6 +11,7 @@ import { ReferralScreen } from './src/screens/ReferralScreen.js';
 import { SignInScreen } from './src/screens/SignInScreen.js';
 import { HostScreen } from './src/screens/HostScreen.js';
 import { placeholderCapture } from './src/capture.js';
+import { placeholderLocation, type LocationSource } from './src/location.js';
 import { session, type Authorizer } from './src/auth.js';
 import { unavailablePurchaseGateway, type PurchaseGateway } from './src/purchases.js';
 import type { CaptureSource } from './src/screens/CaptureScreen.js';
@@ -39,7 +40,13 @@ export default function App({
   authorize = unavailableAuthorizer,
   purchases = unavailablePurchaseGateway,
   capture = placeholderCapture,
-}: { authorize?: Authorizer; purchases?: PurchaseGateway; capture?: CaptureSource } = {}) {
+  location = placeholderLocation,
+}: {
+  authorize?: Authorizer;
+  purchases?: PurchaseGateway;
+  capture?: CaptureSource;
+  location?: LocationSource;
+} = {}) {
   const [signedIn, setSignedIn] = useState(session.isSignedIn);
 
   // Before anything else: an app pointed at nothing cannot sign anyone in, and
@@ -58,7 +65,7 @@ export default function App({
 
   if (!signedIn) return <SignInScreen authorize={authorize} onSignedIn={() => setSignedIn(true)} />;
 
-  if (joined) return <GameRouter joined={joined} capture={capture} onExit={() => setJoined(null)} />;
+  if (joined) return <GameRouter joined={joined} capture={capture} location={location} onExit={() => setJoined(null)} />;
 
   const home = () => setRoute('home');
 

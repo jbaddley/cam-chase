@@ -6,6 +6,7 @@ import { session, setCryptoSource } from './auth.js';
 import { unavailablePurchaseGateway, type PurchaseGateway } from './purchases.js';
 import { CameraStage } from './native/CameraStage.js';
 import { expoCrypto, nativeAuthorizer } from './native/auth.js';
+import { nativeLocation } from './native/location.js';
 import { makePurchaseGateway } from './native/purchases.js';
 
 /**
@@ -48,7 +49,7 @@ export function PhotoChaseApp() {
       <CameraStage>
         {(capture) => (
           <SafeAreaView style={styles.ui} edges={['top', 'bottom', 'left', 'right']}>
-            <App authorize={nativeAuthorizer} purchases={purchases} capture={capture} />
+            <App authorize={nativeAuthorizer} purchases={purchases} capture={capture} location={nativeLocation} />
           </SafeAreaView>
         )}
       </CameraStage>

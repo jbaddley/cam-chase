@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { ApiError, type GameStateView, type TeamSummary } from '@photochase/client';
 import type { MessageKey } from '@photochase/i18n';
 import { client } from '../api.js';
+import type { LocationSource } from '../location.js';
 import { t } from '../i18n.js';
 import { color, space, type as typeScale } from '../theme.js';
 import { Body, Button, Card, ErrorText, Pill, Row, Screen } from '../ui.js';
@@ -38,12 +39,18 @@ export function LobbyScreen({
   code,
   isHost = false,
   error,
+  location,
   onStarted,
 }: {
   game: GameStateView | null;
   code: string;
   isHost?: boolean;
   error?: string | null;
+  /**
+   * Read once, when the host starts: their fix becomes the spot teams check in
+   * at on the way back. Optional so the lobby still renders without a device.
+   */
+  location?: LocationSource;
   /** Called with the new state after the host starts the game. */
   onStarted?: (state: GameStateView['state']) => void;
 }) {
@@ -58,7 +65,19 @@ export function LobbyScreen({
     setStarting(true);
     setStartError(null);
     try {
-      const { state } = await client.startGame(game.id);
+      /**
+       * The host is standing with the teams — the instruction above says so — so
+       * this fix is the meeting spot. A refusal is not fatal: the game starts
+       * unfenced rather than not starting, because an unstartable game is a worse
+       * failure than an unenforced return.
+       */
+      let startedFrom;
+      try {
+        startedFrom = await location?.current();
+      } catch {
+        startedFrom = undefined;
+      }
+      const { state } = await client.startGame(game.id, startedFrom ? { location: startedFrom } : {});
       onStarted?.(state);
     } catch (e) {
       setStartError(e instanceof ApiError ? e.message : 'Could not start the game.');
@@ -99,6 +118,9 @@ export function LobbyScreen({
         </Card>
       ))}
       {teams.length === 0 ? <Body muted>{t('lobby.waiting')}</Body> : null}
+
+      {/* Said before the button, because pressing it is what records the spot. */}
+      {isHost && game?.state === 'lobby' ? <Body muted>{t('host.gatherAtStart')}</Body> : null}
 
       {canStart ? (
         <Button onPress={start}>{starting ? t('game.starting') : t('game.start')}</Button>

@@ -12,6 +12,14 @@ import type { GameMode } from '@photochase/shared';
 const phase = vi.fn();
 vi.mock('./useGamePhase.js', () => ({ useGamePhase: (gameId: string) => phase(gameId) }));
 
+/**
+ * The roster decides whether a team is still shooting or heading back, which is
+ * now half of what the router dispatches on. Default: still shooting, so the
+ * existing expectations about Round 1 and Round 2 screens hold.
+ */
+const regroup = vi.fn();
+vi.mock('./useRegroup.js', () => ({ useRegroup: (gameId: string, active: boolean) => regroup(gameId, active) }));
+
 // Every screen the router can land on, stubbed to render its own name. The
 // unit under test is the choice of screen, not what the chosen screen renders.
 // The factories are written out rather than generated because `vi.mock` is
@@ -36,12 +44,35 @@ afterEach(cleanup);
 beforeEach(() => {
   phase.mockReset();
   onExit.mockReset();
+  regroup.mockReset();
+  setStatus('shooting');
 });
 
+/** Point the roster at a status for the caller's own team. */
+function setStatus(status: 'shooting' | 'heading_back' | 'ready', done = 0) {
+  regroup.mockReturnValue({
+    regroup: {
+      round: 1,
+      calledBack: false,
+      fenced: true,
+      roundStartedAt: 0,
+      roundEndsAt: 1,
+      teams: [{ teamId: 't1', name: 'Reds', status }],
+      readyCount: status === 'ready' ? 1 : 0,
+      teamCount: 1,
+      allReady: status === 'ready',
+      me: { teamId: 't1', status, done, goal: 5 },
+    },
+    error: null,
+    refresh: vi.fn(),
+  });
+}
+
 const capture = () => Promise.resolve({ file: new Blob(['x']), location: { lat: 0, lng: 0 } });
+const location = { current: () => Promise.resolve({ lat: 0, lng: 0 }), watch: () => () => {} };
 const onExit = vi.fn();
 
-function show(mode: GameMode, state: GameStateView['state'], teamId: string | null = 't1') {
+function show(mode: GameMode, state: GameStateView['state'], teamId: string | null = 't1', role?: string) {
   phase.mockReturnValue({
     game: {
       id: 'g1',
@@ -56,7 +87,12 @@ function show(mode: GameMode, state: GameStateView['state'], teamId: string | nu
     applyState: vi.fn(),
   });
   render(
-    <GameRouter joined={{ gameId: 'g1', code: 'ABC123', teamId, role: 'captain' }} capture={capture} onExit={onExit} />,
+    <GameRouter
+      joined={{ gameId: 'g1', code: 'ABC123', teamId, role: role ?? 'captain' }}
+      capture={capture}
+      location={location}
+      onExit={onExit}
+    />,
   );
 }
 
@@ -76,6 +112,45 @@ describe('GameRouter — photo chase', () => {
   it('checks in during a return phase', () => {
     show('photo_chase', 'round1_return');
     shown('ReturnScreen');
+  });
+
+  /**
+   * Finishing the quota used to leave a team on a disabled "All photos taken"
+   * button with nowhere to go. The round is still running here — other teams are
+   * out shooting — and this team is sent to regroup regardless.
+   */
+  it('sends a team that has finished its photos to regroup, mid-round', () => {
+    setStatus('heading_back', 5);
+    show('photo_chase', 'round1_active');
+    shown('ReturnScreen');
+  });
+
+  it('keeps a team that is still shooting on the capture screen', () => {
+    setStatus('shooting', 2);
+    show('photo_chase', 'round1_active');
+    shown('CaptureScreen');
+  });
+
+  it('sends a team that has finished its chases to regroup', () => {
+    setStatus('heading_back', 5);
+    show('photo_chase', 'round2_active');
+    shown('ReturnScreen');
+  });
+
+  /**
+   * A host who chose to judge or spectate has no team, so every `onTeam` branch
+   * skips them and they used to fall through to the lobby — leaving the Start
+   * Round 2 button, which only they can press, unreachable. That is the
+   * built-but-unrouted failure this codebase keeps repeating.
+   */
+  it('gives a host with no team the regroup console', () => {
+    show('photo_chase', 'round1_return', null, 'host');
+    shown('ReturnScreen');
+  });
+
+  it('still leaves a teamless non-host in the lobby', () => {
+    show('photo_chase', 'round1_return', null, 'judge');
+    shown('LobbyScreen');
   });
 });
 
@@ -151,7 +226,12 @@ describe('GameRouter — shared phases', () => {
   it('falls back to the lobby before the state has loaded', () => {
     phase.mockReturnValue({ game: null, error: null, applyState: vi.fn() });
     render(
-      <GameRouter joined={{ gameId: 'g1', code: 'ABC123', teamId: 't1', role: 'captain' }} capture={capture} onExit={onExit} />,
+      <GameRouter
+        joined={{ gameId: 'g1', code: 'ABC123', teamId: 't1', role: 'captain' }}
+        capture={capture}
+        location={location}
+        onExit={onExit}
+      />,
     );
     shown('LobbyScreen');
   });

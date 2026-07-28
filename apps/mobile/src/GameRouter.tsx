@@ -15,6 +15,8 @@ import { ResultsScreen } from './screens/ResultsScreen.js';
 import { ReturnScreen } from './screens/ReturnScreen.js';
 import { TagScreen } from './screens/TagScreen.js';
 import { useGamePhase } from './useGamePhase.js';
+import { useRegroup } from './useRegroup.js';
+import type { LocationSource } from './location.js';
 
 /**
  * Screen selection for a joined game, driven by the polled phase **and mode**.
@@ -28,19 +30,47 @@ import { useGamePhase } from './useGamePhase.js';
  * Phases the modes share stay shared: rating, finals and results are one screen
  * each, with the results breakdown relabelled per mode.
  */
+/** Phases where somebody might be walking back, so the roster is worth polling. */
+const REGROUP_STATES = new Set(['round1_active', 'round1_return', 'round2_active', 'round2_return']);
+
 export function GameRouter({
   joined,
   capture,
+  location,
   onExit,
 }: {
   joined: JoinedGame;
   capture: CaptureSource;
+  location: LocationSource;
   onExit: () => void;
 }) {
   const { game, error, applyState } = useGamePhase(joined.gameId);
   const onTeam = joined.teamId !== null;
   const isHost = joined.role === 'host';
   const mode: GameMode = game?.config.mode ?? 'photo_chase';
+  const { regroup, error: regroupError, refresh } = useRegroup(
+    joined.gameId,
+    game !== null && REGROUP_STATES.has(game.state),
+  );
+  /**
+   * Whether this team still owes work. Server-derived, so it survives a restart —
+   * `CaptureScreen`'s own count is local state and resets to zero on a force-quit.
+   */
+  const stillWorking = regroup?.me?.status === 'shooting';
+
+  /** The regroup screen, which both players and the host land on. */
+  const regrouping = (
+    <ReturnScreen
+      gameId={joined.gameId}
+      mode={mode}
+      isHost={isHost}
+      regroup={regroup}
+      error={regroupError}
+      location={location}
+      refresh={refresh}
+      onAdvanced={applyState}
+    />
+  );
 
   // Archived means somebody ended it. There is nothing left to show, and
   // sitting on a dead game is the trap this whole bar exists to avoid.
@@ -63,7 +93,14 @@ export function GameRouter({
   );
 
   const lobby = (
-    <LobbyScreen game={game} code={joined.code} isHost={isHost} error={error} onStarted={applyState} />
+    <LobbyScreen
+      game={game}
+      code={joined.code}
+      isHost={isHost}
+      error={error}
+      location={location}
+      onStarted={applyState}
+    />
   );
 
   if (!game) return framed(lobby);
@@ -114,35 +151,46 @@ export function GameRouter({
   }
 
   if (mode === 'scavenger_hunt') {
-    if (onTeam && game.state === 'round1_active') {
+    if (onTeam && game.state === 'round1_active' && stillWorking) {
       return framed(<HuntScreen gameId={joined.gameId} teamId={joined.teamId!} capture={capture} />);
     }
-    if (onTeam && game.state === 'round1_return') {
-      return framed(<ReturnScreen gameId={joined.gameId} round={1} capture={capture} />);
+    // The list is finished, or the host called time: head back.
+    if (onTeam && (game.state === 'round1_active' || game.state === 'round1_return')) {
+      return framed(regrouping);
     }
+    if (isHost && REGROUP_STATES.has(game.state)) return framed(regrouping);
     return framed(lobby);
   }
 
   // --- photo_chase -----------------------------------------------------------
 
-  if (onTeam && game.state === 'round1_active') {
+  if (onTeam && game.state === 'round1_active' && stillWorking) {
     return framed(
       <CaptureScreen
         gameId={joined.gameId}
         teamId={joined.teamId!}
         quota={game.config.photosPerRound}
         capture={capture}
+        taken={regroup?.me?.done}
       />,
     );
   }
-  if (onTeam && game.state === 'round2_active') {
+  if (onTeam && game.state === 'round2_active' && stillWorking) {
     return framed(<ChaseScreen gameId={joined.gameId} teamId={joined.teamId!} capture={capture} />);
   }
-  if (onTeam && (game.state === 'round1_return' || game.state === 'round2_return')) {
-    return framed(
-      <ReturnScreen gameId={joined.gameId} round={game.state === 'round1_return' ? 1 : 2} capture={capture} />,
-    );
-  }
+  /**
+   * Quota met, or the host called time: the regroup screen. This is also what
+   * removes `CaptureScreen`'s dead end — taking the last photo used to leave you
+   * on a disabled "All photos taken" button with nowhere to go, and the check-in
+   * button now appears exactly when the server would accept one.
+   */
+  if (onTeam && REGROUP_STATES.has(game.state)) return framed(regrouping);
+  /**
+   * A host with no team of their own. Without this they fall through to the lobby
+   * and the gate button they are the only person who can press is unreachable —
+   * built-but-unrouted, the failure this codebase keeps repeating.
+   */
+  if (isHost && REGROUP_STATES.has(game.state)) return framed(regrouping);
 
   return framed(lobby);
 }

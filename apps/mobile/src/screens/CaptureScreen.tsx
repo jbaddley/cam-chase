@@ -22,14 +22,23 @@ export function CaptureScreen({
   teamId,
   quota,
   capture,
+  taken: serverTaken = 0,
 }: {
   gameId: string;
   teamId: string;
   quota: number;
   capture: CaptureSource;
+  /**
+   * How many photos the server has for this team. The local count resets on a
+   * force-quit, which used to show 0/8 to a team that had taken six.
+   */
+  taken?: number;
 }) {
   useViewfinder();
-  const [taken, setTaken] = useState(0);
+  const [localTaken, setLocalTaken] = useState(0);
+  // The higher of the two: the server may lag a just-taken photo, and the local
+  // count may be a fresh launch that missed everything before it.
+  const taken = Math.max(serverTaken, localTaken);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,11 +51,8 @@ export function CaptureScreen({
     try {
       const { file, location } = await capture();
       await client.capturePhoto(gameId, { teamId, location, file });
-      setTaken((n) => n + 1);
+      setLocalTaken((n) => n + 1);
     } catch (e) {
-      // A `CaptureError` says something the player can act on — the camera is
-      // still warming up, or location is off — so it is shown rather than
-      // flattened into the generic retry text.
       // A `CaptureError` says something the player can act on — the camera is
       // still warming up, or location is off — so it is shown rather than
       // flattened into the generic retry text.
