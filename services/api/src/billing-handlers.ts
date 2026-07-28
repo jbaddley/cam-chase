@@ -34,17 +34,25 @@ export async function createGameForHost(
   raw: unknown,
   /** Resolves an optional league code; omitted when leagues are not in play. */
   tournamentRepo?: TournamentRepository,
-): Promise<Result<{ gameId: string; code: string }>> {
+): Promise<Result<{ gameId: string; code: string; teamId: string | null }>> {
   const parsed = z
     .object({
       hostUserId: z.string().min(1),
       config: GameConfigSchema,
       /** Play this game into a league. Any holder of the code may do so. */
       tournamentCode: z.string().min(1).max(16).optional(),
+      /** How the host takes part: their own team, judging, or watching. */
+      host: z
+        .discriminatedUnion('type', [
+          z.object({ type: z.literal('create_team'), name: z.string().max(40) }),
+          z.object({ type: z.literal('judge') }),
+          z.object({ type: z.literal('spectator') }),
+        ])
+        .optional(),
     })
     .safeParse(raw);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
-  const { hostUserId, config, tournamentCode } = parsed.data;
+  const { hostUserId, config, tournamentCode, host } = parsed.data;
 
   const entitlement = await entRepo.getOrCreate(hostUserId);
   const gate = canHostConfig(entitlement, config);
@@ -64,6 +72,7 @@ export async function createGameForHost(
     tier: entitlement.tier,
     config,
     ...(tournamentId ? { tournamentId } : {}),
+    ...(host !== undefined ? { host } : {}),
   });
 }
 

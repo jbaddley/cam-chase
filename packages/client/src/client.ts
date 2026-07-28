@@ -212,6 +212,15 @@ export interface SpectatorView {
 }
 
 /** The caller's monetization entitlement, for rendering paywalls and limits. */
+/**
+ * How the host takes part in the game they are creating. Mirrors the join
+ * action, minus `join_team`: there is nothing to join yet.
+ */
+export type HostParticipation =
+  | { type: 'create_team'; name: string }
+  | { type: 'judge' }
+  | { type: 'spectator' };
+
 export interface EntitlementView {
   tier: Tier;
   gameCredits: number;
@@ -258,8 +267,20 @@ export class PhotoChaseClient {
   // --- game lifecycle -------------------------------------------------------
 
   /** Create a game, optionally playing it into a league you hold the code for. */
-  createGame(config: GameConfig, tournamentCode?: string): Promise<{ gameId: string; code: string }> {
-    return request(this.config, 'POST', '/games', { config, ...(tournamentCode ? { tournamentCode } : {}) });
+  /**
+   * Create a game and join it in the same call, so a game never exists with its
+   * organiser outside it. Omit `host` only where the caller builds its own
+   * memberships, as the solo daily hunt does.
+   */
+  createGame(
+    config: GameConfig,
+    options: { tournamentCode?: string; host?: HostParticipation } = {},
+  ): Promise<{ gameId: string; code: string; teamId: string | null }> {
+    return request(this.config, 'POST', '/games', {
+      config,
+      ...(options.tournamentCode ? { tournamentCode: options.tournamentCode } : {}),
+      ...(options.host ? { host: options.host } : {}),
+    });
   }
 
   joinGame(input: JoinGameInput): Promise<{ gameId: string; teamId: string | null; role: string }> {

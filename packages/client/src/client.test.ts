@@ -337,9 +337,32 @@ describe('PhotoChaseClient', () => {
 
   it('createGame carries a league code when playing into one', async () => {
     const { config, calls } = recorder({ gameId: 'g1', code: 'ABC123' });
-    await new PhotoChaseClient(config).createGame(DEFAULT_CONFIG, 'LEAG01');
+    await new PhotoChaseClient(config).createGame(DEFAULT_CONFIG, { tournamentCode: 'LEAG01' });
 
     expect(JSON.parse(calls[0]!.init!.body as string).tournamentCode).toBe('LEAG01');
+  });
+
+  it('createGame puts the host on a team when they name one', async () => {
+    const { config, calls } = recorder({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
+    await new PhotoChaseClient(config).createGame(DEFAULT_CONFIG, {
+      host: { type: 'create_team', name: 'Reds' },
+    });
+
+    expect(JSON.parse(calls[0]!.init!.body as string).host).toEqual({ type: 'create_team', name: 'Reds' });
+  });
+
+  it('createGame carries a judging host, who joins with no team', async () => {
+    const { config, calls } = recorder({ gameId: 'g1', code: 'ABC123', teamId: null });
+    await new PhotoChaseClient(config).createGame(DEFAULT_CONFIG, { host: { type: 'judge' } });
+
+    expect(JSON.parse(calls[0]!.init!.body as string).host).toEqual({ type: 'judge' });
+  });
+
+  it('createGame omits the host entirely when the caller builds its own teams', async () => {
+    const { config, calls } = recorder({ gameId: 'g1', code: 'ABC123', teamId: null });
+    await new PhotoChaseClient(config).createGame(DEFAULT_CONFIG);
+
+    expect(JSON.parse(calls[0]!.init!.body as string)).not.toHaveProperty('host');
   });
 
   it('createTournament POSTs the league name', async () => {

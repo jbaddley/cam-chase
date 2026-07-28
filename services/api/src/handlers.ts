@@ -67,22 +67,47 @@ function seedFromCode(code: string): number {
 
 // --- createGame -------------------------------------------------------------
 
+/**
+ * A team name that is actually a name. `.min(1)` alone accepts "   ", which
+ * reaches the lobby as a blank row nobody can identify.
+ */
+const TEAM_NAME = z.string().max(40).transform((v) => v.trim()).pipe(z.string().min(1));
+
 const CreateGameInput = z.object({
   hostUserId: z.string().min(1),
   tier: z.enum(['free', 'game_pack', 'unlimited']),
   config: GameConfigSchema,
   /** The league this game counts toward, already resolved from its code. */
   tournamentId: z.string().min(1).optional(),
+  /**
+   * How the host takes part. Hosting is not spectating by default: whoever sets
+   * a game up is usually playing in it, and without this they were left
+   * watching a game they had organised, unable to shoot anything. But somebody
+   * running a game for a room full of other people is a real case too, so the
+   * choice is theirs.
+   *
+   * Deliberately the same shape as `JoinInput.action`, minus `join_team` —
+   * there is nothing to join yet when the game is being created.
+   *
+   * Optional: the solo daily hunt calls this directly and builds its own teams.
+   */
+  host: z
+    .discriminatedUnion('type', [
+      z.object({ type: z.literal('create_team'), name: TEAM_NAME }),
+      z.object({ type: z.literal('judge') }),
+      z.object({ type: z.literal('spectator') }),
+    ])
+    .optional(),
 });
 
 export async function createGame(
   repo: GameRepository,
   raw: unknown,
   now = Date.now,
-): Promise<Result<{ gameId: string; code: string }>> {
+): Promise<Result<{ gameId: string; code: string; teamId: string | null }>> {
   const parsed = CreateGameInput.safeParse(raw);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
-  const { hostUserId, tier, config, tournamentId } = parsed.data;
+  const { hostUserId, tier, config, tournamentId, host } = parsed.data;
 
   const gate = validateConfigForTier(config, tier as Tier);
   if (!gate.ok) return err(gate.errors.join(' '));
@@ -119,9 +144,31 @@ export async function createGame(
       : { items };
   }
 
+  // The host's own membership, created with the game rather than by a follow-up
+  // join, so there is no window in which a game exists with its organiser
+  // outside it.
+  let hostTeamId: string | null = null;
+  if (host !== undefined) {
+    if (host.type === 'create_team') {
+      hostTeamId = newId('team');
+      game.teams.push({ id: hostTeamId, gameId: game.id, name: host.name, createdAt: now() });
+    }
+    game.memberships.push({
+      id: newId('mem'),
+      gameId: game.id,
+      userId: hostUserId,
+      teamId: hostTeamId,
+      // Captain of their own team when playing. Running the game is tracked
+      // separately by `hostUserId`, and that is what grants the power to start
+      // it — a judge or spectator host keeps every host power.
+      role: host.type === 'create_team' ? 'captain' : host.type,
+      returnCheckins: {},
+    });
+  }
+
   const opened = applyTransition(game, { type: 'OPEN_LOBBY' });
   await repo.save(opened);
-  return ok({ gameId: opened.id, code: opened.code });
+  return ok({ gameId: opened.id, code: opened.code, teamId: hostTeamId });
 }
 
 // --- joinByCode -------------------------------------------------------------
@@ -131,7 +178,7 @@ const JoinInput = z.object({
   userId: z.string().min(1),
   displayName: z.string().min(1),
   action: z.discriminatedUnion('type', [
-    z.object({ type: z.literal('create_team'), name: z.string().min(1).max(40) }),
+    z.object({ type: z.literal('create_team'), name: TEAM_NAME }),
     z.object({ type: z.literal('join_team'), teamId: z.string().min(1) }),
     z.object({ type: z.literal('judge') }),
     z.object({ type: z.literal('spectator') }),

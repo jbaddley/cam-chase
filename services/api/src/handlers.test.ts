@@ -675,4 +675,87 @@ describe('getGameState', () => {
     const result = await getGameState(repo, 'nope');
     expect(result.ok).toBe(false);
   });
+
+  describe('the host joins their own game', () => {
+    it('puts a playing host on the team they named', async () => {
+      const repo = new InMemoryGameRepository();
+      const created = await createGame(repo, {
+        hostUserId: 'u-host',
+        tier: 'free',
+        config: FREE_CONFIG,
+        host: { type: 'create_team', name: 'Reds' },
+      });
+      expect(created.ok).toBe(true);
+      const teamId = (created as { data: { teamId: string | null } }).data.teamId;
+      expect(teamId).not.toBeNull();
+
+      const game = (await repo.get((created as { data: { gameId: string } }).data.gameId))!;
+      expect(game.teams.map((t) => t.name)).toEqual(['Reds']);
+      const membership = game.memberships.find((m) => m.userId === 'u-host')!;
+      expect(membership.teamId).toBe(teamId);
+      // Captain of their team, and still the host of the game.
+      expect(membership.role).toBe('captain');
+      expect(game.hostUserId).toBe('u-host');
+    });
+
+    it('joins a judging host with no team at all', async () => {
+      const repo = new InMemoryGameRepository();
+      const created = await createGame(repo, {
+        hostUserId: 'u-host',
+        tier: 'free',
+        config: FREE_CONFIG,
+        host: { type: 'judge' },
+      });
+      const game = (await repo.get((created as { data: { gameId: string } }).data.gameId))!;
+      expect(game.teams).toEqual([]);
+      expect(game.memberships[0]).toMatchObject({ userId: 'u-host', teamId: null, role: 'judge' });
+      expect((created as { data: { teamId: string | null } }).data.teamId).toBeNull();
+    });
+
+    it('refuses a team name that is only whitespace', async () => {
+      // `.min(1)` alone accepts "   ", which reaches the lobby as a blank row
+      // nobody can identify.
+      const repo = new InMemoryGameRepository();
+      const created = await createGame(repo, {
+        hostUserId: 'u-host',
+        tier: 'free',
+        config: FREE_CONFIG,
+        host: { type: 'create_team', name: '   ' },
+      });
+      expect(created.ok).toBe(false);
+    });
+
+    it('leaves the game empty when no participation is given', async () => {
+      // The solo daily hunt builds its own teams and must not be given one.
+      const repo = new InMemoryGameRepository();
+      const created = await createGame(repo, { hostUserId: 'u-host', tier: 'free', config: FREE_CONFIG });
+      const game = (await repo.get((created as { data: { gameId: string } }).data.gameId))!;
+      expect(game.memberships).toEqual([]);
+      expect(game.teams).toEqual([]);
+    });
+
+    it('lets another player join the host’s game as a second team', async () => {
+      // The pair that makes a real game: host creates and plays, guest joins.
+      const repo = new InMemoryGameRepository();
+      const created = await createGame(repo, {
+        hostUserId: 'u-host',
+        tier: 'free',
+        config: FREE_CONFIG,
+        host: { type: 'create_team', name: 'Reds' },
+      });
+      const { gameId, code } = (created as { data: { gameId: string; code: string } }).data;
+
+      const joined = await joinByCode(repo, {
+        code,
+        userId: 'u-guest',
+        displayName: 'Ada',
+        action: { type: 'create_team', name: 'Blues' },
+      });
+      expect(joined.ok).toBe(true);
+
+      const game = (await repo.get(gameId))!;
+      expect(game.teams.map((t) => t.name)).toEqual(['Reds', 'Blues']);
+      expect(game.memberships).toHaveLength(2);
+    });
+  });
 });

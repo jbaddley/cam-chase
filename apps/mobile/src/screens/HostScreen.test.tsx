@@ -5,7 +5,12 @@ import type { EntitlementView } from '@photochase/client';
 const getEntitlement = vi.fn();
 const createGame = vi.fn();
 
-vi.mock('../api.js', () => ({ client: { getEntitlement: () => getEntitlement(), createGame: (c: unknown) => createGame(c) } }));
+vi.mock('../api.js', () => ({
+  client: {
+    getEntitlement: () => getEntitlement(),
+    createGame: (config: unknown, options: unknown) => createGame(config, options),
+  },
+}));
 
 const { HostScreen } = await import('./HostScreen.js');
 
@@ -42,6 +47,15 @@ function entitlement(
   } as unknown as EntitlementView;
 }
 
+/**
+ * Name the host's team, which every playing host must do before the game can
+ * be created. Most tests are about settings rather than the host, so they call
+ * this to get past the gate.
+ */
+function nameTeam(name = 'Reds') {
+  fireEvent.change(screen.getByPlaceholderText('Team name'), { target: { value: name } });
+}
+
 /** A top-level action button (Create game, Back). */
 const action = (label: string) => screen.getByRole('button', { name: label });
 
@@ -64,25 +78,28 @@ describe('HostScreen', () => {
 
   it('creates a game with the default config', async () => {
     getEntitlement.mockResolvedValue(entitlement({}));
-    createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+    createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
     const onHosting = vi.fn();
     render(<HostScreen onHosting={onHosting} onCancel={vi.fn()} />);
 
     await screen.findByText(/free/);
+    nameTeam();
     fireEvent.click(action('Create game'));
 
     await waitFor(() => expect(onHosting).toHaveBeenCalled());
-    // The host is not on a team; the lobby needs that to show host controls.
-    expect(onHosting.mock.calls[0]![0]).toMatchObject({ gameId: 'g1', code: 'ABC123', teamId: null, role: 'host' });
+    // The host joins their own game: hosting is not spectating by default.
+    expect(onHosting.mock.calls[0]![0]).toMatchObject({ gameId: 'g1', code: 'ABC123', teamId: 't1', role: 'host' });
+    expect(createGame.mock.calls[0]![1]).toEqual({ host: { type: 'create_team', name: 'Reds' } });
   });
 
   it('ignores a team count the plan does not allow', async () => {
     getEntitlement.mockResolvedValue(entitlement({ maxTeams: 2 }));
-    createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+    createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
     render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
     await screen.findByText(/free/);
     fireEvent.click(option('Teams', '6')); // beyond the free cap
+    nameTeam();
     fireEvent.click(action('Create game'));
 
     await waitFor(() => expect(createGame).toHaveBeenCalled());
@@ -91,11 +108,12 @@ describe('HostScreen', () => {
 
   it('applies a team count the plan does allow', async () => {
     getEntitlement.mockResolvedValue(entitlement({ maxTeams: 6 }, 'game_pack'));
-    createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+    createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
     render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
     await screen.findByText(/game_pack/);
     fireEvent.click(option('Teams', '6'));
+    nameTeam();
     fireEvent.click(action('Create game'));
 
     await waitFor(() => expect(createGame).toHaveBeenCalled());
@@ -104,11 +122,12 @@ describe('HostScreen', () => {
 
   it('ignores round settings when the plan locks them', async () => {
     getEntitlement.mockResolvedValue(entitlement({ configurableRounds: false }));
-    createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+    createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
     render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
     await screen.findByText(/free/);
     fireEvent.click(option('Photos per round', '20')); // locked on free
+    nameTeam();
     fireEvent.click(action('Create game'));
 
     await waitFor(() => expect(createGame).toHaveBeenCalled());
@@ -117,11 +136,12 @@ describe('HostScreen', () => {
 
   it('ignores a game type outside the plan', async () => {
     getEntitlement.mockResolvedValue(entitlement({ allowedGameTypes: ['round_robin'] }));
-    createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+    createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
     render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
     await screen.findByText(/free/);
     fireEvent.click(option('Game type', 'decoy'));
+    nameTeam();
     fireEvent.click(action('Create game'));
 
     await waitFor(() => expect(createGame).toHaveBeenCalled());
@@ -131,10 +151,11 @@ describe('HostScreen', () => {
   it('clamps a config that starts above the plan cap', async () => {
     // The default config allows more teams than a hypothetical 2-team plan.
     getEntitlement.mockResolvedValue(entitlement({ maxTeams: 2 }));
-    createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+    createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
     render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
     await screen.findByText(/free/);
+    nameTeam();
     fireEvent.click(action('Create game'));
 
     await waitFor(() => expect(createGame).toHaveBeenCalled());
@@ -148,6 +169,7 @@ describe('HostScreen', () => {
     render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
     await screen.findByText(/free/);
+    nameTeam();
     fireEvent.click(action('Create game'));
 
     expect(await screen.findByText('Free tier allows at most 2 teams.')).toBeTruthy();
@@ -165,11 +187,12 @@ describe('HostScreen', () => {
   describe('game mode', () => {
     it('defaults to the photo chase', async () => {
       getEntitlement.mockResolvedValue(entitlement({}));
-      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
       render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
       await screen.findByText(/free/);
-      fireEvent.click(action('Create game'));
+      nameTeam();
+    fireEvent.click(action('Create game'));
 
       await waitFor(() => expect(createGame).toHaveBeenCalled());
       expect(createGame.mock.calls[0]![0]).toMatchObject({ mode: 'photo_chase' });
@@ -177,12 +200,13 @@ describe('HostScreen', () => {
 
     it('ignores a mode the entitlement does not include', async () => {
       getEntitlement.mockResolvedValue(entitlement({}, 'free', ['photo_chase']));
-      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
       render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
       await screen.findByText(/free/);
       fireEvent.click(option('Game', 'Scavenger hunt'));
-      fireEvent.click(action('Create game'));
+      nameTeam();
+    fireEvent.click(action('Create game'));
 
       await waitFor(() => expect(createGame).toHaveBeenCalled());
       expect(createGame.mock.calls[0]![0]).toMatchObject({ mode: 'photo_chase' });
@@ -191,12 +215,13 @@ describe('HostScreen', () => {
     it('applies a mode earned outside the tier', async () => {
       // Referral unlocks are additive, so a free user can hold a paid mode.
       getEntitlement.mockResolvedValue(entitlement({}, 'free', ['photo_chase', 'scavenger_hunt']));
-      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
       render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
       await screen.findByText(/free/);
       fireEvent.click(option('Game', 'Scavenger hunt'));
-      fireEvent.click(action('Create game'));
+      nameTeam();
+    fireEvent.click(action('Create game'));
 
       await waitFor(() => expect(createGame).toHaveBeenCalled());
       expect(createGame.mock.calls[0]![0]).toMatchObject({ mode: 'scavenger_hunt' });
@@ -240,13 +265,14 @@ describe('HostScreen', () => {
 
     it('sends the chosen guess level', async () => {
       getEntitlement.mockResolvedValue(entitlement({}, 'unlimited', ['photo_chase', 'color_hunt']));
-      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
       render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
       await screen.findByText(/unlimited/);
       fireEvent.click(option('Game', 'Colour hunt'));
       fireEvent.click(option('Guess level', 'Colour + one more'));
-      fireEvent.click(action('Create game'));
+      nameTeam();
+    fireEvent.click(action('Create game'));
 
       await waitFor(() => expect(createGame).toHaveBeenCalled());
       expect(createGame.mock.calls[0]![0]).toMatchObject({ mode: 'color_hunt', colorSpecificity: 'color_plus' });
@@ -254,16 +280,99 @@ describe('HostScreen', () => {
 
     it('sends the chosen hunt theme', async () => {
       getEntitlement.mockResolvedValue(entitlement({}, 'unlimited', ['photo_chase', 'scavenger_hunt']));
-      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123' });
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
       render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
       await screen.findByText(/unlimited/);
       fireEvent.click(option('Game', 'Scavenger hunt'));
       fireEvent.click(option('Hunt theme', 'City'));
-      fireEvent.click(action('Create game'));
+      nameTeam();
+    fireEvent.click(action('Create game'));
 
       await waitFor(() => expect(createGame).toHaveBeenCalled());
       expect(createGame.mock.calls[0]![0]).toMatchObject({ mode: 'scavenger_hunt', huntTheme: 'city' });
+    });
+  });
+
+  describe('how the host takes part', () => {
+    it('will not create a playing game until the team is named', async () => {
+      // The whole bug this replaced: a host who was never asked ended up
+      // watching a game they had organised, unable to shoot anything.
+      getEntitlement.mockResolvedValue(entitlement({}));
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/free/);
+      fireEvent.click(action('Create game'));
+
+      expect(createGame).not.toHaveBeenCalled();
+    });
+
+    it('rejects a name that is only spaces', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}));
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/free/);
+      nameTeam('   ');
+      fireEvent.click(action('Create game'));
+
+      expect(createGame).not.toHaveBeenCalled();
+    });
+
+    it('sends the trimmed team name', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}));
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/free/);
+      nameTeam('  Reds  ');
+      fireEvent.click(action('Create game'));
+
+      await waitFor(() => expect(createGame).toHaveBeenCalled());
+      expect(createGame.mock.calls[0]![1]).toEqual({ host: { type: 'create_team', name: 'Reds' } });
+    });
+
+    it('lets the host judge instead, with no team to name', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}));
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: null });
+      const onHosting = vi.fn();
+      render(<HostScreen onHosting={onHosting} onCancel={vi.fn()} />);
+
+      await screen.findByText(/free/);
+      fireEvent.click(option('You are', 'Judging'));
+      // The name field is gone, and its absence must not block creation.
+      expect(screen.queryByPlaceholderText('Team name')).toBeNull();
+      fireEvent.click(action('Create game'));
+
+      await waitFor(() => expect(createGame).toHaveBeenCalled());
+      expect(createGame.mock.calls[0]![1]).toEqual({ host: { type: 'judge' } });
+      // Still the host: judging does not cost them the start button.
+      expect(onHosting.mock.calls[0]![0]).toMatchObject({ teamId: null, role: 'host' });
+    });
+
+    it('lets the host merely watch', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}));
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: null });
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/free/);
+      fireEvent.click(option('You are', 'Watching'));
+      fireEvent.click(action('Create game'));
+
+      await waitFor(() => expect(createGame).toHaveBeenCalled());
+      expect(createGame.mock.calls[0]![1]).toEqual({ host: { type: 'spectator' } });
+    });
+
+    it('asks for the team again when the host switches back to playing', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}));
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/free/);
+      fireEvent.click(option('You are', 'Judging'));
+      fireEvent.click(option('You are', 'Playing'));
+
+      expect(screen.getByPlaceholderText('Team name')).toBeTruthy();
+      fireEvent.click(action('Create game'));
+      expect(createGame).not.toHaveBeenCalled();
     });
   });
 });

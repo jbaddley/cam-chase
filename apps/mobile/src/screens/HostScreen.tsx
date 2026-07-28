@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ApiError, type EntitlementView } from '@photochase/client';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ApiError, type EntitlementView, type HostParticipation } from '@photochase/client';
 import {
   COLOR_SPECIFICITIES,
   FREE_CONFIG,
@@ -62,6 +62,14 @@ const THEME_KEY: Record<HuntTheme, MessageKey> = {
  * see what upgrading would buy them. The server re-checks the config against
  * the entitlement regardless, so this is a UX affordance, not the gate.
  */
+const HOST_ROLES = ['create_team', 'judge', 'spectator'] as const;
+
+const HOST_ROLE_KEY: Record<HostParticipation['type'], MessageKey> = {
+  create_team: 'config.hostPlaying',
+  judge: 'config.hostJudging',
+  spectator: 'config.hostWatching',
+};
+
 export function HostScreen({
   onHosting,
   onCancel,
@@ -73,6 +81,9 @@ export function HostScreen({
 }) {
   const [entitlement, setEntitlement] = useState<EntitlementView | null>(null);
   const [config, setConfig] = useState<GameConfig>(FREE_CONFIG);
+  // Playing by default: hosting a game you are not in is the exception.
+  const [hostRole, setHostRole] = useState<HostParticipation['type']>('create_team');
+  const [hostTeamName, setHostTeamName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,13 +120,24 @@ export function HostScreen({
     judgeWeight: (n: number) => !limits || n <= limits.maxJudgeWeight,
   };
 
+  const playing = hostRole === 'create_team';
+  // Only a playing host needs a name; a judge has nothing to call themselves.
+  const ready = !playing || hostTeamName.trim() !== '';
+
   async function create(): Promise<void> {
-    if (busy) return;
+    // The server rejects a blank team name anyway; stopping here means the host
+    // is told what is missing instead of shown an error from an API call.
+    if (busy || !ready) return;
     setBusy(true);
     setError(null);
     try {
-      const { gameId, code } = await client.createGame(config);
-      onHosting({ gameId, code, teamId: null, role: 'host' });
+      const host: HostParticipation = playing
+        ? { type: 'create_team', name: hostTeamName.trim() }
+        : { type: hostRole };
+      const { gameId, code, teamId } = await client.createGame(config, { host });
+      // `role` stays 'host' whatever the membership says: it is what gates the
+      // start button, and a judging host still runs the game.
+      onHosting({ gameId, code, teamId, role: 'host' });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('config.failed'));
     } finally {
@@ -169,6 +191,30 @@ export function HostScreen({
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <ScrollView>
+        {/* First, because it is about the person rather than the game, and
+            because a host who is never asked ends up stuck in the lobby. */}
+        <Choices
+          label={t('config.hostRole')}
+          options={HOST_ROLES}
+          value={hostRole}
+          allowed={() => true}
+          onPick={setHostRole}
+          format={(role) => t(HOST_ROLE_KEY[role])}
+        />
+        {playing ? (
+          <View style={styles.field}>
+            <Text style={styles.label}>{t('config.hostTeam')}</Text>
+            <TextInput
+              value={hostTeamName}
+              onChangeText={setHostTeamName}
+              placeholder={t('join.teamName')}
+              maxLength={40}
+              style={styles.input}
+            />
+          </View>
+        ) : (
+          <Text style={styles.hint}>{t('config.hostRoleHint')}</Text>
+        )}
         <Choices
           label={t('config.mode')}
           options={MODES}
@@ -253,7 +299,7 @@ export function HostScreen({
         {limits && !limits.configurableRounds ? <Text style={styles.mutedText}>{t('config.locked')}</Text> : null}
       </ScrollView>
 
-      <Pressable onPress={create} style={styles.button}>
+      <Pressable onPress={create} style={ready ? styles.button : styles.buttonDisabled}>
         <Text>{busy ? t('config.creating') : t('config.create')}</Text>
       </Pressable>
       {onViewPlan ? (
@@ -280,6 +326,9 @@ const styles = StyleSheet.create({
   optionPicked: { backgroundColor: '#ffd43b', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8 },
   optionLocked: { backgroundColor: '#f8f9fa', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8, opacity: 0.5 },
   mutedText: { color: '#adb5bd' },
+  input: { borderColor: '#ced4da', borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16 },
+  hint: { color: '#868e96', fontSize: 13 },
   button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
+  buttonDisabled: { backgroundColor: '#f1f3f5', padding: 16, borderRadius: 12, alignItems: 'center' },
   secondary: { padding: 16, borderRadius: 12, alignItems: 'center' },
 });
