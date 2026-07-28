@@ -4,10 +4,12 @@ import type { AssignmentView } from '@photochase/client';
 
 const listAssignments = vi.fn();
 const captureChase = vi.fn();
+const requestDownload = vi.fn();
 vi.mock('../api.js', () => ({
   client: {
     listAssignments: (id: string) => listAssignments(id),
     captureChase: (id: string, input: unknown) => captureChase(id, input),
+    requestDownload: (id: string, photoId: string, opts?: unknown) => requestDownload(id, photoId, opts),
   },
 }));
 
@@ -17,7 +19,15 @@ afterEach(() => {
   cleanup();
   listAssignments.mockReset();
   captureChase.mockReset();
+  requestDownload.mockReset();
+  // Every test shows an original, so the default is a URL rather than a
+  // rejection — a test about the image says so by overriding this.
+  requestDownload.mockResolvedValue({ url: 'https://signed.example/photo.jpg' });
 });
+
+// The screen fetches a signed URL on mount, so the default must be in place
+// before the first render in every test, not only after the first afterEach.
+requestDownload.mockResolvedValue({ url: 'https://signed.example/photo.jpg' });
 
 const capture = () => Promise.resolve({ file: new Blob(['x']), location: { lat: 1, lng: 2 } });
 

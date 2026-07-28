@@ -59,6 +59,36 @@ export const ScrollView: ComponentType<
 export const Text: ComponentType<Styled> = ({ children }) => createElement('span', {}, children);
 
 /**
+ * An `img` carrying the source uri, and nothing else that matters.
+ *
+ * `resizeMode`, `opacity` and every other question about how the image *looks*
+ * are dropped, because this shim does not model style. Two onion-skin overlays
+ * at 25% and 75% are the same DOM here — which is why the chase viewer states
+ * the level in words the player can read, and its test asserts those words
+ * rather than an opacity it cannot see. Do not add an opacity attribute to make
+ * that testable: that is the shim modelling style, which is the line this file
+ * exists not to cross.
+ *
+ * `onLoad` is never called — jsdom does not fetch, decode, or lay out anything.
+ * A component that waits for it waits forever, so the screens must render the
+ * image immediately and treat `onError` as the only signal worth handling.
+ */
+export const Image: ComponentType<{
+  source?: { uri?: string } | number;
+  style?: unknown;
+  resizeMode?: string;
+  testID?: string;
+  pointerEvents?: string;
+  onError?: () => void;
+  onLoad?: () => void;
+}> = ({ source, testID }) =>
+  createElement('img', {
+    src: typeof source === 'object' && source !== null ? source.uri : undefined,
+    ...(testID ? { 'data-testid': testID } : {}),
+    alt: '',
+  });
+
+/**
  * Keyboard handling has no meaning in jsdom, so this renders its children and
  * nothing else. What the real one does — lifting the pinned action clear of the
  * keyboard — is a layout behaviour, and layout is out of scope here (see the
@@ -151,4 +181,11 @@ export const StyleSheet = {
   create<T extends Record<string, unknown>>(styles: T): T {
     return styles;
   },
+  /**
+   * The real constant, not a stand-in — it is a plain style object in RN too.
+   * Present because the camera preview and the onion-skin overlay are both
+   * absolutely positioned over the whole frame; the value is inert here, since
+   * styles are dropped, but the property has to exist for the import to work.
+   */
+  absoluteFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 } as const,
 };
