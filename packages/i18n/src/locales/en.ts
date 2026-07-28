@@ -197,6 +197,23 @@ export const en = {
   'daily.failed': 'Could not start today\'s hunt.',
   'score.guessedRight': 'Guessed right',
   'score.bluffBonus': 'Bluff bonus',
+  'chase.title': 'Round 2',
+  'chase.progress': '{chased} / {total} chased',
+  'chase.recreate': 'Recreate photo #{number}',
+  'chase.allDone': 'All chases submitted!',
+  'chase.take': 'Take chase photo',
+  'chase.saving': 'Saving…',
+  'chase.done': 'Done',
+  'chase.failed': 'Could not save that chase. Try again.',
+  'chase.loading': 'Loading your assignments…',
+  'chase.loadFailed': 'Could not load your assignments.',
+  'chase.original': 'Original',
+  'chase.hide': 'Hide',
+  'chase.overlay': 'Overlay',
+  'chase.sideBySide': 'Side by side',
+  'chase.overlayAt': 'Original at {percent}%',
+  'chase.fullFrame': 'Your photo still captures the whole frame.',
+  'chase.originalUnavailable': 'Could not load the original.',
 } as const;
 
 export type MessageKey = keyof typeof en;

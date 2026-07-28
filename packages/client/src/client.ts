@@ -520,8 +520,19 @@ export class PhotoChaseClient {
     return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/uploads`, { teamId });
   }
 
-  requestDownload(gameId: string, photoId: string): Promise<{ url: string }> {
-    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/downloads`, { photoId });
+  /**
+   * A short-lived signed URL for a photo. `variant: 'thumb'` asks for the 1024px
+   * derivative; fall back to the original if it 403s, since the thumbnail is
+   * written asynchronously and a photo taken seconds ago may not have one yet.
+   *
+   * The URL expires in five minutes — shorter than a round — so callers that
+   * keep an image on screen have to re-request rather than hold one forever.
+   */
+  requestDownload(gameId: string, photoId: string, opts: { variant?: 'thumb' } = {}): Promise<{ url: string }> {
+    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/downloads`, {
+      photoId,
+      ...(opts.variant ? { variant: opts.variant } : {}),
+    });
   }
 
   /**

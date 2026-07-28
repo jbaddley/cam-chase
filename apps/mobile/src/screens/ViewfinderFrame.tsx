@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { radius, space } from '../theme.js';
+import { ViewfinderLayoutContext } from '../viewfinder.js';
 
 /**
  * The frame for a screen you shoot from: controls over a live viewfinder.
@@ -31,31 +32,49 @@ import { radius, space } from '../theme.js';
 export function ViewfinderFrame({
   children,
   action,
+  backdrop,
   landscape,
 }: {
   children: ReactNode;
   action?: ReactNode;
+  /**
+   * Full-bleed content behind the controls, between them and the camera — the
+   * onion-skinned original, in practice. It lives here rather than as a sibling
+   * of the frame so it is inside the layout provider: a backdrop that has to
+   * arrange itself sideways can read the same decision the frame made, instead
+   * of measuring the window a second time and disagreeing.
+   */
+  backdrop?: ReactNode;
   /** Defaults to the real window; passed explicitly by tests. */
   landscape?: boolean;
 }) {
   const { width, height } = useWindowDimensions();
   const wide = landscape ?? width > height;
+  // Stable so a child reading the layout does not re-render on every frame.
+  const layout = useMemo(() => ({ landscape: wide }), [wide]);
 
   return (
-    <View
-      testID={wide ? 'viewfinder-frame-landscape' : 'viewfinder-frame'}
-      style={[styles.frame, wide && styles.frameLandscape]}
-    >
-      <View style={[styles.info, wide && styles.infoLandscape]}>{children}</View>
-      {action ? (
-        <View
-          testID={wide ? 'viewfinder-action-rail' : 'viewfinder-action-bar'}
-          style={[styles.action, wide && styles.actionLandscape]}
-        >
-          {action}
+    <ViewfinderLayoutContext.Provider value={layout}>
+      {backdrop ? (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {backdrop}
         </View>
       ) : null}
-    </View>
+      <View
+        testID={wide ? 'viewfinder-frame-landscape' : 'viewfinder-frame'}
+        style={[styles.frame, wide && styles.frameLandscape]}
+      >
+        <View style={[styles.info, wide && styles.infoLandscape]}>{children}</View>
+        {action ? (
+          <View
+            testID={wide ? 'viewfinder-action-rail' : 'viewfinder-action-bar'}
+            style={[styles.action, wide && styles.actionLandscape]}
+          >
+            {action}
+          </View>
+        ) : null}
+      </View>
+    </ViewfinderLayoutContext.Provider>
   );
 }
 

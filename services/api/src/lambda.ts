@@ -188,7 +188,14 @@ const ROUTES: Route[] = [
     requestPhotoUpload(container.games, container.media, { gameId: params.id!, teamId: str(body.teamId), userId: auth.userId }),
   ),
   compile('POST', '/games/:id/downloads', ({ container, params, body, auth }) =>
-    requestPhotoDownload(container.games, container.media, { gameId: params.id!, photoId: str(body.photoId), userId: auth.userId }),
+    requestPhotoDownload(container.games, container.media, {
+      gameId: params.id!,
+      photoId: str(body.photoId),
+      userId: auth.userId,
+      // Only the one variant is signable, so anything else falls through to the
+      // original rather than being trusted into a key.
+      ...(body.variant === 'thumb' ? { variant: 'thumb' as const } : {}),
+    }),
   ),
   compile('POST', '/tournaments', ({ container, body, auth }) =>
     createTournament(container.tournaments, container.entitlements, { ...body, ownerUserId: auth.userId }),

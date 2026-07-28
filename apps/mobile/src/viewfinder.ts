@@ -30,3 +30,21 @@ export function useViewfinder(active = true): void {
     return () => setActive(false);
   }, [setActive, active]);
 }
+
+/**
+ * Whether the frame arranged itself sideways.
+ *
+ * `ViewfinderFrame` already decides this — `landscape ?? width > height` — and
+ * then dropped it, so a child that needs the answer had no way to ask. Side by
+ * side is the case in point: it is only an arrangement worth offering when the
+ * phone is turned, and the screen offering it sits inside the frame that knows.
+ *
+ * A context rather than a prop for the same reason the viewfinder setter is one:
+ * whoever needs it reads it, without every layer in between threading it
+ * through. The default is portrait so the hook is safe outside a frame.
+ */
+export const ViewfinderLayoutContext = createContext<{ landscape: boolean }>({ landscape: false });
+
+export function useViewfinderLayout(): { landscape: boolean } {
+  return useContext(ViewfinderLayoutContext);
+}
