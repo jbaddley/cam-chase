@@ -18,12 +18,22 @@
     "android": {
       "package": "app.photochase.client",
       "edgeToEdgeEnabled": true,
-      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "plugins": [
       [
         "expo-camera",
-        { "cameraPermission": "PhotoChase uses the camera to take the photos the game is played with." }
+        {
+          "cameraPermission": "PhotoChase uses the camera to take the photos the game is played with."
+        }
       ],
       [
         "expo-location",
@@ -31,6 +41,12 @@
           "locationAlwaysAndWhenInUsePermission": "PhotoChase records where a photo was taken so the game can score how close a recreation is. Location is only read during a round."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "096cf504-a65a-41e1-83e8-d9b375da7b44"
+      }
+    },
+    "owner": "jbaddley"
   }
 }
