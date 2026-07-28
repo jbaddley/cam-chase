@@ -48,6 +48,55 @@ describe('lambda route (authenticated)', () => {
     expect(started.data.state).toBe('round1_active');
   });
 
+  // The route hand-picks fields out of the body, and `host` is optional in the
+  // schema — so dropping it fails silently rather than erroring. That is exactly
+  // how a playing host ended up in a lobby with no team to shoot for.
+  it('carries a playing host’s team through the route into the roster', async () => {
+    const created = await call(
+      container,
+      'POST',
+      '/games',
+      { config: FREE_CONFIG, host: { type: 'create_team', name: 'Hosts' } },
+      'host',
+    );
+    expect(created.status).toBe(200);
+    // Asked to play, so they own a team from the moment the game exists.
+    expect(created.data.teamId).not.toBeNull();
+
+    const teams = (await call(container, 'GET', `/games/${created.data.gameId}/teams`, undefined, 'host'))
+      .data as Array<{ teamId: string; name: string }>;
+    expect(teams.map((t) => t.name)).toEqual(['Hosts']);
+  });
+
+  it('lets a playing host start with only one other team', async () => {
+    const { gameId, code } = (
+      await call(container, 'POST', '/games', { config: FREE_CONFIG, host: { type: 'create_team', name: 'Hosts' } }, 'host')
+    ).data;
+    await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
+
+    // Host's team plus one joiner is the two the engine requires.
+    const started = await call(container, 'POST', `/games/${gameId}/start`, {}, 'host');
+    expect(started.status).toBe(200);
+    expect(started.data.state).toBe('round1_active');
+  });
+
+  it('gives a judging host a membership but no team', async () => {
+    const created = await call(
+      container,
+      'POST',
+      '/games',
+      { config: FREE_CONFIG, host: { type: 'judge' } },
+      'host',
+    );
+    expect(created.status).toBe(200);
+    expect(created.data.teamId).toBeNull();
+
+    const game = (await call(container, 'GET', `/games/${created.data.gameId}`, undefined, 'host')).data;
+    expect(game.teams).toHaveLength(0);
+    // Judging still puts them in the game — that is the membership being counted.
+    expect(game.playerCount).toBe(1);
+  });
+
   it('returns 401 for an unauthenticated request to a protected route', async () => {
     const res = await call(container, 'POST', '/games', { config: FREE_CONFIG }); // no userId
     expect(res.status).toBe(401);

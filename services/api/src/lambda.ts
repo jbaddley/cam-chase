@@ -92,7 +92,10 @@ const ROUTES: Route[] = [
     createGameForHost(
       container.games,
       container.entitlements,
-      { hostUserId: auth.userId, config: body.config, tournamentCode: body.tournamentCode },
+      // `host` must be forwarded: it is how the organiser gets a team (or a
+      // judge's seat) at creation. It is optional in the schema, so leaving it
+      // out here parsed cleanly and silently left a playing host teamless.
+      { hostUserId: auth.userId, config: body.config, tournamentCode: body.tournamentCode, host: body.host },
       container.tournaments,
     ),
   ),
