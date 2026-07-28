@@ -36,6 +36,18 @@ describe('FormScreen', () => {
     expect(screen.getByTestId('scrollview').getAttribute('data-persist-taps')).toBe('handled');
   });
 
+  it('leaves the keyboard alone while scrolling on Android', () => {
+    // Android apps keep the keyboard up when you scroll. `on-drag` snapped it
+    // away mid-gesture, which is not what any other Android app does.
+    render(
+      <FormScreen>
+        <span>content</span>
+      </FormScreen>,
+    );
+    // The shim reports Platform.OS as android.
+    expect(screen.getByTestId('scrollview').getAttribute('data-dismiss-mode')).toBe('none');
+  });
+
   it('works with no action at all', () => {
     render(
       <FormScreen>

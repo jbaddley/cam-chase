@@ -31,11 +31,19 @@ export const View = box();
  * tap anywhere is spent dismissing the keyboard.
  */
 export const ScrollView: ComponentType<
-  Styled & { keyboardShouldPersistTaps?: string; contentContainerStyle?: unknown }
-> = ({ children, keyboardShouldPersistTaps }) =>
+  Styled & {
+    keyboardShouldPersistTaps?: string;
+    keyboardDismissMode?: string;
+    contentContainerStyle?: unknown;
+  }
+> = ({ children, keyboardShouldPersistTaps, keyboardDismissMode }) =>
   createElement(
     'div',
-    { 'data-testid': 'scrollview', 'data-persist-taps': keyboardShouldPersistTaps ?? 'never' },
+    {
+      'data-testid': 'scrollview',
+      'data-persist-taps': keyboardShouldPersistTaps ?? 'never',
+      'data-dismiss-mode': keyboardDismissMode ?? 'none',
+    },
     children,
   );
 

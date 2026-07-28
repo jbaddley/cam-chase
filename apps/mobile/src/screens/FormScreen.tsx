@@ -16,6 +16,14 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
  * - Bottom padding on the content — the last field would otherwise sit under
  *   the pinned action with no way to scroll it clear.
  *
+ * Dismissal on scroll is per-platform because the platforms genuinely differ.
+ * iOS has an interactive dismiss, where the keyboard tracks the drag and can be
+ * pulled back up — that is the native gesture and it feels like one. Android
+ * has no equivalent and its apps simply keep the keyboard up while scrolling,
+ * so it gets `none`. Using `on-drag` everywhere, as this did, snapped the
+ * keyboard away mid-scroll on both: not the iOS gesture, and not Android
+ * behaviour at all.
+ *
  * Android relies on `adjustResize`, which Expo sets, so it needs no behavior of
  * its own; passing one there fights the system inset and jumps the layout.
  */
@@ -28,7 +36,7 @@ export function FormScreen({ children, action }: { children: ReactNode; action?:
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'none'}
       >
         {children}
       </ScrollView>
