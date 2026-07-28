@@ -58,6 +58,34 @@ const APP_REDIRECT_URI = 'photochase://auth';
 const X_PROVIDER_NAME = 'TwitterX';
 
 /**
+ * esbuild settings for both Lambdas. The banner is the load-bearing part.
+ *
+ * An ESM bundle has no `require`, so esbuild replaces every one it finds with a
+ * shim that throws `Dynamic require of "x" is not supported` — and it throws at
+ * *import* time, before the handler is ever entered. jimp's dependency chain
+ * calls `require('fs')`, so the resize function died during init on every single
+ * invocation: the S3 notification was wired correctly, the handler logic was
+ * correct and tested, and no thumbnail had ever been produced. `createRequire`
+ * gives the bundle a real `require` to reach.
+ *
+ * Nothing here can be caught by a unit test. The source is right; it is the
+ * artifact that was broken, and it only fails once bundled, uploaded and
+ * imported by the Node runtime. This is the "green suite says nothing about the
+ * deploy" failure mode in its purest form — the tests for `image-handler` passed
+ * throughout.
+ *
+ * Applied to both functions rather than only the one that broke. Nothing marks a
+ * dependency as safe from this, and the cost of being wrong is a crash on init
+ * in production.
+ */
+const esmBundling = {
+  format: OutputFormat.ESM,
+  target: 'node22',
+  minify: true,
+  banner: "import{createRequire}from'module';const require=createRequire(import.meta.url);",
+};
+
+/**
  * Core PhotoChase backend: a DynamoDB single table, a private photo bucket, a
  * Cognito user pool (federating social IdPs is configured per-env at deploy
  * time), and an HTTP API backed by a Lambda. Mirrors docs/02-architecture.md.
@@ -159,7 +187,7 @@ export class PhotoChaseStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_22_X,
       entry: path.join(moduleDir, '../../../services/api/src/lambda.ts'),
       handler: 'handler',
-      bundling: { format: OutputFormat.ESM, target: 'node22', minify: true },
+      bundling: esmBundling,
       environment: {
         TABLE_NAME: table.tableName,
         PHOTO_BUCKET: photos.bucketName,
@@ -180,7 +208,7 @@ export class PhotoChaseStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_22_X,
       entry: path.join(moduleDir, '../../../services/api/src/image-handler.ts'),
       handler: 'resizeHandler',
-      bundling: { format: OutputFormat.ESM, target: 'node22', minify: true },
+      bundling: esmBundling,
       timeout: cdk.Duration.seconds(30),
       memorySize: 1024,
       environment: { PHOTO_BUCKET: photos.bucketName },
