@@ -164,4 +164,31 @@ describe('ResultsScreen — sharing consent', () => {
 
     expect(await screen.findByText('Could not save your answer.')).toBeTruthy();
   });
+
+  it('lands the winning total on the real score once it has counted up', async () => {
+    // The one animation that can be *wrong* rather than merely ugly: this
+    // number is what people read to find out who won.
+    getResults.mockResolvedValue({ scoreboard: [score('t1', { total: 475 })] });
+    render(<ResultsScreen gameId="g1" teams={[{ teamId: 't1', name: 'Reds', memberCount: 2 }]} />);
+
+    expect(await screen.findByText('475', {}, { timeout: 4000 })).toBeTruthy();
+  });
+
+  it('shows a runner-up total immediately, so only first place climbs', async () => {
+    getResults.mockResolvedValue({
+      scoreboard: [score('t1', { total: 900 }), score('t2', { total: 120 })],
+    });
+    render(
+      <ResultsScreen
+        gameId="g1"
+        teams={[
+          { teamId: 't1', name: 'Reds', memberCount: 2 },
+          { teamId: 't2', name: 'Blues', memberCount: 2 },
+        ]}
+      />,
+    );
+
+    // A whole scoreboard climbing at once is noise; the eye should go to first.
+    expect(await screen.findByText('120')).toBeTruthy();
+  });
 });

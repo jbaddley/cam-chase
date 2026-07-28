@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { GameMode, TeamScore } from '@photochase/shared';
 import type { TeamSummary } from '@photochase/client';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
+import { useCountUp } from '../motion.js';
 import { color, radius, space, type as typeScale } from '../theme.js';
-import { Button, Card, ErrorText, Loading, Screen, Title } from '../ui.js';
+import { Button, Card, ErrorText, Loading, Pop, Screen, Title } from '../ui.js';
 
 /**
  * Score components shown under each team's total, in scoring order.
@@ -94,6 +95,9 @@ export function ResultsScreen({
       <ScrollView contentContainerStyle={styles.list}>
         {scoreboard.map((score, i) => (
           <View key={score.teamId} style={i === 0 ? styles.winnerWrap : undefined}>
+            {/* Only the winner pops. Used on every row it would stop meaning
+                anything, and the point is that first place arrives. */}
+            <Maybe pop={i === 0}>
             <Card tone={i === 0 ? 'highlight' : 'plain'}>
               <View style={styles.headerRow}>
                 <View style={styles.nameGroup}>
@@ -104,7 +108,7 @@ export function ResultsScreen({
                   </View>
                   <Text style={i === 0 ? styles.winnerName : styles.teamName}>{nameOf(score.teamId)}</Text>
                 </View>
-                <Text style={i === 0 ? styles.winnerTotal : styles.total}>{score.total}</Text>
+                {i === 0 ? <WinnerTotal total={score.total} /> : <Text style={styles.total}>{score.total}</Text>}
               </View>
               {BREAKDOWN.filter(({ key }) => score[key] !== 0).map(({ key, label }) => (
                 <View key={key} style={styles.row}>
@@ -113,6 +117,7 @@ export function ResultsScreen({
                 </View>
               ))}
             </Card>
+            </Maybe>
           </View>
         ))}
         {winner ? <Text style={styles.flourish}>🏆 {nameOf(winner.teamId)} takes it</Text> : null}
@@ -136,6 +141,22 @@ export function ResultsScreen({
       </View>
     </Screen>
   );
+}
+
+/** Wraps in a {@link Pop} or leaves the child alone; keeps the JSX readable. */
+function Maybe({ pop, children }: { pop: boolean; children: ReactNode }) {
+  return pop ? <Pop>{children}</Pop> : <>{children}</>;
+}
+
+/**
+ * The winning score, counted up.
+ *
+ * Its own component because the hook has to run unconditionally, and only the
+ * top row animates — a whole scoreboard climbing at once is noise, and the
+ * point is to draw the eye to first place.
+ */
+function WinnerTotal({ total }: { total: number }) {
+  return <Text style={styles.winnerTotal}>{useCountUp(total)}</Text>;
 }
 
 const styles = StyleSheet.create({

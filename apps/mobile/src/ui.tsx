@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { color, radius, shadow, space, type } from './theme.js';
 
 /**
@@ -31,7 +32,13 @@ export function Button({
   return (
     <Pressable
       onPress={disabled ? () => {} : onPress}
-      style={disabled ? styles.buttonDisabled : styles[tone]}
+      // A tap should be felt, not just obeyed. Pressable already tracks the
+      // press, so this needs no animation driver and cannot get out of sync
+      // with the touch.
+      style={({ pressed }) => [
+        disabled ? styles.buttonDisabled : styles[tone],
+        pressed && !disabled ? styles.pressed : null,
+      ]}
       accessibilityLabel={accessibilityLabel}
     >
       <Text style={disabled ? styles.buttonTextDisabled : tone === 'secondary' ? styles.buttonTextQuiet : styles.buttonText}>
@@ -136,7 +143,10 @@ export function Chip({
         : styles.chip;
 
   return (
-    <Pressable onPress={disabled ? () => {} : (onPress ?? (() => {}))} style={style}>
+    <Pressable
+      onPress={disabled ? () => {} : (onPress ?? (() => {}))}
+      style={({ pressed }) => [style, pressed && !disabled ? styles.pressed : null]}
+    >
       <Text style={disabled ? styles.chipTextMuted : styles.chipText}>{children}</Text>
     </Pressable>
   );
@@ -187,6 +197,31 @@ export function Field({
       />
     </View>
   );
+}
+
+/**
+ * Pops its children in on mount: a small overshoot, settling.
+ *
+ * For the one thing on a screen that is the point of the screen — the winner.
+ * Used on more than that it stops meaning anything, which is why it is a
+ * component you have to reach for rather than something `Card` does.
+ */
+export function Pop({ children, delayMs = 0 }: { children: ReactNode; delayMs?: number }) {
+  const scale = useRef(new Animated.Value(0.8)).current;
+
+  useEffect(() => {
+    Animated.timing(scale, {
+      toValue: 1,
+      duration: 420,
+      delay: delayMs,
+      // `back` overshoots and comes back, which is what makes it read as a pop
+      // rather than a zoom.
+      easing: Easing.out(Easing.back(1.6)),
+      useNativeDriver: true,
+    }).start();
+  }, [scale, delayMs]);
+
+  return <Animated.View style={{ transform: [{ scale }] }}>{children}</Animated.View>;
 }
 
 /** A left/right row — a name against a count, a stat against its value. */
@@ -261,6 +296,13 @@ const styles = StyleSheet.create({
   pillText: { ...type.label, color: color.surface },
 
   error: { ...type.body, color: color.danger },
+
+  /**
+   * What a press looks like: pushed down and slightly dimmed. Scale rather than
+   * only opacity, because the chunky look reads as physical and a flat fade
+   * does not.
+   */
+  pressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
 
   screen: { flex: 1, padding: space.xl, gap: space.md, backgroundColor: color.surface },
   screenScroll: { padding: space.xl, gap: space.md, backgroundColor: color.surface, flexGrow: 1 },

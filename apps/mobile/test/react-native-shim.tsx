@@ -58,6 +58,43 @@ export const Text: ComponentType<Styled> = ({ children }) => createElement('span
 export const KeyboardAvoidingView = box();
 
 /**
+ * Animation is style, and this shim does not model style — so `Animated.View`
+ * is a plain box and the drivers are no-ops that report as finished. Tests here
+ * assert what is on screen; whether it slid in belongs to a device.
+ *
+ * `start` invokes its callback synchronously so any code sequenced after an
+ * animation still runs, rather than silently never happening.
+ */
+export const Animated = {
+  View: box(),
+  Text,
+  Value: class AnimatedValue {
+    current: number;
+    constructor(initial: number) {
+      this.current = initial;
+    }
+    setValue(next: number) {
+      this.current = next;
+    }
+    interpolate() {
+      return this;
+    }
+  },
+  timing: (_value: unknown, _config: unknown) => ({
+    start: (done?: (result: { finished: boolean }) => void) => done?.({ finished: true }),
+  }),
+  spring: (_value: unknown, _config: unknown) => ({
+    start: (done?: (result: { finished: boolean }) => void) => done?.({ finished: true }),
+  }),
+};
+
+export const Easing = {
+  out: (fn: unknown) => fn,
+  back: (_s?: number) => (t: number) => t,
+  cubic: (t: number) => t,
+};
+
+/**
  * No keyboard exists in jsdom, so listeners are accepted and never fire — a
  * screen renders as though the keyboard were closed, which is the state its
  * assertions are written against.
