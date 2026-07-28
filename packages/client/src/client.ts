@@ -14,6 +14,7 @@ import type {
   GauntletStanding,
   HuntItem,
   Standing,
+  TeamReturnStatus,
   TeamScore,
   Tier,
   TierLimits,
@@ -234,6 +235,29 @@ export interface EntitlementView {
   features: Record<string, boolean>;
 }
 
+/**
+ * Who is back at the start point and who is still out.
+ *
+ * Its own authenticated read rather than part of {@link GameStateView}, because
+ * that view is also what the unauthenticated spectator route serves. Carries no
+ * coordinates: `fenced` says whether there is a fence, never where.
+ */
+export interface RegroupView {
+  round: 1 | 2;
+  /** The host has called teams back; the phase is a return, not an active round. */
+  calledBack: boolean;
+  fenced: boolean;
+  roundStartedAt: number | null;
+  /** Advisory: nothing auto-advances when the round's time is up. */
+  roundEndsAt: number | null;
+  teams: Array<{ teamId: string; name: string; status: TeamReturnStatus }>;
+  readyCount: number;
+  teamCount: number;
+  allReady: boolean;
+  /** Null for judges, spectators, and a host with no team of their own. */
+  me: { teamId: string; status: TeamReturnStatus; done: number; goal: number } | null;
+}
+
 /** A team summary for the lobby list. */
 export interface TeamSummary {
   teamId: string;
@@ -316,12 +340,40 @@ export class PhotoChaseClient {
     return request(this.config, 'GET', `/spectate/${encodeURIComponent(code)}`);
   }
 
-  startGame(gameId: string): Promise<{ state: GameState }> {
-    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/start`);
+  /**
+   * Start the game. `location` is the host's fix at that moment, which becomes
+   * the spot teams check in at on the way back — the lobby tells the host to
+   * gather everyone there first. Omit it and the game plays with no fence.
+   */
+  startGame(gameId: string, input: { location?: GeoPointInput } = {}): Promise<{ state: GameState }> {
+    // No location, no body — a host who declined the permission sends exactly
+    // what every client sent before this existed.
+    return request(
+      this.config,
+      'POST',
+      `/games/${encodeURIComponent(gameId)}/start`,
+      input.location ? { location: input.location } : undefined,
+    );
   }
 
-  advanceGame(gameId: string, event: GameEvent['type']): Promise<{ state: GameState }> {
-    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/advance`, { event });
+  /**
+   * Move the game on. `force` overrides the "everyone must be back" gate on the
+   * return events, for when a team's phone has died.
+   */
+  advanceGame(
+    gameId: string,
+    event: GameEvent['type'],
+    opts: { force?: boolean } = {},
+  ): Promise<{ state: GameState }> {
+    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/advance`, {
+      event,
+      ...(opts.force ? { force: true } : {}),
+    });
+  }
+
+  /** Who is back at the start point and who is still out. Participants only. */
+  getRegroup(gameId: string): Promise<RegroupView> {
+    return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/regroup`);
   }
 
   // --- gameplay writes ------------------------------------------------------

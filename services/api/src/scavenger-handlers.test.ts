@@ -13,6 +13,7 @@ import {
   submitPhoto,
 } from './handlers.js';
 import { InMemoryGameRepository } from './repository.js';
+import { bringEveryoneBack } from './return-test-support.js';
 
 /**
  * Handler-level coverage for Scavenger Hunt. The hunt reuses the chase's
@@ -208,6 +209,7 @@ describe('rating a hunt', () => {
       );
     }
     await unwrap(advanceGame(repo, { gameId: started.gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await bringEveryoneBack(repo, started.gameId, 'round1');
     await unwrap(advanceGame(repo, { gameId: started.gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
     return { ...started, item };
   }
@@ -287,6 +289,7 @@ describe('getResults — scavenger hunt', () => {
       );
     }
     await unwrap(advanceGame(repo, { gameId: started.gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await bringEveryoneBack(repo, started.gameId, 'round1');
     await unwrap(advanceGame(repo, { gameId: started.gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
     return { ...started, items };
   }
@@ -343,6 +346,7 @@ describe('getResults — scavenger hunt', () => {
       ),
     );
     await unwrap(advanceGame(repo, { gameId: started.gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await bringEveryoneBack(repo, started.gameId, 'round1');
     await unwrap(advanceGame(repo, { gameId: started.gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
 
     const score = scoreFor(await getResults(repo, started.gameId), started.teamA);

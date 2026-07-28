@@ -21,10 +21,18 @@ import {
   FOUL_REASONS,
   RATING_AXES,
   GameConfigSchema,
-  isWithinGeofence,
+  allTeamsReady,
+  isBackAtStart,
+  metresToStart,
   planAssignments,
   resolveFinals,
+  resolveReturnFence,
   resolveVoteWeight,
+  returnDurations,
+  returnRoundOf,
+  teamCheckins,
+  teamReturnStatus,
+  teamRoundProgress,
   validateConfigForTier,
   type Assignment,
   type FoulReason,
@@ -43,6 +51,7 @@ import {
   type HuntItem,
   type RatingAxis,
   type TagRole,
+  type TeamReturnStatus,
   type TeamScore,
   type Tier,
 } from '@photochase/shared';
@@ -343,6 +352,81 @@ export async function getGameState(repo: GameRepository, gameId: string): Promis
     })),
     playerCount: game.memberships.length,
     hostTier: game.tier,
+  });
+}
+
+// --- regroup ----------------------------------------------------------------
+
+/**
+ * Who is back at the start point and who is still out.
+ *
+ * Deliberately its own authenticated read rather than fields on
+ * {@link GameStateView}. That view is what `/spectate/:code` serves, and that
+ * route needs no authentication — so anything added there is readable by anyone
+ * holding a six-character code. For a start point that would mean publishing the
+ * physical location of a game in progress, and for team statuses it would mean
+ * telling a stranger which teams are currently away from the meeting spot.
+ *
+ * It carries no coordinates at all. `fenced` says whether a fence exists;
+ * nothing says where it is. Distance is only ever told to a player who is
+ * already holding a phone at the spot, as part of a rejected check-in.
+ */
+export interface RegroupView {
+  round: 1 | 2;
+  /** The host has called teams back: the phase is a return, not an active round. */
+  calledBack: boolean;
+  /** Whether check-ins are judged against a fence at all. */
+  fenced: boolean;
+  roundStartedAt: number | null;
+  /** When the round is scheduled to end, for a countdown. Advisory only — nothing auto-advances. */
+  roundEndsAt: number | null;
+  teams: Array<{ teamId: string; name: string; status: TeamReturnStatus }>;
+  readyCount: number;
+  teamCount: number;
+  /** True when every team is in, which is when the host's gate opens. */
+  allReady: boolean;
+  /** The caller's own team. Null for judges, spectators, and a host with no team. */
+  me: { teamId: string; status: TeamReturnStatus; done: number; goal: number } | null;
+}
+
+export async function getRegroup(
+  repo: GameRepository,
+  input: { gameId: string; userId: string },
+): Promise<Result<RegroupView>> {
+  const game = await repo.get(input.gameId);
+  if (!game) return err('Game not found.');
+  const membership = game.memberships.find((m) => m.userId === input.userId);
+  if (!membership) return err('You are not in this game.');
+
+  const round = returnRoundOf(game.state);
+  if (!round) return err('Not in a round.');
+
+  const startedAt = game.roundStartedAt?.[round] ?? null;
+  const minutes = round === 'round1' ? game.config.round1Minutes : game.config.round2Minutes;
+  const back = teamCheckins(game, round);
+
+  return ok({
+    round: round === 'round1' ? 1 : 2,
+    calledBack: game.state === 'round1_return' || game.state === 'round2_return',
+    fenced: resolveReturnFence(game) !== null,
+    roundStartedAt: startedAt,
+    roundEndsAt: startedAt === null ? null : startedAt + minutes * 60_000,
+    teams: game.teams.map((t) => ({
+      teamId: t.id,
+      name: t.name,
+      status: teamReturnStatus(game, t.id, round),
+    })),
+    readyCount: game.teams.filter((t) => back[t.id] !== undefined).length,
+    teamCount: game.teams.length,
+    allReady: allTeamsReady(game, round),
+    me:
+      membership.teamId === null
+        ? null
+        : {
+            teamId: membership.teamId,
+            status: teamReturnStatus(game, membership.teamId, round),
+            ...teamRoundProgress(game, membership.teamId, round),
+          },
   });
 }
 
@@ -1026,14 +1110,34 @@ function assignTagState(game: Game): void {
   };
 }
 
+const StartLocation = z.object({ lat: z.number(), lng: z.number(), accuracyM: z.number().optional() });
+
+/**
+ * Start the game, recording where it started from.
+ *
+ * The host is standing with the teams when they press this — that is what the
+ * lobby tells them to do — so their fix is the meeting spot, and the place teams
+ * check in on the way back. Nothing had ever written a return spot before, which
+ * is why every check-in in the product's life has been accepted from anywhere on
+ * Earth.
+ *
+ * The location is optional and its absence is not an error. A host who refuses
+ * the permission still starts the game and plays unfenced; blocking on a
+ * permission dialog would turn a working game into an unstartable one, which is
+ * a worse failure than an unenforced return.
+ */
 export async function startGame(
   repo: GameRepository,
-  input: { gameId: string; hostUserId: string },
+  input: { gameId: string; hostUserId: string; location?: unknown },
+  now = Date.now,
 ): Promise<Result<{ state: Game['state'] }>> {
   const found = await requireHost(repo, input.gameId, input.hostUserId);
   if (!found.ok) return found;
+  const spot = input.location === undefined ? null : StartLocation.safeParse(input.location);
+  if (spot && !spot.success) return err('That start location is not a position.');
   try {
     const started = applyTransition(found.data, { type: 'START_GAME' });
+    if (spot && spot.success) started.startSpot = { ...spot.data, at: now() };
     assignColorSecrets(started);
     assignTagState(started);
     stampRoundStart(started);
@@ -1057,13 +1161,27 @@ function teamPhotos(game: Game): TeamPhotos[] {
 
 export async function advanceGame(
   repo: GameRepository,
-  input: { gameId: string; hostUserId: string; event: GameEvent['type'] },
+  input: {
+    gameId: string;
+    hostUserId: string;
+    event: GameEvent['type'];
+    /**
+     * Override the "everyone must be back" gate. Only meaningful for the return
+     * events; the engine ignores it elsewhere.
+     */
+    force?: boolean;
+  },
 ): Promise<Result<{ state: Game['state'] }>> {
   const found = await requireHost(repo, input.gameId, input.hostUserId);
   if (!found.ok) return found;
   const game = found.data;
   try {
-    const advanced = applyTransition(game, { type: input.event } as GameEvent);
+    // `=== true` rather than truthiness: whatever arrives over the wire, only a
+    // real boolean forces a game past a team that is still out there.
+    const advanced = applyTransition(game, {
+      type: input.event,
+      ...(input.force === true ? { force: true } : {}),
+    } as GameEvent);
     // Entering Round 2: generate the assignment plan deterministically.
     if (advanced.state === 'round2_active' && advanced.assignments.length === 0) {
       const plans = planAssignments(teamPhotos(advanced), advanced.config.gameType, seedFromCode(advanced.code));
@@ -1297,20 +1415,30 @@ const CheckinInput = z.object({
   gameId: z.string(),
   userId: z.string().min(1),
   location: z.object({ lat: z.number(), lng: z.number(), accuracyM: z.number().optional() }),
+  /** True when a location fix triggered this rather than a button press. */
+  auto: z.boolean().optional(),
 });
 
-/** Which round a return phase belongs to, or null outside those phases. */
-function returningRound(state: Game['state']): 'round1' | 'round2' | null {
-  if (state === 'round1_return') return 'round1';
-  if (state === 'round2_return') return 'round2';
-  return null;
-}
-
 /**
- * Check a team in at the return spot. Only meaningful during a return phase,
- * and only for players on a team. When a return geofence is configured the
- * check-in must be inside it — a team has to actually get back. The earliest
- * check-in per member stands; re-checking in never worsens the recorded time.
+ * Check a team in at the start point.
+ *
+ * Accepted during the round as well as after the host calls everyone in, which
+ * is what lets one team be ready while another is still shooting — the thing a
+ * roster of statuses is for.
+ *
+ * That opens a trap, though, and it is the whole reason for the progress gate
+ * below: the host gathers everyone at the start point before pressing Start, so
+ * at kickoff *every* team is standing inside the fence with no photos taken.
+ * Checking in then would mark the entire field ready before the game began.
+ *
+ * The gate lifts once the host has called teams back, deliberately. A team
+ * stopped mid-round — the light is going, someone is hurt, they have simply had
+ * enough — still has to be able to come home, and refusing them would leave the
+ * game stuck behind a force flag.
+ *
+ * The earliest check-in per member stands; re-checking in never worsens a
+ * recorded time, so an automatic attempt cannot cost a team the bonus it already
+ * earned.
  */
 export async function checkIn(
   repo: GameRepository,
@@ -1324,48 +1452,34 @@ export async function checkIn(
   const game = await repo.get(gameId);
   if (!game) return err('Game not found.');
 
-  const round = returningRound(game.state);
-  if (!round) return err('Not in a return phase.');
+  const round = returnRoundOf(game.state);
+  if (!round) return err('Not in a round.');
 
   const membership = game.memberships.find((m) => m.userId === userId);
   if (!membership) return err('You are not in this game.');
   if (!membership.teamId) return err('Only players on a team check in.');
 
-  const spot = game.config.returnSpot;
-  if (spot && !isWithinGeofence(location as GeoPoint, { center: { lat: spot.lat, lng: spot.lng }, radiusM: spot.radiusM })) {
-    return err('You are not at the return spot yet.');
+  if (game.state === 'round1_active' || game.state === 'round2_active') {
+    const { done, goal } = teamRoundProgress(game, membership.teamId, round);
+    if (done < goal) return err(`Finish your ${goal} photos before you check in (${done} so far).`);
   }
 
+  if (!isBackAtStart(game, location as GeoPoint)) {
+    const away = metresToStart(game, location as GeoPoint);
+    return err(
+      away === null || away === 0
+        ? 'You are not at the start point yet.'
+        : `You are not at the start point yet — about ${away} m to go.`,
+    );
+  }
+
+  // The location itself is deliberately not stored. It has served its purpose
+  // once the fence has judged it, and keeping a trail of where each player stood
+  // is a privacy expansion for an audit nobody has asked for.
   const at = now();
   membership.returnCheckins[round] ??= at;
   await repo.save(game);
   return ok({ round, at: membership.returnCheckins[round]! });
-}
-
-/**
- * Per-team return durations, summed across rounds. A team's time for a round is
- * its earliest member check-in; teams that never checked in are omitted so they
- * simply place last rather than scoring as instant returns.
- */
-function returnDurations(game: Game): Record<string, number> {
-  const totals: Record<string, number> = {};
-  for (const round of ['round1', 'round2'] as const) {
-    const startedAt = game.roundStartedAt?.[round];
-    if (startedAt === undefined) continue;
-
-    const earliest: Record<string, number> = {};
-    for (const m of game.memberships) {
-      const at = m.returnCheckins[round];
-      if (at === undefined || !m.teamId) continue;
-      const duration = at - startedAt;
-      if (duration < 0) continue;
-      if (earliest[m.teamId] === undefined || duration < earliest[m.teamId]!) earliest[m.teamId] = duration;
-    }
-    for (const [teamId, duration] of Object.entries(earliest)) {
-      totals[teamId] = (totals[teamId] ?? 0) + duration;
-    }
-  }
-  return totals;
 }
 
 // --- finals voting ----------------------------------------------------------

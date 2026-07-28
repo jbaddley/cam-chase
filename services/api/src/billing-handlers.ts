@@ -83,7 +83,12 @@ export async function createGameForHost(
 export async function startGameForHost(
   gameRepo: GameRepository,
   entRepo: EntitlementRepository,
-  input: { gameId: string; hostUserId: string },
+  /**
+   * `location` is the host's fix at the moment they press Start, which becomes
+   * the spot teams check in at on the way back. Not an entitlement concern — the
+   * paid flag is `config.geofencing`, which is separate and gates nothing here.
+   */
+  input: { gameId: string; hostUserId: string; location?: unknown },
 ): Promise<Result<{ state: Game['state'] }>> {
   const entitlement = await entRepo.getOrCreate(input.hostUserId);
   const startable = canStartGame(entitlement);

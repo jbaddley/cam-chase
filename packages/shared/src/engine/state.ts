@@ -1,5 +1,6 @@
 import type { GameConfig } from '../config/schema.js';
 import type { GameMode, GameState, Tier } from '../domain/enums.js';
+import { allTeamsReady, teamsStillOut, type StartSpot } from './return.js';
 import type { AttributeSet } from '../modes/color/attributes.js';
 import type { ColorGuessRecord } from '../modes/color/scoring.js';
 import type { HuntItem } from '../modes/scavenger/items.js';
@@ -37,6 +38,20 @@ export interface Game {
    * persisted before check-ins shipped still load.
    */
   roundStartedAt?: Partial<Record<'round1' | 'round2', number>>;
+  /**
+   * Where the host gathered the teams when they pressed Start, and so the place
+   * teams check in on the way back.
+   *
+   * Runtime state rather than configuration: a GPS fix taken at a moment, not a
+   * setting chosen at creation. That is also why it is not in `GameConfig` —
+   * config is passed through to the unauthenticated spectator view, and putting
+   * it there would publish the physical location of a game in progress to
+   * anyone holding a six-character code.
+   *
+   * Optional: a host who declines location still starts the game and plays with
+   * no fence, exactly as every game did before this existed.
+   */
+  startSpot?: StartSpot;
   /** Scavenger Hunt: the list every team is hunting, generated at creation. */
   hunt?: HuntState;
   /** Colour Hunt: the per-team secrets and the guesses committed against them. */
@@ -107,9 +122,14 @@ export type GameEvent =
   | { type: 'OPEN_LOBBY' }
   | { type: 'START_GAME' }
   | { type: 'END_ROUND1' }
-  | { type: 'COMPLETE_RETURN1' }
+  /**
+   * Move past a return. Refused while any team is still out, unless the host
+   * forces it — a phone dies, someone gives up and goes home, and a game that
+   * cannot be advanced past a missing team is a dead game.
+   */
+  | { type: 'COMPLETE_RETURN1'; force?: boolean }
   | { type: 'END_ROUND2' }
-  | { type: 'COMPLETE_RETURN2' }
+  | { type: 'COMPLETE_RETURN2'; force?: boolean }
   | { type: 'COMPLETE_RATING' }
   | { type: 'COMPLETE_FINALS' }
   // Color Hunt: the guessing window closes and answers are locked in.
@@ -132,8 +152,17 @@ export type TransitionResult =
 const MIN_TEAMS = 2;
 const MAX_TEAMS = 6;
 
-/** One mode's happy-path flow: event → required source state and successor. */
-type ModeTable = Partial<Record<GameEvent['type'], { from: GameState; to: GameState }>>;
+/**
+ * One mode's happy-path flow: event → required source state(s) and successor.
+ *
+ * `from` is a list where an event has more than one legal starting point. That is
+ * the case for completing a return: if every team finished and checked in while
+ * the round was still running, the host should get there in one press rather
+ * than closing the round and then completing it as two separate calls.
+ */
+type ModeTable = Partial<
+  Record<GameEvent['type'], { from: GameState | readonly GameState[]; to: GameState }>
+>;
 
 /**
  * Each mode is its own linear flow. Modes share event names where the meaning
@@ -146,9 +175,9 @@ const TABLES: Record<GameMode, ModeTable> = {
     OPEN_LOBBY: { from: 'draft', to: 'lobby' },
     START_GAME: { from: 'lobby', to: 'round1_active' },
     END_ROUND1: { from: 'round1_active', to: 'round1_return' },
-    COMPLETE_RETURN1: { from: 'round1_return', to: 'round2_active' },
+    COMPLETE_RETURN1: { from: ['round1_active', 'round1_return'], to: 'round2_active' },
     END_ROUND2: { from: 'round2_active', to: 'round2_return' },
-    COMPLETE_RETURN2: { from: 'round2_return', to: 'rating' },
+    COMPLETE_RETURN2: { from: ['round2_active', 'round2_return'], to: 'rating' },
     COMPLETE_RATING: { from: 'rating', to: 'finals_voting' },
     COMPLETE_FINALS: { from: 'finals_voting', to: 'results' },
     ARCHIVE: { from: 'results', to: 'archived' },
@@ -162,7 +191,7 @@ const TABLES: Record<GameMode, ModeTable> = {
     OPEN_LOBBY: { from: 'draft', to: 'lobby' },
     START_GAME: { from: 'lobby', to: 'round1_active' },
     END_ROUND1: { from: 'round1_active', to: 'round1_return' },
-    COMPLETE_RETURN1: { from: 'round1_return', to: 'rating' },
+    COMPLETE_RETURN1: { from: ['round1_active', 'round1_return'], to: 'rating' },
     COMPLETE_RATING: { from: 'rating', to: 'finals_voting' },
     COMPLETE_FINALS: { from: 'finals_voting', to: 'results' },
     ARCHIVE: { from: 'results', to: 'archived' },
@@ -217,11 +246,33 @@ export function nextState(game: Game, event: GameEvent): TransitionResult {
   if (!rule) {
     return { ok: false, error: `Event ${event.type} is not part of the ${mode} flow.` };
   }
-  if (game.state !== rule.from) {
+  const froms: readonly GameState[] = Array.isArray(rule.from) ? rule.from : [rule.from as GameState];
+  if (!froms.includes(game.state)) {
     return {
       ok: false,
-      error: `Cannot ${event.type} from state "${game.state}"; requires "${rule.from}".`,
+      error: `Cannot ${event.type} from state "${game.state}"; requires ${froms
+        .map((s) => `"${s}"`)
+        .join(' or ')}.`,
     };
+  }
+
+  /**
+   * Round 2 does not start until everyone is back. This lives here rather than in
+   * the handler so no caller of `applyTransition` can route around it — the
+   * simulation harness included, which is the one place a game is played through
+   * without a host.
+   */
+  if (event.type === 'COMPLETE_RETURN1' || event.type === 'COMPLETE_RETURN2') {
+    const round = event.type === 'COMPLETE_RETURN1' ? 'round1' : 'round2';
+    if (event.force !== true && !allTeamsReady(game, round)) {
+      const waiting = teamsStillOut(game, round);
+      return {
+        ok: false,
+        error: `${waiting} team${waiting === 1 ? '' : 's'} ${
+          waiting === 1 ? 'has' : 'have'
+        } not checked in at the start point yet.`,
+      };
+    }
   }
 
   if (event.type === 'START_GAME') {

@@ -10,6 +10,7 @@ import {
   castVote,
   getFinals,
   getGameState,
+  getRegroup,
   getSpectatorView,
   getResults,
   joinByCode,
@@ -161,11 +162,26 @@ const ROUTES: Route[] = [
     listRateable(container.games, { gameId: params.id!, userId: auth.userId }),
   ),
   compile('GET', '/games/:id', ({ container, params }) => getGameState(container.games, params.id!)),
-  compile('POST', '/games/:id/start', ({ container, params, auth }) =>
-    startGameForHost(container.games, container.entitlements, { gameId: params.id!, hostUserId: auth.userId }),
+  compile('POST', '/games/:id/start', ({ container, params, body, auth }) =>
+    startGameForHost(container.games, container.entitlements, {
+      gameId: params.id!,
+      hostUserId: auth.userId,
+      // Validated in the handler; absent is fine and means an unfenced game.
+      location: body.location,
+    }),
   ),
   compile('POST', '/games/:id/advance', ({ container, params, body, auth }) =>
-    advanceGameAndSettle(container, { gameId: params.id!, hostUserId: auth.userId, event: body.event as never }),
+    advanceGameAndSettle(container, {
+      gameId: params.id!,
+      hostUserId: auth.userId,
+      event: body.event as never,
+      // `=== true` so a truthy string off the wire cannot force a game past a
+      // team that has not made it back.
+      force: body.force === true,
+    }),
+  ),
+  compile('GET', '/games/:id/regroup', ({ container, params, auth }) =>
+    getRegroup(container.games, { gameId: params.id!, userId: auth.userId }),
   ),
   compile('POST', '/games/:id/consent', ({ container, params, body, auth }) =>
     setSharingConsent(container.games, { ...body, gameId: params.id, userId: auth.userId }),

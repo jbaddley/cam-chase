@@ -42,6 +42,25 @@ function photoLocation(teamIndex: number, photoIndex: number): GeoPoint {
 }
 
 /**
+ * Walk every team back to the start point.
+ *
+ * Completing a return is gated on all teams having checked in, and the host may
+ * force past it — but forcing here would mean the flagship simulation stopped
+ * exercising the gate, which is the opposite of what a simulation is for. So the
+ * bots do what real teams do.
+ *
+ * Times are the team index, so the run stays deterministic. They only reach the
+ * scoreboard if `roundStartedAt` is stamped, which the harness does not do — the
+ * time bonus stays out of the hand-computed comparison, as it always has.
+ */
+function checkEveryoneIn(game: Game, round: 'round1' | 'round2'): void {
+  game.teams.forEach((team, i) => {
+    const captain = game.memberships.find((m) => m.teamId === team.id);
+    if (captain) captain.returnCheckins[round] = i;
+  });
+}
+
+/**
  * Play a complete game end-to-end through the real engine: walk the lifecycle
  * state machine, capture Round 1 photos, plan Round 2 assignments, submit chase
  * photos, cast member/judge votes, and score the results. Fully deterministic
@@ -135,6 +154,7 @@ export function simulateGame(spec: SimSpec): SimResult {
   });
 
   game = applyTransition(game, { type: 'END_ROUND1' });
+  checkEveryoneIn(game, 'round1');
   game = applyTransition(game, { type: 'COMPLETE_RETURN1' });
 
   // Round 2: plan assignments, then each chaser submits an exact-match chase.
@@ -154,6 +174,7 @@ export function simulateGame(spec: SimSpec): SimResult {
   });
 
   game = applyTransition(game, { type: 'END_ROUND2' });
+  checkEveryoneIn(game, 'round2');
   game = applyTransition(game, { type: 'COMPLETE_RETURN2' });
 
   // Rating: everyone not on the chasing team (plus judges) rates each chase.

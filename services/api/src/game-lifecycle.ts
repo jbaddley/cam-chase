@@ -70,7 +70,7 @@ export async function settleFinishedGame(
  */
 export async function advanceGameAndSettle(
   repos: FinishRepos,
-  input: { gameId: string; hostUserId: string; event: GameEvent['type'] },
+  input: { gameId: string; hostUserId: string; event: GameEvent['type']; force?: boolean },
   now = Date.now,
 ): Promise<Result<{ state: Game['state'] }>> {
   const advanced = await advanceGame(repos.games, input);

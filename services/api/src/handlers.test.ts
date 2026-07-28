@@ -10,6 +10,7 @@ import {
   flagFoul,
   getFinals,
   getGameState,
+  getRegroup,
   getResults,
   getSpectatorView,
   joinByCode,
@@ -21,6 +22,7 @@ import {
   submitChase,
   submitPhoto,
 } from './handlers.js';
+import { bringEveryoneBack } from './return-test-support.js';
 import { InMemoryGameRepository } from './repository.js';
 
 let repo: InMemoryGameRepository;
@@ -112,6 +114,7 @@ describe('full flow through the API reaches a scoreboard', () => {
     }
 
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await bringEveryoneBack(repo, gameId, 'round1');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
 
     let game = (await repo.get(gameId)) as Game;
@@ -126,6 +129,7 @@ describe('full flow through the API reaches a scoreboard', () => {
     }
 
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+    await bringEveryoneBack(repo, gameId, 'round2');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
 
     game = (await repo.get(gameId)) as Game;
@@ -157,8 +161,10 @@ describe('full flow through the API reaches a scoreboard', () => {
       await unwrap(submitPhoto(repo, { gameId, teamId: bTeam.id, shooterUserId: 'uB', location: { lat: 41, lng: -75 }, s3Key: `b${i}` }));
     }
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await bringEveryoneBack(repo, gameId, 'round1');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+    await bringEveryoneBack(repo, gameId, 'round2');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
     const game = (await repo.get(gameId)) as Game;
     const ownChase = game.assignments.find((asg) => asg.chaserTeamId === a.teamId)!;
@@ -182,6 +188,7 @@ describe('listAssignments', () => {
       await unwrap(submitPhoto(repo, { gameId, teamId: b.teamId!, shooterUserId: 'uB', location: { lat: 41, lng: -75 }, s3Key: `b${i}` }));
     }
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await bringEveryoneBack(repo, gameId, 'round1');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
     return { gameId, teamA: a.teamId!, teamB: b.teamId! };
   }
@@ -251,6 +258,7 @@ describe('listRateable', () => {
       await unwrap(submitPhoto(repo, { gameId, teamId: b.teamId!, shooterUserId: 'uB', location: { lat: 41, lng: -75 }, s3Key: `b${i}` }));
     }
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await bringEveryoneBack(repo, gameId, 'round1');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
     const mid = (await repo.get(gameId)) as Game;
     for (const asg of mid.assignments) {
@@ -259,6 +267,7 @@ describe('listRateable', () => {
       );
     }
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+    await bringEveryoneBack(repo, gameId, 'round2');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
     return { gameId, teamA: a.teamId!, teamB: b.teamId! };
   }
@@ -303,6 +312,7 @@ describe('listRateable', () => {
       await unwrap(submitPhoto(repo, { gameId, teamId: b.teamId!, shooterUserId: 'uB', location: { lat: 41, lng: -75 }, s3Key: `b${i}` }));
     }
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await bringEveryoneBack(repo, gameId, 'round1');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
 
     expect(await unwrap(listRateable(repo, { gameId, userId: 'uA' }))).toEqual([]);
@@ -329,6 +339,7 @@ describe('fouls', () => {
       await unwrap(submitPhoto(repo, { gameId, teamId: b.teamId!, shooterUserId: 'uB', location: { lat: 41, lng: -75 }, s3Key: `b${i}` }));
     }
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await bringEveryoneBack(repo, gameId, 'round1');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
     const mid = (await repo.get(gameId)) as Game;
     for (const asg of mid.assignments) {
@@ -336,6 +347,7 @@ describe('fouls', () => {
       await unwrap(submitChase(repo, { gameId, assignmentId: asg.id, location: original.location, s3Key: `chase-${asg.id}`, shooterUserId: 'x' }));
     }
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+    await bringEveryoneBack(repo, gameId, 'round2');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
 
     const game = (await repo.get(gameId)) as Game;
@@ -477,13 +489,62 @@ describe('return check-in', () => {
     expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: 12, lng: 34 } })).ok).toBe(true);
   });
 
-  it('rejects check-ins outside a return phase, from judges, and from non-members', async () => {
+  it('rejects check-ins from judges and from non-members', async () => {
     const { gameId } = await gameReturning();
     expect((await checkIn(repo, { gameId, userId: 'uJ', location: SPOT })).ok).toBe(false); // judge, no team
     expect((await checkIn(repo, { gameId, userId: 'stranger', location: SPOT })).ok).toBe(false);
+  });
 
-    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
-    expect((await checkIn(repo, { gameId, userId: 'uA', location: SPOT })).ok).toBe(false); // round2_active
+  /**
+   * This used to be the tail of the test above, asserting a check-in failed in
+   * `round2_active` because that was not a return phase. It is one now — a team
+   * that finishes its chases can head back while others are still out — so the
+   * assertion survived only because the team happened to owe chases. Made
+   * explicit, since that is the actual rule.
+   */
+  it('refuses a Round 2 check-in from a team that still owes chases', async () => {
+    const { gameId } = await gameReturning();
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1', force: true }));
+
+    const res = await checkIn(repo, { gameId, userId: 'uA', location: SPOT });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/before you check in/);
+  });
+
+  it('accepts a Round 1 check-in mid-round once the team has finished its photos', async () => {
+    // The mixed roster depends on this: one team back and ready while another is
+    // still out shooting, without waiting for the host to call time.
+    const { gameId, code } = await unwrap(
+      createGame(repo, { hostUserId: 'host', tier: 'game_pack', config: { ...DEFAULT_CONFIG, maxTeams: 2, photosPerRound: 5 } }),
+    );
+    const a = await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
+    await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
+    await unwrap(startGame(repo, { gameId, hostUserId: 'host' }));
+
+    // Four of five: still shooting, so not yet allowed back.
+    for (let i = 0; i < 4; i++) {
+      await unwrap(submitPhoto(repo, { gameId, teamId: a.teamId!, shooterUserId: 'uA', location: SPOT, s3Key: `a${i}` }));
+    }
+    expect((await checkIn(repo, { gameId, userId: 'uA', location: SPOT })).ok).toBe(false);
+
+    await unwrap(submitPhoto(repo, { gameId, teamId: a.teamId!, shooterUserId: 'uA', location: SPOT, s3Key: 'a4' }));
+    // Team B has not taken a single photo, and A being back does not depend on it.
+    expect((await checkIn(repo, { gameId, userId: 'uA', location: SPOT })).ok).toBe(true);
+  });
+
+  it('lets a team called back mid-round check in with photos still owed', async () => {
+    // The quota gate exists to stop everyone checking in at kickoff, where they
+    // are all standing on the spot already. Once the host calls time it must
+    // lift, or a team that stopped early is stranded.
+    const { gameId, code } = await unwrap(
+      createGame(repo, { hostUserId: 'host', tier: 'game_pack', config: { ...DEFAULT_CONFIG, maxTeams: 2, photosPerRound: 5 } }),
+    );
+    await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
+    await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
+    await unwrap(startGame(repo, { gameId, hostUserId: 'host' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+
+    expect((await checkIn(repo, { gameId, userId: 'uA', location: SPOT })).ok).toBe(true);
   });
 
   it('gives the faster returning team the larger time bonus', async () => {
@@ -495,8 +556,11 @@ describe('return check-in', () => {
     await unwrap(checkIn(repo, { gameId, userId: 'uA', location: SPOT }, () => startedAt + 60_000));
     await unwrap(checkIn(repo, { gameId, userId: 'uB', location: SPOT }, () => startedAt + 300_000));
 
+    // Both teams are back for Round 1, so the gate opens on its own here.
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+    // Equal Round 2 legs, so the Round 1 gap is what decides the ranking.
+    await bringEveryoneBack(repo, gameId, 'round2');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
 
     const { scoreboard } = await unwrap(getResults(repo, gameId));
@@ -507,12 +571,114 @@ describe('return check-in', () => {
 
   it('leaves timeBonus at zero when nobody checked in', async () => {
     const { gameId } = await gameReturning();
-    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
+    // Forcing is the honest fixture here: the premise is that nobody came back,
+    // which is exactly the case the host override exists for.
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1', force: true }));
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
-    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2', force: true }));
 
     const { scoreboard } = await unwrap(getResults(repo, gameId));
     expect(scoreboard.every((s) => s.timeBonus === 0)).toBe(true);
+  });
+
+  it('reports who is back and who is still out', async () => {
+    const { gameId, teamA, teamB } = await gameReturning();
+    await unwrap(checkIn(repo, { gameId, userId: 'uA', location: SPOT }));
+
+    const view = await unwrap(getRegroup(repo, { gameId, userId: 'uB' }));
+    expect(view.round).toBe(1);
+    expect(view.calledBack).toBe(true);
+    expect(view.teams.find((t) => t.teamId === teamA)!.status).toBe('ready');
+    // B has all five photos but has not checked in — the honest middle state.
+    expect(view.teams.find((t) => t.teamId === teamB)!.status).toBe('heading_back');
+    expect(view).toMatchObject({ readyCount: 1, teamCount: 2, allReady: false });
+    expect(view.me).toMatchObject({ teamId: teamB, status: 'heading_back', done: 5, goal: 5 });
+  });
+
+  it('opens the gate once every team is in', async () => {
+    const { gameId } = await gameReturning();
+    await unwrap(checkIn(repo, { gameId, userId: 'uA', location: SPOT }));
+    await unwrap(checkIn(repo, { gameId, userId: 'uB', location: SPOT }));
+
+    const view = await unwrap(getRegroup(repo, { gameId, userId: 'uA' }));
+    expect(view).toMatchObject({ allReady: true, readyCount: 2 });
+  });
+
+  it('gives a judge the roster but no team of their own', async () => {
+    const { gameId } = await gameReturning();
+    const view = await unwrap(getRegroup(repo, { gameId, userId: 'uJ' }));
+    expect(view.teams).toHaveLength(2);
+    expect(view.me).toBeNull();
+  });
+
+  /**
+   * The reason this is its own endpoint rather than fields on `GameStateView`:
+   * that view is what the unauthenticated `/spectate/:code` route serves, so
+   * anything on it is public. Asserted on the serialized JSON, because a type
+   * would not have stopped a coordinate being spread in.
+   */
+  it('never carries coordinates', async () => {
+    const { gameId } = await gameReturning({ lat: 40, lng: -74, radiusM: 100 });
+    const view = await unwrap(getRegroup(repo, { gameId, userId: 'uA' }));
+    expect(view.fenced).toBe(true);
+
+    const json = JSON.stringify(view);
+    for (const leak of ['lat', 'lng', 'radiusM', 'startSpot', '-74']) {
+      expect(json, `regroup view leaked ${leak}`).not.toContain(leak);
+    }
+  });
+
+  it('says when a game has no fence at all', async () => {
+    const { gameId } = await gameReturning();
+    expect((await unwrap(getRegroup(repo, { gameId, userId: 'uA' }))).fenced).toBe(false);
+  });
+
+  it('refuses a non-member and a game outside a round', async () => {
+    const { gameId } = await gameReturning();
+    expect((await getRegroup(repo, { gameId, userId: 'stranger' })).ok).toBe(false);
+
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1', force: true }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2', force: true }));
+    // Rating is not a round; there is nobody to be waiting for.
+    expect((await getRegroup(repo, { gameId, userId: 'uA' })).ok).toBe(false);
+  });
+
+  it('records the host’s location at start and fences check-ins against it', async () => {
+    const { gameId, code } = await unwrap(
+      createGame(repo, { hostUserId: 'host', tier: 'game_pack', config: { ...DEFAULT_CONFIG, maxTeams: 2, photosPerRound: 5 } }),
+    );
+    await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
+    await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
+    // The host is standing with the teams, which is what the lobby tells them.
+    await unwrap(startGame(repo, { gameId, hostUserId: 'host', location: { lat: 40, lng: -74 } }));
+    await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+
+    const far = await checkIn(repo, { gameId, userId: 'uA', location: { lat: 40.01, lng: -74 } });
+    expect(far.ok).toBe(false);
+    if (!far.ok) expect(far.error).toMatch(/m to go/);
+
+    expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: 40, lng: -74 } })).ok).toBe(true);
+  });
+
+  it('starts unfenced when the host declines location', async () => {
+    // An unstartable game is worse than an unenforced return.
+    const { gameId } = await gameReturning();
+    const game = (await repo.get(gameId)) as Game;
+    expect(game.startSpot).toBeUndefined();
+    expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: -33, lng: 151 } })).ok).toBe(true);
+  });
+
+  it('refuses to complete the return while a team is still out', async () => {
+    const { gameId } = await gameReturning();
+    await unwrap(checkIn(repo, { gameId, userId: 'uA', location: SPOT }));
+
+    // A is back, B is not. This is the gate the host's button is built on.
+    const res = await advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/not checked in/);
+
+    expect((await advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1', force: true })).ok).toBe(true);
   });
 });
 
@@ -537,6 +703,7 @@ describe('finals voting', () => {
       await unwrap(submitPhoto(repo, { gameId, teamId: b.teamId!, shooterUserId: 'uB', location: { lat: 41, lng: -75 }, s3Key: `b${i}` }));
     }
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND1' }));
+    await bringEveryoneBack(repo, gameId, 'round1');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
     const mid = (await repo.get(gameId)) as Game;
     for (const asg of mid.assignments) {
@@ -544,6 +711,7 @@ describe('finals voting', () => {
       await unwrap(submitChase(repo, { gameId, assignmentId: asg.id, location: original.location, s3Key: `chase-${asg.id}`, shooterUserId: 'x' }));
     }
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'END_ROUND2' }));
+    await bringEveryoneBack(repo, gameId, 'round2');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RATING' }));
     return { gameId, teamA: a.teamId!, teamB: b.teamId! };

@@ -97,6 +97,34 @@ describe('lambda route (authenticated)', () => {
     expect(game.playerCount).toBe(1);
   });
 
+  // CLAUDE.md's built-but-unrouted note: the handler and its tests say nothing
+  // about whether anyone can reach it.
+  it('serves the regroup roster at GET /games/:id/regroup', async () => {
+    const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
+    await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
+    await call(container, 'POST', '/games/join', { code, displayName: 'B', action: { type: 'create_team', name: 'B' } }, 'uB');
+    await call(container, 'POST', `/games/${gameId}/start`, {}, 'host');
+
+    const res = await call(container, 'GET', `/games/${gameId}/regroup`, undefined, 'uA');
+    expect(res.status).toBe(200);
+    expect(res.data.teamCount).toBe(2);
+    expect(res.data.allReady).toBe(false);
+
+    // Authenticated: the roster says which teams are away from the meeting spot.
+    expect((await call(container, 'GET', `/games/${gameId}/regroup`)).status).toBe(401);
+  });
+
+  it('records the host’s start location through the route', async () => {
+    const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
+    await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
+    await call(container, 'POST', '/games/join', { code, displayName: 'B', action: { type: 'create_team', name: 'B' } }, 'uB');
+    // The route forwarded no body at all before this, so the location had nowhere
+    // to enter the system and every check-in was accepted from anywhere.
+    await call(container, 'POST', `/games/${gameId}/start`, { location: { lat: 40, lng: -74 } }, 'host');
+
+    expect((await call(container, 'GET', `/games/${gameId}/regroup`, undefined, 'uA')).data.fenced).toBe(true);
+  });
+
   it('returns 401 for an unauthenticated request to a protected route', async () => {
     const res = await call(container, 'POST', '/games', { config: FREE_CONFIG }); // no userId
     expect(res.status).toBe(401);
@@ -128,6 +156,10 @@ describe('lambda route (authenticated)', () => {
       await call(container, 'POST', `/games/${gameId}/photos`, { teamId: teamOf('B'), location: { lat: 41, lng: -75 }, s3Key: `b${i}` }, 'uB');
     }
     await call(container, 'POST', `/games/${gameId}/advance`, { event: 'END_ROUND1' }, 'host');
+    // Both teams walk back over the real route: Round 2 will not start otherwise.
+    for (const who of ['uA', 'uB']) {
+      expect((await call(container, 'POST', `/games/${gameId}/checkins`, { location: { lat: 40, lng: -74 } }, who)).status).toBe(200);
+    }
     await call(container, 'POST', `/games/${gameId}/advance`, { event: 'COMPLETE_RETURN1' }, 'host');
 
     const mine = await call(container, 'GET', `/games/${gameId}/assignments`, undefined, 'uA');
@@ -245,8 +277,21 @@ describe('lambda route (authenticated)', () => {
     await call(container, 'POST', '/games/join', { code, displayName: 'B', action: { type: 'create_team', name: 'Blues' } }, 'uB');
     await call(container, 'POST', `/games/${gameId}/start`, {}, 'owner');
 
-    for (const event of ['END_ROUND1', 'COMPLETE_RETURN1', 'END_ROUND2', 'COMPLETE_RETURN2', 'COMPLETE_RATING', 'COMPLETE_FINALS']) {
-      expect((await call(container, 'POST', `/games/${gameId}/advance`, { event }, 'owner')).status).toBe(200);
+    // Nobody took a photo or came back, so the returns are forced — which is
+    // also what proves `force` survives the route: without the boundary passing
+    // it through, both COMPLETE_RETURN calls would 400 and the league would
+    // never record a finished game.
+    const advance = (event: string, force = false) =>
+      call(container, 'POST', `/games/${gameId}/advance`, { event, ...(force ? { force: true } : {}) }, 'owner');
+    for (const [event, force] of [
+      ['END_ROUND1', false],
+      ['COMPLETE_RETURN1', true],
+      ['END_ROUND2', false],
+      ['COMPLETE_RETURN2', true],
+      ['COMPLETE_RATING', false],
+      ['COMPLETE_FINALS', false],
+    ] as Array<[string, boolean]>) {
+      expect((await advance(event, force)).status, event).toBe(200);
     }
 
     const table = await call(container, 'GET', `/tournaments/${leagueCode}/standings`, undefined, 'uA');

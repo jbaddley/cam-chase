@@ -16,6 +16,7 @@ import {
   submitPhoto,
 } from './handlers.js';
 import { InMemoryGameRepository } from './repository.js';
+import { bringEveryoneBack } from './return-test-support.js';
 
 /**
  * Full-game simulation gate (roadmap doc 09, Phase 1 exit criterion).
@@ -104,6 +105,7 @@ describe('full-game simulation', () => {
       );
     }
 
+    await bringEveryoneBack(repo, gameId, 'round1');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
 
     // --- Round 2: each team chases its queue, standing exactly on target ------
@@ -137,6 +139,7 @@ describe('full-game simulation', () => {
       );
     }
 
+    await bringEveryoneBack(repo, gameId, 'round2');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN2' }));
 
     // --- Rating: the judge gives every chase the same score -------------------

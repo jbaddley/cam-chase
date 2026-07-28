@@ -14,6 +14,7 @@ import {
   submitPhoto,
 } from './handlers.js';
 import { InMemoryGameRepository } from './repository.js';
+import { bringEveryoneBack } from './return-test-support.js';
 
 /**
  * Full-game simulation gate for Scavenger Hunt, mirroring the chase simulation.
@@ -118,6 +119,7 @@ describe('full-hunt simulation', () => {
     }
 
     // A hunt has no Round 2: the return check-in leads straight to judging.
+    await bringEveryoneBack(repo, gameId, 'round1');
     await unwrap(advanceGame(repo, { gameId, hostUserId: 'host', event: 'COMPLETE_RETURN1' }));
     expect(((await repo.get(gameId)) as Game).state).toBe('rating');
 
