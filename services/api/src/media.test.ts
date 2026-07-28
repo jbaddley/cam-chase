@@ -23,6 +23,33 @@ describe('S3MediaService.createUploadPost', () => {
     expect(post.fields['X-Amz-Signature']).toBeDefined();
   });
 
+  /**
+   * The invariant, rather than the one field that broke it: a POST policy
+   * condition on `$Field` is only satisfiable if the signed form actually
+   * carries `Field`. S3 does not treat a missing field as an unconstrained one —
+   * it rejects the upload outright — so a condition without its field is not a
+   * tighter rule, it is a guaranteed 403. The type condition shipped that way
+   * and no photo could be uploaded at all.
+   */
+  it('carries a form field for every condition the policy names', async () => {
+    const post = await media.createUploadPost(photoKey('g1', 't1', 'obj3'));
+    const policy = JSON.parse(Buffer.from(post.fields.Policy!, 'base64').toString('utf8'));
+
+    const named = (policy.conditions as unknown[])
+      .filter((c): c is [string, string, string] => Array.isArray(c) && typeof c[1] === 'string' && c[1].startsWith('$'))
+      .map((c) => c[1].slice(1));
+
+    expect(named.length).toBeGreaterThan(0);
+    expect(named.filter((field) => !(field in post.fields))).toEqual([]);
+  });
+
+  it('declares the image content type it constrains', async () => {
+    const post = await media.createUploadPost(photoKey('g1', 't1', 'obj4'));
+    // Keys are always `.jpg` and the camera produces JPEG, so the server pins
+    // the type rather than trusting the client to state it.
+    expect(post.fields['Content-Type']).toBe('image/jpeg');
+  });
+
   it('honors a custom max size', async () => {
     const post = await media.createUploadPost(photoKey('g1', 't1', 'obj2'), { maxBytes: 1024 });
     const policy = JSON.parse(Buffer.from(post.fields.Policy!, 'base64').toString('utf8'));

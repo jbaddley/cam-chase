@@ -39,6 +39,18 @@ export class S3MediaService implements MediaService {
     return createPresignedPost(this.s3, {
       Bucket: this.bucket,
       Key: key,
+      /**
+       * `Content-Type` has to be a *field*, not only a condition. A condition on
+       * `$Content-Type` constrains a field the form is expected to carry; it does
+       * not add one. With the condition alone the client sent every field the
+       * signer returned — which did not include this — and S3 refused the whole
+       * upload with "Policy Condition failed", so no photo could be saved at all.
+       *
+       * Pinned rather than taken from the client: `photoKey` always mints a
+       * `.jpg` and the camera always produces JPEG, so the server states the
+       * type it is signing for instead of trusting the caller to match it.
+       */
+      Fields: { 'Content-Type': 'image/jpeg' },
       Conditions: [
         ['content-length-range', 1, opts.maxBytes ?? MAX_UPLOAD_BYTES],
         ['starts-with', '$Content-Type', 'image/'],
