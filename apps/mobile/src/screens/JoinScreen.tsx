@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FormScreen } from './FormScreen.js';
 import { ApiError } from '@photochase/client';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
@@ -87,7 +88,15 @@ export function JoinScreen({
   }
 
   return (
-    <View style={styles.container}>
+    // Join is the most keyboard-heavy screen in the app — three fields, and on
+    // a small phone the buttons below them were entirely behind the keyboard.
+    <FormScreen
+      action={
+        <Pressable onPress={submit} style={styles.button}>
+          <Text>{busy ? t('join.joining') : t('join.submit')}</Text>
+        </Pressable>
+      }
+    >
       <Text style={styles.title}>{t('join.title')}</Text>
       <TextInput
         value={code}
@@ -108,9 +117,6 @@ export function JoinScreen({
         </View>
       ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Pressable onPress={submit} style={styles.button}>
-        <Text>{busy ? t('join.joining') : t('join.submit')}</Text>
-      </Pressable>
       {onHost ? (
         <Pressable onPress={onHost} style={styles.secondary}>
           <Text>{t('join.hostInstead')}</Text>
@@ -131,12 +137,11 @@ export function JoinScreen({
           <Text>{t('referral.title')}</Text>
         </Pressable>
       ) : null}
-    </View>
+    </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 16 },
   title: { fontSize: 28, fontWeight: '700' },
   input: { fontSize: 24, letterSpacing: 4, borderWidth: 1, padding: 12 },
   textField: { fontSize: 18, borderWidth: 1, padding: 12 },

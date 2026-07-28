@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FormScreen } from './FormScreen.js';
 import { ApiError, type EntitlementView, type HostParticipation } from '@photochase/client';
 import {
   COLOR_SPECIFICITIES,
@@ -183,14 +184,29 @@ export function HostScreen({
   }
 
   return (
-    <View style={styles.container}>
+    <FormScreen
+      action={
+        <>
+          <Pressable onPress={create} style={ready ? styles.button : styles.buttonDisabled}>
+            <Text>{busy ? t('config.creating') : t('config.create')}</Text>
+          </Pressable>
+          {onViewPlan ? (
+            <Pressable onPress={onViewPlan} style={styles.secondary}>
+              <Text>{t('plan.title')}</Text>
+            </Pressable>
+          ) : null}
+          <Pressable onPress={onCancel} style={styles.secondary}>
+            <Text>{t('common.back')}</Text>
+          </Pressable>
+        </>
+      }
+    >
       <Text style={styles.title}>{t('config.title')}</Text>
       {entitlement ? (
         <Text style={styles.subtitle}>{t('plan.currentTier', { tier: entitlement.tier })}</Text>
       ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <ScrollView>
         {/* First, because it is about the person rather than the game, and
             because a host who is never asked ends up stuck in the lobby. */}
         <Choices
@@ -297,25 +313,11 @@ export function HostScreen({
           format={(n) => `${n}x`}
         />
         {limits && !limits.configurableRounds ? <Text style={styles.mutedText}>{t('config.locked')}</Text> : null}
-      </ScrollView>
-
-      <Pressable onPress={create} style={ready ? styles.button : styles.buttonDisabled}>
-        <Text>{busy ? t('config.creating') : t('config.create')}</Text>
-      </Pressable>
-      {onViewPlan ? (
-        <Pressable onPress={onViewPlan} style={styles.secondary}>
-          <Text>{t('plan.upgrade')}</Text>
-        </Pressable>
-      ) : null}
-      <Pressable onPress={onCancel} style={styles.secondary}>
-        <Text>{t('common.back')}</Text>
-      </Pressable>
-    </View>
+    </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 8 },
   title: { fontSize: 28, fontWeight: '700' },
   subtitle: { color: '#1971c2' },
   error: { color: '#c92a2a' },

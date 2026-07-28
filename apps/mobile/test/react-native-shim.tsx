@@ -24,9 +24,33 @@ const box =
     createElement('div', role ? { 'data-testid': role } : {}, children);
 
 export const View = box();
-export const ScrollView = box('scrollview');
+/**
+ * Scrolling itself is out of scope, but two props decide whether a screen with
+ * a keyboard is usable at all, so they are surfaced as attributes for tests to
+ * assert on. `keyboardShouldPersistTaps` in particular: without it the first
+ * tap anywhere is spent dismissing the keyboard.
+ */
+export const ScrollView: ComponentType<
+  Styled & { keyboardShouldPersistTaps?: string; contentContainerStyle?: unknown }
+> = ({ children, keyboardShouldPersistTaps }) =>
+  createElement(
+    'div',
+    { 'data-testid': 'scrollview', 'data-persist-taps': keyboardShouldPersistTaps ?? 'never' },
+    children,
+  );
 
 export const Text: ComponentType<Styled> = ({ children }) => createElement('span', {}, children);
+
+/**
+ * Keyboard handling has no meaning in jsdom, so this renders its children and
+ * nothing else. What the real one does — lifting the pinned action clear of the
+ * keyboard — is a layout behaviour, and layout is out of scope here (see the
+ * note at the top of this file).
+ */
+export const KeyboardAvoidingView = box();
+
+/** Only ever read for `Platform.OS`; the shim stands in for a phone. */
+export const Platform = { OS: 'android' as const, select: <T,>(o: { android?: T; default?: T }) => o.android ?? o.default };
 
 /** Pressable maps to a button so Testing Library's click drives `onPress`. */
 export const Pressable: ComponentType<Styled & { onPress?: () => void }> = ({ children, onPress }) =>

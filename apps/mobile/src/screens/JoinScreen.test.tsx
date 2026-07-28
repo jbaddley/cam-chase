@@ -155,4 +155,14 @@ describe('JoinScreen — tag consent', () => {
     await waitFor(() => expect(joinGame).toHaveBeenCalled());
     expect(joinGame.mock.calls[0]![0]).toMatchObject({ acceptsBeingPhotographed: true });
   });
+
+  it('keeps Join clear of the keyboard, with three fields above it', async () => {
+    const { within } = await import('@testing-library/react');
+    render(<JoinScreen onJoined={vi.fn()} />);
+
+    const scroll = screen.getByTestId('scrollview');
+    expect(within(scroll).getByPlaceholderText('Your name')).toBeTruthy();
+    expect(within(scroll).queryByRole('button', { name: 'Join' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Join' })).toBeTruthy();
+  });
 });

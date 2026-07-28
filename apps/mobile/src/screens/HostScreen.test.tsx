@@ -375,4 +375,18 @@ describe('HostScreen', () => {
       expect(createGame).not.toHaveBeenCalled();
     });
   });
+
+  it('keeps Create game clear of the keyboard, below the scrolling settings', async () => {
+    // The team-name field puts a keyboard up, and every option plus the create
+    // button sat behind it.
+    getEntitlement.mockResolvedValue(entitlement({}));
+    render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+    await screen.findByText(/free/);
+
+    const scroll = screen.getByTestId('scrollview');
+    expect(within(scroll).getByPlaceholderText('Team name')).toBeTruthy();
+    expect(within(scroll).queryByRole('button', { name: 'Create game' })).toBeNull();
+    expect(action('Create game')).toBeTruthy();
+    expect(scroll.getAttribute('data-persist-taps')).toBe('handled');
+  });
 });
