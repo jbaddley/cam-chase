@@ -57,6 +57,15 @@ export const Text: ComponentType<Styled> = ({ children }) => createElement('span
  */
 export const KeyboardAvoidingView = box();
 
+/**
+ * No keyboard exists in jsdom, so listeners are accepted and never fire — a
+ * screen renders as though the keyboard were closed, which is the state its
+ * assertions are written against.
+ */
+export const Keyboard = {
+  addListener: (_event: string, _handler: (e: unknown) => void) => ({ remove: () => {} }),
+};
+
 /** Only ever read for `Platform.OS`; the shim stands in for a phone. */
 export const Platform = { OS: 'android' as const, select: <T,>(o: { android?: T; default?: T }) => o.android ?? o.default };
 

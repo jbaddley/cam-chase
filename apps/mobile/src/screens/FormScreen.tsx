@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { useKeyboardInset } from '../useKeyboardInset.js';
 
 /**
  * A screen with text fields: scrolling content, and an action pinned below it
@@ -24,10 +25,16 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
  * keyboard away mid-scroll on both: not the iOS gesture, and not Android
  * behaviour at all.
  *
- * Android relies on `adjustResize`, which Expo sets, so it needs no behavior of
- * its own; passing one there fights the system inset and jumps the layout.
+ * Android gets no `behavior`, because none of them help: the app runs
+ * edge-to-edge, so the window is never resized for the keyboard and
+ * `KeyboardAvoidingView` has nothing to react to. The keyboard's height is
+ * measured directly instead and applied as padding — see `useKeyboardInset`.
+ * That is not a nicety: without it the pinned action sits under the keyboard,
+ * which is exactly the thing this component exists to prevent.
  */
 export function FormScreen({ children, action }: { children: ReactNode; action?: ReactNode }) {
+  const keyboard = useKeyboardInset();
+
   return (
     <KeyboardAvoidingView
       style={styles.screen}
@@ -40,7 +47,7 @@ export function FormScreen({ children, action }: { children: ReactNode; action?:
       >
         {children}
       </ScrollView>
-      {action ? <View style={styles.action}>{action}</View> : null}
+      {action ? <View style={[styles.action, { marginBottom: keyboard }]}>{action}</View> : null}
     </KeyboardAvoidingView>
   );
 }
