@@ -20,6 +20,13 @@ describe('ReturnScreen', () => {
     expect(screen.getByText('Round 2 — head back')).toBeTruthy();
   });
 
+  // Checking in captures, so it holds the camera open; on the opaque screen that
+  // was a camera nobody could see.
+  it('is built on the viewfinder frame, not an opaque screen', () => {
+    render(<ReturnScreen gameId="g1" round={1} capture={capture} />);
+    expect(screen.getByTestId('viewfinder-frame')).toBeTruthy();
+  });
+
   it('checks in with the captured location', async () => {
     checkIn.mockResolvedValue({ round: 'round1', at: 1000 });
     render(<ReturnScreen gameId="g1" round={1} capture={capture} />);

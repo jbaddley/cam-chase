@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ApiError, type AssignmentView } from '@photochase/client';
 import { client } from '../api.js';
+import { CaptureError } from '../capture.js';
 import { Body, Button, ErrorText, Pill, Screen, Title } from '../ui.js';
 import { useViewfinder } from '../viewfinder.js';
+import { ViewfinderFrame } from './ViewfinderFrame.js';
 import type { CaptureSource } from './CaptureScreen.js';
 
 /**
@@ -59,7 +61,11 @@ export function ChaseScreen({
         (q) => q?.map((a) => (a.assignmentId === current.assignmentId ? { ...a, chasePhotoId } : a)) ?? q,
       );
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not save that chase. Try again.');
+      // A `CaptureError` names something the player can act on, so it is
+      // shown rather than flattened into the generic retry text.
+      setError(
+        e instanceof ApiError || e instanceof CaptureError ? e.message : 'Could not save that chase. Try again.',
+      );
     } finally {
       setBusy(false);
     }
@@ -75,17 +81,20 @@ export function ChaseScreen({
   }
 
   return (
-    <Screen>
+    <ViewfinderFrame
+      action={
+        <Button onPress={chase} disabled={!current}>
+          {!current ? 'Done' : busy ? 'Saving…' : 'Take chase photo'}
+        </Button>
+      }
+    >
       <Title>Round 2</Title>
       <Body muted>
         {chased} / {total} chased
       </Body>
       <Pill>{current ? `Recreate photo #${current.order + 1}` : 'All chases submitted!'}</Pill>
       {error ? <ErrorText>{error}</ErrorText> : null}
-      <Button onPress={chase} disabled={!current}>
-        {!current ? 'Done' : busy ? 'Saving…' : 'Take chase photo'}
-      </Button>
-    </Screen>
+    </ViewfinderFrame>
   );
 }
 

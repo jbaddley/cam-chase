@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { ApiError } from '@photochase/client';
 import { client } from '../api.js';
-import { Body, Button, ErrorText, Screen, Title } from '../ui.js';
+import { CaptureError } from '../capture.js';
+import { Body, Button, ErrorText, Title } from '../ui.js';
 import { useViewfinder } from '../viewfinder.js';
+import { ViewfinderFrame } from './ViewfinderFrame.js';
 import type { CaptureSource } from './CaptureScreen.js';
 
 /**
@@ -26,23 +28,30 @@ export function ReturnScreen({ gameId, round, capture }: { gameId: string; round
       await client.checkIn(gameId, { location });
       setCheckedIn(true);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not check in. Try again.');
+      // A `CaptureError` names something the player can act on, so it is
+      // shown rather than flattened into the generic retry text.
+      setError(
+        e instanceof ApiError || e instanceof CaptureError ? e.message : 'Could not check in. Try again.',
+      );
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Screen>
+    <ViewfinderFrame
+      action={
+        <Button onPress={submit} disabled={checkedIn}>
+          {checkedIn ? 'Checked in' : busy ? 'Checking in…' : "We're back"}
+        </Button>
+      }
+    >
       <Title>Round {round} — head back</Title>
       <Body muted>
         {checkedIn ? 'Checked in! Waiting for the other teams.' : 'Check in when you reach the return spot.'}
       </Body>
       {error ? <ErrorText>{error}</ErrorText> : null}
-      <Button onPress={submit} disabled={checkedIn}>
-        {checkedIn ? 'Checked in' : busy ? 'Checking in…' : "We're back"}
-      </Button>
-    </Screen>
+    </ViewfinderFrame>
   );
 }
 

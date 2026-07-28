@@ -1,6 +1,11 @@
 import * as Location from 'expo-location';
 import type { CameraView } from 'expo-camera';
 import type { CaptureSource } from '../screens/CaptureScreen.js';
+// Raised here, declared away from the native imports so the screens can match
+// on them and show what they say. See the note in `../capture.ts`.
+import { CameraUnavailable, LocationDenied } from '../capture.js';
+
+export { CameraUnavailable, LocationDenied } from '../capture.js';
 
 /**
  * The real capture boundary: a photo from expo-camera and a fix from
@@ -12,22 +17,6 @@ import type { CaptureSource } from '../screens/CaptureScreen.js';
 
 /** The camera handle the app holds; only the one method this needs is named. */
 export type CameraHandle = Pick<CameraView, 'takePictureAsync'>;
-
-export class CameraUnavailable extends Error {
-  constructor(message = 'The camera is not ready yet.') {
-    super(message);
-    this.name = 'CameraUnavailable';
-  }
-}
-
-export class LocationDenied extends Error {
-  constructor() {
-    // Location is not a nice-to-have here: a photo with no fix cannot be scored
-    // for accuracy, so the game says so rather than silently scoring zero.
-    super('PhotoChase needs location while a round is running, to score how close a recreation is.');
-    this.name = 'LocationDenied';
-  }
-}
 
 /**
  * Ask for foreground location once, up front. Called before a round rather than

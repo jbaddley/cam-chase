@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { ApiError, type GeoPointInput } from '@photochase/client';
 import { client } from '../api.js';
-import { Body, Button, ErrorText, Screen, Title } from '../ui.js';
+import { CaptureError } from '../capture.js';
+import { Body, Button, ErrorText, Title } from '../ui.js';
 import { useViewfinder } from '../viewfinder.js';
+import { ViewfinderFrame } from './ViewfinderFrame.js';
 
 /**
  * Produces a photo and its capture location. Injected so the screen is testable
@@ -42,23 +44,36 @@ export function CaptureScreen({
       await client.capturePhoto(gameId, { teamId, location, file });
       setTaken((n) => n + 1);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not save that photo. Try again.');
+      // A `CaptureError` says something the player can act on — the camera is
+      // still warming up, or location is off — so it is shown rather than
+      // flattened into the generic retry text.
+      // A `CaptureError` says something the player can act on — the camera is
+      // still warming up, or location is off — so it is shown rather than
+      // flattened into the generic retry text.
+      setError(
+        e instanceof ApiError || e instanceof CaptureError
+          ? e.message
+          : 'Could not save that photo. Try again.',
+      );
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Screen>
+    <ViewfinderFrame
+      action={
+        <Button onPress={take} disabled={done}>
+          {done ? 'All photos taken' : busy ? 'Saving…' : 'Take photo'}
+        </Button>
+      }
+    >
       <Title>Round 1</Title>
       <Body muted>
         {taken} / {quota} photos
       </Body>
       {error ? <ErrorText>{error}</ErrorText> : null}
-      <Button onPress={take} disabled={done}>
-        {done ? 'All photos taken' : busy ? 'Saving…' : 'Take photo'}
-      </Button>
-    </Screen>
+    </ViewfinderFrame>
   );
 }
 

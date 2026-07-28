@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ApiError, type HuntItemView, type HuntView } from '@photochase/client';
 import { Pressable } from 'react-native';
 import { client } from '../api.js';
+import { CaptureError } from '../capture.js';
 import { Body, Card, ErrorText, Heading, Loading, Pill, Row, Screen, Title } from '../ui.js';
 import { useViewfinder } from '../viewfinder.js';
 import type { CaptureSource } from './CaptureScreen.js';
@@ -67,7 +68,11 @@ export function HuntScreen({
       await client.capturePhoto(gameId, { teamId, location, file, itemId: item.itemId });
       await refresh();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not save that photo. Try again.');
+      // A `CaptureError` names something the player can act on, so it is
+      // shown rather than flattened into the generic retry text.
+      setError(
+        e instanceof ApiError || e instanceof CaptureError ? e.message : 'Could not save that photo. Try again.',
+      );
     } finally {
       setBusyItemId(null);
     }

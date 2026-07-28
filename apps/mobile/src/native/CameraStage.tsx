@@ -60,9 +60,11 @@ export function CameraStage({ children }: { children: (capture: CaptureSource) =
           onCameraReady={() => setReady(true)}
         />
       ) : null}
-      {/* A scrim only while the preview is behind it, so the screens' dark text
-          stays readable over whatever the player is pointing at. */}
-      <View style={live ? styles.overlayOverCamera : styles.overlay}>
+      {/* Transparent, with no scrim of its own. Washing the whole window to
+          keep dark text readable made the preview useless for the one thing it
+          is for — seeing what you are pointing at — so the scrim moved to
+          `ViewfinderFrame`, which puts it behind the words and nowhere else. */}
+      <View style={styles.overlay}>
         <ViewfinderContext.Provider value={setActive}>{children(capture)}</ViewfinderContext.Provider>
       </View>
       {/* Only after a real refusal — `undetermined` means the sheet is still to
@@ -84,9 +86,13 @@ export function CameraStage({ children }: { children: (capture: CaptureSource) =
 }
 
 const styles = StyleSheet.create({
-  stage: { flex: 1 },
+  /**
+   * The stage carries the app's background so the screens that are not shooting
+   * still sit on white. It used to live on the root view, outside the safe area;
+   * it belongs here now that the camera fills the window rather than the inset.
+   */
+  stage: { flex: 1, backgroundColor: '#fff' },
   overlay: { flex: 1 },
-  overlayOverCamera: { flex: 1, backgroundColor: 'rgba(255,255,255,0.55)' },
   denied: {
     position: 'absolute',
     top: 0,

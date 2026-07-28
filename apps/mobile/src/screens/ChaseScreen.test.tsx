@@ -39,6 +39,15 @@ describe('ChaseScreen', () => {
     expect(await screen.findByText('1 / 2 chased')).toBeTruthy();
   });
 
+  // Recreating a photo is the screen that most needs the preview — you are
+  // matching a frame — so it must not be built on the opaque screen.
+  it('is built on the viewfinder frame, not an opaque screen', async () => {
+    listAssignments.mockResolvedValue([assignment(0)]);
+    render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
+
+    expect(await screen.findByTestId('viewfinder-frame')).toBeTruthy();
+  });
+
   it('targets the first unchased assignment, not simply the first', async () => {
     listAssignments.mockResolvedValue([assignment(0, true), assignment(1)]);
     render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);

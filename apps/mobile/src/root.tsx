@@ -35,18 +35,29 @@ const purchases: PurchaseGateway = env.EXPO_PUBLIC_REVENUECAT_KEY
 export function PhotoChaseApp() {
   return (
     <SafeAreaProvider>
-      {/* Android runs edge-to-edge, so the insets are not decoration: without
-          them the top of every screen sits under the status bar. */}
-      <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-        <StatusBar style="auto" />
-        <CameraStage>
-          {(capture) => <App authorize={nativeAuthorizer} purchases={purchases} capture={capture} />}
-        </CameraStage>
-      </SafeAreaView>
+      <StatusBar style="auto" />
+      {/* The camera stage is outside the safe area and the controls are inside
+          it. That order is the point: a viewfinder that stops short of the
+          status bar is not full-bleed, and this used to inset the preview along
+          with everything else. Android runs edge-to-edge, so the insets are not
+          decoration — without them the top of every screen sits under the
+          status bar — but they belong to the UI layer alone.
+
+          All four edges, not just top and bottom: turned sideways, the notch
+          and the navigation bar are on the left and right. */}
+      <CameraStage>
+        {(capture) => (
+          <SafeAreaView style={styles.ui} edges={['top', 'bottom', 'left', 'right']}>
+            <App authorize={nativeAuthorizer} purchases={purchases} capture={capture} />
+          </SafeAreaView>
+        )}
+      </CameraStage>
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#fff' },
+  /** Transparent: the preview is behind this, and a background here is what hid
+      it. The app's white now sits on the camera stage, below the camera. */
+  ui: { flex: 1 },
 });

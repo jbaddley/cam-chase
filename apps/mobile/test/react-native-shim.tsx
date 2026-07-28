@@ -16,12 +16,21 @@ import { createElement } from 'react';
 interface Styled {
   style?: unknown;
   children?: ReactNode;
+  testID?: string;
 }
 
+/**
+ * `testID` is forwarded so tests can find a structural container by name. That
+ * is not a way in through the back door for layout: styles are still dropped,
+ * and a component whose portrait and landscape arrangements differ only by
+ * style is still indistinguishable here. What it buys is the ability to assert
+ * *which* arrangement a component chose, and which frame a screen is built on —
+ * questions about structure, which this shim does model.
+ */
 const box =
   (role?: string): ComponentType<Styled> =>
-  ({ children }) =>
-    createElement('div', role ? { 'data-testid': role } : {}, children);
+  ({ children, testID }) =>
+    createElement('div', testID ?? role ? { 'data-testid': testID ?? role } : {}, children);
 
 export const View = box();
 /**
@@ -102,6 +111,15 @@ export const Easing = {
 export const Keyboard = {
   addListener: (_event: string, _handler: (e: unknown) => void) => ({ remove: () => {} }),
 };
+
+/**
+ * A portrait phone, fixed. jsdom has no viewport worth reporting and nothing
+ * here rotates, so components that need to behave differently in landscape take
+ * the orientation as a prop and let this be the default — see
+ * `ViewfinderFrame`. Whether the real window is measured correctly on rotation
+ * is a device question.
+ */
+export const useWindowDimensions = () => ({ width: 400, height: 800 });
 
 /** Only ever read for `Platform.OS`; the shim stands in for a phone. */
 export const Platform = { OS: 'android' as const, select: <T,>(o: { android?: T; default?: T }) => o.android ?? o.default };
