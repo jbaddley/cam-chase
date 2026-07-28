@@ -57,7 +57,7 @@ export default function App({
 
   if (!signedIn) return <SignInScreen authorize={authorize} onSignedIn={() => setSignedIn(true)} />;
 
-  if (joined) return <GameRouter joined={joined} capture={capture} />;
+  if (joined) return <GameRouter joined={joined} capture={capture} onExit={() => setJoined(null)} />;
 
   const home = () => setRoute('home');
 

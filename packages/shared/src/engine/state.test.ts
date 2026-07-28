@@ -181,4 +181,39 @@ describe('mode-scoped flows', () => {
       expect(nextState(lonely, { type: 'START_GAME' }).ok, mode).toBe(false);
     }
   });
+
+  describe('abandoning', () => {
+    const at = (state: Game['state'], mode: GameMode = 'photo_chase') =>
+      makeGame({ state, config: { ...DEFAULT_CONFIG, mode } });
+
+    it.each(['lobby', 'round1_active', 'round1_return', 'rating', 'finals_voting'] as const)(
+      'is allowed from %s',
+      (state) => {
+        expect(nextState(at(state), { type: 'ABANDON' })).toEqual({ ok: true, state: 'archived' });
+      },
+    );
+
+    it.each(['scavenger_hunt', 'color_hunt', 'photo_tag'] as const)(
+      'is allowed in %s too, since it belongs to no mode',
+      (mode) => {
+        expect(nextState(at('lobby', mode), { type: 'ABANDON' })).toEqual({ ok: true, state: 'archived' });
+      },
+    );
+
+    it('refuses a game that already reached results', () => {
+      // People are still reading the scoreboard; ending it again would take it
+      // away from them.
+      expect(nextState(at('results'), { type: 'ABANDON' }).ok).toBe(false);
+    });
+
+    it('refuses a game that is already archived', () => {
+      expect(nextState(at('archived'), { type: 'ABANDON' }).ok).toBe(false);
+    });
+
+    it('does not need the minimum team count', () => {
+      // Leaving is exactly what you do when nobody else turned up.
+      const empty = makeGame({ state: 'lobby', teams: [] });
+      expect(nextState(empty, { type: 'ABANDON' }).ok).toBe(true);
+    });
+  });
 });

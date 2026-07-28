@@ -240,6 +240,54 @@ export async function joinByCode(
   return ok({ gameId: game.id, teamId, role });
 }
 
+// --- leaveGame --------------------------------------------------------------
+
+const LeaveInput = z.object({
+  gameId: z.string().min(1),
+  userId: z.string().min(1),
+});
+
+/**
+ * Drop out of a game you have not started playing yet.
+ *
+ * Only from the lobby, and deliberately so. Once a round is under way a player
+ * has photos, votes and possibly a return check-in attached to them, and
+ * removing the membership would leave those orphaned and the scoreboard wrong.
+ * Walking away from a running game is a thing you do with your feet — the
+ * client simply stops showing it — and what you leave behind still counts.
+ *
+ * The host cannot leave: a game with nobody able to start it is a dead lobby
+ * that its other players would sit in indefinitely. They end it instead.
+ */
+export async function leaveGame(
+  repo: GameRepository,
+  raw: unknown,
+): Promise<Result<{ left: true }>> {
+  const parsed = LeaveInput.safeParse(raw);
+  if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
+  const { gameId, userId } = parsed.data;
+
+  const game = await repo.get(gameId);
+  if (!game) return err('Game not found.');
+  if (game.state !== 'lobby') return err('The game has already started.');
+  if (game.hostUserId === userId) return err('You are hosting this game. End it instead of leaving.');
+
+  const membership = game.memberships.find((m) => m.userId === userId);
+  if (!membership) return err('You are not in this game.');
+
+  game.memberships = game.memberships.filter((m) => m.userId !== userId);
+
+  // A team nobody is on is not a team. Left behind, it would still count
+  // toward the minimum to start and appear on the scoreboard with no players.
+  if (membership.teamId !== null) {
+    const stillOccupied = game.memberships.some((m) => m.teamId === membership.teamId);
+    if (!stillOccupied) game.teams = game.teams.filter((t) => t.id !== membership.teamId);
+  }
+
+  await repo.save(game);
+  return ok({ left: true });
+}
+
 // --- listTeams --------------------------------------------------------------
 
 export async function listTeams(

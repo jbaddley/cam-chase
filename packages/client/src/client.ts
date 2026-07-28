@@ -287,6 +287,19 @@ export class PhotoChaseClient {
     return request(this.config, 'POST', '/games/join', input);
   }
 
+  /**
+   * Drop out of a lobby. Refused once the game has started, because the photos
+   * and votes already attached to you still have to count.
+   */
+  leaveGame(gameId: string): Promise<{ left: true }> {
+    return request(this.config, 'POST', `/games/${gameId}/leave`, {});
+  }
+
+  /** End a game early. Host only; the game moves straight to archived. */
+  abandonGame(gameId: string): Promise<{ state: string }> {
+    return request(this.config, 'POST', `/games/${gameId}/advance`, { event: 'ABANDON' });
+  }
+
   listTeams(gameId: string): Promise<TeamSummary[]> {
     return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/teams`);
   }

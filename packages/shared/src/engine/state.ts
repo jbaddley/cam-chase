@@ -117,7 +117,13 @@ export type GameEvent =
   // Photo Tag: the hiding window ends, then live play ends.
   | { type: 'END_SCATTER' }
   | { type: 'END_TAG' }
-  | { type: 'ARCHIVE' };
+  | { type: 'ARCHIVE' }
+  /**
+   * The host ends the game early. Not part of any mode's flow — that is the
+   * point of it — so it is handled outside the tables and permitted from every
+   * state except the two that are already over.
+   */
+  | { type: 'ABANDON' };
 
 export type TransitionResult =
   | { ok: true; state: GameState }
@@ -195,6 +201,18 @@ export function modeOf(game: Game): GameMode {
  */
 export function nextState(game: Game, event: GameEvent): TransitionResult {
   const mode = modeOf(game);
+
+  // Abandoning is an escape from wherever the game happens to be, so it has no
+  // single `from` state and cannot live in a mode's table. A game already at
+  // results has finished — ending it again would throw away a scoreboard people
+  // are still reading.
+  if (event.type === 'ABANDON') {
+    if (game.state === 'results' || game.state === 'archived') {
+      return { ok: false, error: 'This game has already finished.' };
+    }
+    return { ok: true, state: 'archived' };
+  }
+
   const rule = TABLES[mode][event.type];
   if (!rule) {
     return { ok: false, error: `Event ${event.type} is not part of the ${mode} flow.` };

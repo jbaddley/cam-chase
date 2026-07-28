@@ -13,6 +13,7 @@ import {
   getResults,
   getSpectatorView,
   joinByCode,
+  leaveGame,
   listAssignments,
   listRateable,
   listTeams,
@@ -756,6 +757,97 @@ describe('getGameState', () => {
       const game = (await repo.get(gameId))!;
       expect(game.teams.map((t) => t.name)).toEqual(['Reds', 'Blues']);
       expect(game.memberships).toHaveLength(2);
+    });
+  });
+
+  describe('leaveGame', () => {
+    /** A lobby with a host team and one guest team. */
+    async function lobby() {
+      const repo = new InMemoryGameRepository();
+      const created = await createGame(repo, {
+        hostUserId: 'u-host',
+        tier: 'free',
+        config: FREE_CONFIG,
+        host: { type: 'create_team', name: 'Reds' },
+      });
+      const { gameId, code } = (created as { data: { gameId: string; code: string } }).data;
+      await joinByCode(repo, {
+        code,
+        userId: 'u-guest',
+        displayName: 'Ada',
+        action: { type: 'create_team', name: 'Blues' },
+      });
+      return { repo, gameId };
+    }
+
+    it('removes the membership, and the team it emptied', async () => {
+      // A team nobody is on would still count toward the minimum to start and
+      // appear on the scoreboard with no players.
+      const { repo, gameId } = await lobby();
+      expect((await leaveGame(repo, { gameId, userId: 'u-guest' })).ok).toBe(true);
+
+      const game = (await repo.get(gameId))!;
+      expect(game.memberships.map((m) => m.userId)).toEqual(['u-host']);
+      expect(game.teams.map((t) => t.name)).toEqual(['Reds']);
+    });
+
+    it('keeps a team that still has someone on it', async () => {
+      const { repo, gameId } = await lobby();
+      const game = (await repo.get(gameId))!;
+      const blues = game.teams.find((t) => t.name === 'Blues')!;
+      await joinByCode(repo, {
+        code: game.code,
+        userId: 'u-third',
+        displayName: 'Grace',
+        action: { type: 'join_team', teamId: blues.id },
+      });
+
+      await leaveGame(repo, { gameId, userId: 'u-guest' });
+
+      const after = (await repo.get(gameId))!;
+      expect(after.teams.map((t) => t.name)).toEqual(['Reds', 'Blues']);
+    });
+
+    it('refuses once the game has started', async () => {
+      // Photos and votes are attached to the membership by then; removing it
+      // would orphan them and leave the scoreboard wrong.
+      const { repo, gameId } = await lobby();
+      const game = (await repo.get(gameId))!;
+      game.state = 'round1_active';
+      await repo.save(game);
+
+      const result = await leaveGame(repo, { gameId, userId: 'u-guest' });
+      expect(result).toEqual({ ok: false, error: 'The game has already started.' });
+    });
+
+    it('refuses the host, who would leave a lobby nobody can start', async () => {
+      const { repo, gameId } = await lobby();
+      const result = await leaveGame(repo, { gameId, userId: 'u-host' });
+      expect(result.ok).toBe(false);
+
+      const game = (await repo.get(gameId))!;
+      expect(game.memberships.map((m) => m.userId)).toContain('u-host');
+    });
+
+    it('refuses somebody who was never in the game', async () => {
+      const { repo, gameId } = await lobby();
+      expect((await leaveGame(repo, { gameId, userId: 'u-stranger' })).ok).toBe(false);
+    });
+
+    it('lets the freed-up slot be taken by someone else', async () => {
+      // The point of removing the team: a two-team game is not full because
+      // somebody looked in and left.
+      const { repo, gameId } = await lobby();
+      await leaveGame(repo, { gameId, userId: 'u-guest' });
+      const game = (await repo.get(gameId))!;
+
+      const rejoined = await joinByCode(repo, {
+        code: game.code,
+        userId: 'u-late',
+        displayName: 'Alan',
+        action: { type: 'create_team', name: 'Greens' },
+      });
+      expect(rejoined.ok).toBe(true);
     });
   });
 });

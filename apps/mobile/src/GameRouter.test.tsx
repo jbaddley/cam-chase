@@ -27,13 +27,19 @@ vi.mock('./screens/RatingScreen.js', () => ({ RatingScreen: () => <span>RatingSc
 vi.mock('./screens/ResultsScreen.js', () => ({ ResultsScreen: () => <span>ResultsScreen</span> }));
 vi.mock('./screens/ReturnScreen.js', () => ({ ReturnScreen: () => <span>ReturnScreen</span> }));
 vi.mock('./screens/TagScreen.js', () => ({ TagScreen: () => <span>TagScreen</span> }));
+// The bar is on every screen; the router's job is which screen, not the bar.
+vi.mock('./screens/GameBar.js', () => ({ GameBar: () => <span>GameBar</span> }));
 
 const { GameRouter } = await import('./GameRouter.js');
 
 afterEach(cleanup);
-beforeEach(() => phase.mockReset());
+beforeEach(() => {
+  phase.mockReset();
+  onExit.mockReset();
+});
 
 const capture = () => Promise.resolve({ file: new Blob(['x']), location: { lat: 0, lng: 0 } });
+const onExit = vi.fn();
 
 function show(mode: GameMode, state: GameStateView['state'], teamId: string | null = 't1') {
   phase.mockReturnValue({
@@ -50,7 +56,7 @@ function show(mode: GameMode, state: GameStateView['state'], teamId: string | nu
     applyState: vi.fn(),
   });
   render(
-    <GameRouter joined={{ gameId: 'g1', code: 'ABC123', teamId, role: 'captain' }} capture={capture} />,
+    <GameRouter joined={{ gameId: 'g1', code: 'ABC123', teamId, role: 'captain' }} capture={capture} onExit={onExit} />,
   );
 }
 
@@ -145,7 +151,7 @@ describe('GameRouter — shared phases', () => {
   it('falls back to the lobby before the state has loaded', () => {
     phase.mockReturnValue({ game: null, error: null, applyState: vi.fn() });
     render(
-      <GameRouter joined={{ gameId: 'g1', code: 'ABC123', teamId: 't1', role: 'captain' }} capture={capture} />,
+      <GameRouter joined={{ gameId: 'g1', code: 'ABC123', teamId: 't1', role: 'captain' }} capture={capture} onExit={onExit} />,
     );
     shown('LobbyScreen');
   });
@@ -153,5 +159,17 @@ describe('GameRouter — shared phases', () => {
   it('treats a game with no mode as a chase, for games that predate modes', () => {
     show(undefined as unknown as GameMode, 'round1_active');
     shown('CaptureScreen');
+  });
+
+  it('sends the player home when the host ends the game', async () => {
+    // Archived means somebody ended it. Sitting on a dead game is the trap the
+    // exit exists to avoid, so the router leaves without being asked.
+    show('photo_chase', 'archived');
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalled());
+  });
+
+  it('stays put while the game is still running', () => {
+    show('photo_chase', 'round1_active');
+    expect(onExit).not.toHaveBeenCalled();
   });
 });

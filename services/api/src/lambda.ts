@@ -13,6 +13,7 @@ import {
   getSpectatorView,
   getResults,
   joinByCode,
+  leaveGame,
   getMySecret,
   getTagBrief,
   listAssignments,
@@ -96,6 +97,9 @@ const ROUTES: Route[] = [
     ),
   ),
   compile('POST', '/games/join', ({ container, body, auth }) => joinByCode(container.games, { ...body, userId: auth.userId })),
+  compile('POST', '/games/:id/leave', ({ container, params, auth }) =>
+    leaveGame(container.games, { gameId: params.id!, userId: auth.userId }),
+  ),
   compile('GET', '/games/:id/teams', ({ container, params }) => listTeams(container.games, params.id!)),
   compile('GET', '/games/:id/assignments', ({ container, params, auth }) =>
     listAssignments(container.games, { gameId: params.id!, userId: auth.userId }),
