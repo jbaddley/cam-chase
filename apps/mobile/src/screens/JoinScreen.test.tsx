@@ -102,14 +102,16 @@ describe('JoinScreen', () => {
     expect(await screen.findByText('Could not join the game. Check your connection.')).toBeTruthy();
   });
 
-  it('offers hosting only when the caller supplies a handler', () => {
+  it('offers a way back only when the caller supplies one', () => {
+    // Hosting, the daily hunt and leagues moved to the home screen; this one
+    // does nothing but join.
     const { rerender } = render(<JoinScreen onJoined={vi.fn()} />);
-    expect(screen.queryByRole('button', { name: 'Host a game instead' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
 
-    const onHost = vi.fn();
-    rerender(<JoinScreen onJoined={vi.fn()} onHost={onHost} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Host a game instead' }));
-    expect(onHost).toHaveBeenCalled();
+    const onBack = vi.fn();
+    rerender(<JoinScreen onJoined={vi.fn()} onBack={onBack} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(onBack).toHaveBeenCalled();
   });
 });
 

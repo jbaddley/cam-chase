@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { configError } from './src/config.js';
 import { GameRouter } from './src/GameRouter.js';
 import { DailyHuntScreen } from './src/screens/DailyHuntScreen.js';
+import { HomeScreen } from './src/screens/HomeScreen.js';
 import { JoinScreen, type JoinedGame } from './src/screens/JoinScreen.js';
 import { LeagueScreen } from './src/screens/LeagueScreen.js';
 import { PlanScreen } from './src/screens/PlanScreen.js';
@@ -23,7 +24,7 @@ const unavailableAuthorizer: Authorizer = () => {
 };
 
 /** Where the app is, outside a game. */
-type Route = 'home' | 'host' | 'plan' | 'league' | 'referral' | 'daily';
+type Route = 'home' | 'join' | 'host' | 'plan' | 'league' | 'referral' | 'daily';
 
 /**
  * Root navigation: sign in → home → host, join, or one of the solo/social
@@ -81,11 +82,21 @@ export default function App({
           onViewPlan={() => setRoute('plan')}
         />
       );
-    default:
+    case 'join':
       return (
         <JoinScreen
-          onJoined={setJoined}
+          onJoined={(game) => {
+            setRoute('home');
+            setJoined(game);
+          }}
+          onBack={home}
+        />
+      );
+    default:
+      return (
+        <HomeScreen
           onHost={() => setRoute('host')}
+          onJoin={() => setRoute('join')}
           onDailyHunt={() => setRoute('daily')}
           onLeagues={() => setRoute('league')}
           onInvite={() => setRoute('referral')}

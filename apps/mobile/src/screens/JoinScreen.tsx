@@ -15,19 +15,18 @@ export interface JoinedGame {
   role: string;
 }
 
-/** Enter a 6-character game code (or arrive here via a scanned QR deep link). */
+/**
+ * Enter a 6-character game code (or arrive here via a scanned QR deep link).
+ *
+ * Only joining. The other routes into the app moved to the home screen, which
+ * left this free to be one job: get the code right.
+ */
 export function JoinScreen({
   onJoined,
-  onHost,
-  onDailyHunt,
-  onLeagues,
-  onInvite,
+  onBack,
 }: {
   onJoined: (game: JoinedGame) => void;
-  onHost?: () => void;
-  onDailyHunt?: () => void;
-  onLeagues?: () => void;
-  onInvite?: () => void;
+  onBack?: () => void;
 }) {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -98,8 +97,8 @@ export function JoinScreen({
       }
     >
       <View style={styles.hero}>
-        <Display>{t('app.title')}</Display>
-        <Body muted>{t('join.title')}</Body>
+        <Display>{t('join.title')}</Display>
+        <Body muted>{t('join.prompt')}</Body>
       </View>
 
       {/* The code gets its own oversized field: it is dictated across a room,
@@ -135,12 +134,13 @@ export function JoinScreen({
       ) : null}
       {error ? <ErrorText>{error}</ErrorText> : null}
 
-      <View style={styles.elsewhere}>
-        {onHost ? <Button onPress={onHost} tone="secondary">{t('join.hostInstead')}</Button> : null}
-        {onDailyHunt ? <Button onPress={onDailyHunt} tone="secondary">{t('daily.title')}</Button> : null}
-        {onLeagues ? <Button onPress={onLeagues} tone="secondary">{t('league.title')}</Button> : null}
-        {onInvite ? <Button onPress={onInvite} tone="secondary">{t('referral.title')}</Button> : null}
-      </View>
+      {onBack ? (
+        <View style={styles.elsewhere}>
+          <Button onPress={onBack} tone="secondary">
+            {t('common.back')}
+          </Button>
+        </View>
+      ) : null}
     </FormScreen>
   );
 }
