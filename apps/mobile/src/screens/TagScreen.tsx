@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type CatchClaimView, type TagBriefView, type TeamSummary } from '@photochase/client';
 import type { CatchStatus, TagRole, TagSubMode } from '@photochase/shared';
 import type { MessageKey } from '@photochase/i18n';
 import { client } from '../api.js';
+import { StyleSheet, Text, View } from 'react-native';
 import { t } from '../i18n.js';
+import { color, space, type as typeScale } from '../theme.js';
+import { Body, Button, Card, ErrorText, Heading, Pill, Row, Screen, Title } from '../ui.js';
 import { useViewfinder } from '../viewfinder.js';
 import type { CaptureSource } from './CaptureScreen.js';
 
@@ -107,10 +109,10 @@ export function TagScreen({
 
   if (scattering) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>{t('tag.title')}</Text>
-        <Text style={styles.brief}>{t('tag.scatter')}</Text>
-      </View>
+      <Screen>
+        <Title>{t('tag.title')}</Title>
+        <Body muted>{t('tag.scatter')}</Body>
+      </Screen>
     );
   }
 
@@ -118,50 +120,50 @@ export function TagScreen({
   const shown = brief?.targetTeamId ? targets.filter((team) => team.teamId === brief.targetTeamId) : targets;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{t('tag.title')}</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {status ? <Text style={styles.status}>{status}</Text> : null}
+    <Screen scroll>
+      <Title>{t('tag.title')}</Title>
+      {error ? <ErrorText>{error}</ErrorText> : null}
+      {status ? <Pill>{status}</Pill> : null}
 
-      {brief?.role ? <Text style={styles.brief}>{t('tag.role', { role: t(ROLE_KEY[brief.role]) })}</Text> : null}
+      {brief?.role ? <Body muted>{t('tag.role', { role: t(ROLE_KEY[brief.role]) })}</Body> : null}
       {brief?.targetTeamName ? (
-        <Text style={styles.brief}>{t('tag.target', { team: brief.targetTeamName })}</Text>
+        <Body muted>{t('tag.target', { team: brief.targetTeamName })}</Body>
       ) : (
-        <Text style={styles.brief}>{t('tag.noTarget')}</Text>
+        <Body muted>{t('tag.noTarget')}</Body>
       )}
       {/* A boolean, never a name — see the module comment. */}
       {brief?.hunterNearby ? <Text style={styles.warning}>{t('tag.nearby')}</Text> : null}
 
-      <ScrollView>
-        {shown.map((team) => (
-          <View key={team.teamId} style={styles.row}>
-            <Text style={styles.teamName}>{team.name}</Text>
-            <Pressable onPress={() => claim(team.teamId)} style={styles.button}>
-              <Text>{t('tag.claim')}</Text>
-            </Pressable>
-          </View>
-        ))}
+      {shown.map((team) => (
+        <Card key={team.teamId}>
+          <Row>
+            <Heading>{team.name}</Heading>
+            <Button onPress={() => claim(team.teamId)}>{t('tag.claim')}</Button>
+          </Row>
+        </Card>
+      ))}
 
-        <Text style={styles.section}>{t('tag.claimsTitle')}</Text>
-        {claims.length === 0 ? <Text style={styles.brief}>{t('tag.noClaims')}</Text> : null}
-        {claims.map((entry) => (
-          <View key={entry.catchId} style={styles.claim}>
-            <Text style={styles.teamName}>{t('tag.claimedBy', { team: entry.hunterTeamName })}</Text>
-            <Text style={styles.brief}>{t(STATUS_KEY[entry.status])}</Text>
-            {entry.status === 'pending' ? (
-              <View style={styles.answers}>
-                <Pressable onPress={() => answer(entry.catchId, true)} style={styles.button}>
-                  <Text>{t('tag.confirm')}</Text>
-                </Pressable>
-                <Pressable onPress={() => answer(entry.catchId, false)} style={styles.secondary}>
-                  <Text>{t('tag.dispute')}</Text>
-                </Pressable>
+      <Heading>{t('tag.claimsTitle')}</Heading>
+      {claims.length === 0 ? <Body muted>{t('tag.noClaims')}</Body> : null}
+      {claims.map((entry) => (
+        <Card key={entry.catchId}>
+          <Heading>{t('tag.claimedBy', { team: entry.hunterTeamName })}</Heading>
+          <Body muted>{t(STATUS_KEY[entry.status])}</Body>
+          {entry.status === 'pending' ? (
+            <View style={styles.answers}>
+              <View style={styles.half}>
+                <Button onPress={() => answer(entry.catchId, true)}>{t('tag.confirm')}</Button>
               </View>
-            ) : null}
-          </View>
-        ))}
-      </ScrollView>
-    </View>
+              <View style={styles.half}>
+                <Button onPress={() => answer(entry.catchId, false)} tone="secondary">
+                  {t('tag.dispute')}
+                </Button>
+              </View>
+            </View>
+          ) : null}
+        </Card>
+      ))}
+    </Screen>
   );
 }
 
@@ -169,17 +171,9 @@ export function TagScreen({
 export type { TagSubMode };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 8 },
-  title: { fontSize: 28, fontWeight: '700' },
-  brief: { fontSize: 16, color: '#666' },
-  warning: { fontSize: 18, fontWeight: '700', color: '#e8590c' },
-  error: { color: '#c92a2a' },
-  status: { color: '#1971c2' },
-  section: { fontSize: 20, fontWeight: '700', paddingTop: 20 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-  claim: { paddingVertical: 12, gap: 6 },
-  teamName: { fontSize: 18 },
-  answers: { flexDirection: 'row', gap: 8 },
-  button: { backgroundColor: '#ffd43b', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10 },
-  secondary: { backgroundColor: '#e9ecef', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10 },
+  // The proximity warning is the one thing on this screen that has to be seen
+  // without being read, so it gets a colour nothing else uses.
+  warning: { ...typeScale.heading, color: color.warning },
+  answers: { flexDirection: 'row', gap: space.sm },
+  half: { flex: 1 },
 });

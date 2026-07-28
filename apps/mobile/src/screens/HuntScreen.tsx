@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type HuntItemView, type HuntView } from '@photochase/client';
+import { Pressable } from 'react-native';
 import { client } from '../api.js';
+import { Body, Card, ErrorText, Heading, Loading, Pill, Row, Screen, Title } from '../ui.js';
 import { useViewfinder } from '../viewfinder.js';
 import type { CaptureSource } from './CaptureScreen.js';
 
@@ -74,63 +75,45 @@ export function HuntScreen({
 
   if (!hunt) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Hunt</Text>
-        <Text style={styles.progress}>{error ?? 'Loading the hunt list…'}</Text>
-      </View>
+      <Loading title="Hunt" message={error ?? 'Loading the hunt list…'} />
     );
   }
 
   const found = hunt.items.filter((i) => i.claimedPhotoId !== null).length;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Hunt</Text>
-      <Text style={styles.progress}>
+    <Screen scroll>
+      <Title>Scavenger hunt</Title>
+      <Body muted>
         {found} / {hunt.items.length} found
-      </Text>
-      <Text style={styles.rule}>Someone from your team has to be in the shot, pointing at it.</Text>
-      {pending ? <Text style={styles.wildcardPending}>A wildcard item drops mid-round…</Text> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <ScrollView>
-        {hunt.items.map((item) => {
-          const claimed = item.claimedPhotoId !== null;
-          return (
-            <Pressable
-              key={item.itemId}
-              onPress={() => claim(item)}
-              style={claimed ? styles.itemFound : item.wildcard ? styles.itemWildcard : styles.item}
-            >
-              <Text style={styles.itemLabel}>{item.label}</Text>
-              <Text style={styles.itemMeta}>
-                {claimed
-                  ? 'Found'
-                  : busyItemId === item.itemId
-                    ? 'Saving…'
-                    : item.wildcard
-                      ? 'Wildcard — double points'
-                      : item.rarity === 'rare'
-                        ? 'Rare'
-                        : 'Common'}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
+      </Body>
+      <Body muted>Someone from your team has to be in the shot, pointing at it.</Body>
+      {pending ? <Pill>A wildcard item drops mid-round…</Pill> : null}
+      {error ? <ErrorText>{error}</ErrorText> : null}
+      {hunt.items.map((item) => {
+        const claimed = item.claimedPhotoId !== null;
+        return (
+          <Pressable key={item.itemId} onPress={() => claim(item)}>
+            <Card tone={item.wildcard && !claimed ? 'highlight' : 'plain'}>
+              <Row>
+                <Heading>{item.label}</Heading>
+                <Body muted>
+                  {claimed
+                    ? 'Found'
+                    : busyItemId === item.itemId
+                      ? 'Saving…'
+                      : item.wildcard
+                        ? 'Wildcard — double points'
+                        : item.rarity === 'rare'
+                          ? 'Rare'
+                          : 'Common'}
+                </Body>
+              </Row>
+            </Card>
+          </Pressable>
+        );
+      })}
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 12 },
-  title: { fontSize: 28, fontWeight: '700' },
-  progress: { fontSize: 20, color: '#666' },
-  rule: { fontSize: 14, color: '#666' },
-  wildcardPending: { fontSize: 16, color: '#1971c2' },
-  error: { color: '#c92a2a' },
-  item: { backgroundColor: '#e9ecef', padding: 14, borderRadius: 10, marginBottom: 8 },
-  itemFound: { backgroundColor: '#b2f2bb', padding: 14, borderRadius: 10, marginBottom: 8 },
-  itemWildcard: { backgroundColor: '#ffd43b', padding: 14, borderRadius: 10, marginBottom: 8 },
-  itemLabel: { fontSize: 18 },
-  itemMeta: { fontSize: 14, color: '#495057' },
-});

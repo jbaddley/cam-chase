@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ApiError } from '@photochase/client';
 import { client } from '../api.js';
+import { Body, Button, ErrorText, Screen, Title } from '../ui.js';
 import { useViewfinder } from '../viewfinder.js';
 import type { CaptureSource } from './CaptureScreen.js';
 
@@ -33,24 +33,16 @@ export function ReturnScreen({ gameId, round, capture }: { gameId: string; round
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Round {round} — head back</Text>
-      <Text style={styles.subtitle}>
+    <Screen>
+      <Title>Round {round} — head back</Title>
+      <Body muted>
         {checkedIn ? 'Checked in! Waiting for the other teams.' : 'Check in when you reach the return spot.'}
-      </Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Pressable onPress={submit} style={checkedIn ? styles.buttonDone : styles.button}>
-        <Text>{checkedIn ? 'Checked in' : busy ? 'Checking in…' : "We're back"}</Text>
-      </Pressable>
-    </View>
+      </Body>
+      {error ? <ErrorText>{error}</ErrorText> : null}
+      <Button onPress={submit} disabled={checkedIn}>
+        {checkedIn ? 'Checked in' : busy ? 'Checking in…' : "We're back"}
+      </Button>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 16, justifyContent: 'center' },
-  title: { fontSize: 28, fontWeight: '700' },
-  subtitle: { fontSize: 18, color: '#666' },
-  error: { color: '#c92a2a' },
-  button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
-  buttonDone: { backgroundColor: '#e9ecef', padding: 16, borderRadius: 12, alignItems: 'center' },
-});

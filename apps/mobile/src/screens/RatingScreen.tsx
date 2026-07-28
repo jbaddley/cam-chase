@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type RateableView } from '@photochase/client';
 import type { FoulReason } from '@photochase/shared';
 import { client } from '../api.js';
+import { Body, Card, ChoiceRow, Chip, ErrorText, Heading, Pill, Screen, Title } from '../ui.js';
 
 type Axis = 'pose' | 'angle' | 'validity';
 
@@ -101,74 +101,49 @@ export function RatingScreen({ gameId }: { gameId: string }) {
 
   if (!queue) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Rating</Text>
-        <Text style={styles.progress}>{error ?? 'Loading photos to rate…'}</Text>
-      </View>
+      <Screen>
+        <Title>Rating</Title>
+        <Body muted>{error ?? 'Loading photos to rate…'}</Body>
+      </Screen>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Rating</Text>
-      <Text style={styles.progress}>
+    <Screen scroll>
+      <Title>Rating</Title>
+      <Body muted>
         {done} / {total} rated
-      </Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      </Body>
+      {error ? <ErrorText>{error}</ErrorText> : null}
       {current ? (
-        <View style={styles.card}>
-          {current.itemLabel ? <Text style={styles.itemLabel}>Claimed: {current.itemLabel}</Text> : null}
+        <Card>
+          {current.itemLabel ? <Heading>Claimed: {current.itemLabel}</Heading> : null}
           {axesFor(current).map((axis) => (
-            <View key={axis} style={styles.axisRow}>
-              <Text style={styles.axisLabel}>{AXIS_LABEL[axis]}</Text>
-              <View style={styles.stars}>
-                {STARS.map((n) => (
-                  <Pressable
-                    key={n}
-                    onPress={() => vote(axis, n)}
-                    style={current.myVotes[axis] === n ? styles.starPicked : styles.star}
-                  >
-                    <Text>{n}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          ))}
-          <View style={styles.axisRow}>
-            <Text style={styles.axisLabel}>{current.itemId ? 'Call a foul' : 'Call a foul on the original'}</Text>
-            <View style={styles.stars}>
-              {(current.itemId ? HUNT_FOULS : FOULS).map(({ reason, label }) => (
-                <Pressable
-                  key={reason}
-                  onPress={() => toggleFoul(reason)}
-                  style={current.originalFouls.includes(reason) ? styles.foulCalled : styles.foul}
-                >
-                  <Text>{label}</Text>
-                </Pressable>
+            <ChoiceRow key={axis} label={AXIS_LABEL[axis]}>
+              {STARS.map((n) => (
+                <Chip key={n} onPress={() => vote(axis, n)} selected={current.myVotes[axis] === n}>
+                  {n}
+                </Chip>
               ))}
-            </View>
-          </View>
-        </View>
+            </ChoiceRow>
+          ))}
+          <ChoiceRow label={current.itemId ? 'Call a foul' : 'Call a foul on the original'}>
+            {(current.itemId ? HUNT_FOULS : FOULS).map(({ reason, label }) => (
+              <Chip
+                key={reason}
+                onPress={() => toggleFoul(reason)}
+                selected={current.originalFouls.includes(reason)}
+                tone="danger"
+              >
+                {label}
+              </Chip>
+            ))}
+          </ChoiceRow>
+        </Card>
       ) : (
-        <Text style={styles.doneText}>All rated — waiting for the host.</Text>
+        <Pill>All rated — waiting for the host.</Pill>
       )}
-    </View>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 16 },
-  title: { fontSize: 28, fontWeight: '700' },
-  progress: { fontSize: 20, color: '#666' },
-  error: { color: '#c92a2a' },
-  card: { gap: 16, paddingVertical: 16 },
-  axisRow: { gap: 8 },
-  axisLabel: { fontSize: 18 },
-  itemLabel: { fontSize: 20, fontWeight: '600' },
-  stars: { flexDirection: 'row', gap: 8 },
-  star: { backgroundColor: '#e9ecef', paddingVertical: 12, paddingHorizontal: 18, borderRadius: 8 },
-  starPicked: { backgroundColor: '#ffd43b', paddingVertical: 12, paddingHorizontal: 18, borderRadius: 8 },
-  foul: { backgroundColor: '#e9ecef', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8 },
-  foulCalled: { backgroundColor: '#ffa8a8', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8 },
-  doneText: { fontSize: 18, color: '#1971c2' },
-});

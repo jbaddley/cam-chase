@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Body, Button, ErrorText, Heading } from '../ui.js';
 import { ApiError } from '@photochase/client';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
+import { color, radius, space, type as typeScale } from '../theme.js';
 
 /**
  * A bar across the top of every in-game screen: the code you are playing under,
@@ -68,24 +70,26 @@ export function GameBar({
   if (asking) {
     return (
       <View style={styles.confirm}>
-        <Text style={styles.confirmTitle}>{isHost ? t('game.endTitle') : t('game.leaveTitle')}</Text>
-        <Text style={styles.confirmBody}>{isHost ? t('game.endBody') : t('game.leaveBody')}</Text>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <Heading>{isHost ? t('game.endTitle') : t('game.leaveTitle')}</Heading>
+        <Body muted>{isHost ? t('game.endBody') : t('game.leaveBody')}</Body>
+        {error ? <ErrorText>{error}</ErrorText> : null}
         <View style={styles.confirmRow}>
-          <Pressable onPress={() => setAsking(false)} style={styles.cancel}>
-            <Text>{t('game.stay')}</Text>
-          </Pressable>
-          <Pressable onPress={isHost ? endForEveryone : leave} style={styles.danger}>
-            <Text style={styles.dangerText}>
+          <View style={styles.half}>
+            <Button onPress={() => setAsking(false)} tone="secondary">
+              {t('game.stay')}
+            </Button>
+          </View>
+          <View style={styles.half}>
+            <Button onPress={isHost ? endForEveryone : leave} tone="danger">
               {busy ? t('game.leaving') : isHost ? t('game.endConfirm') : t('game.leaveConfirm')}
-            </Text>
-          </Pressable>
+            </Button>
+          </View>
         </View>
         {/* A host who wants out without ending everyone else's game. */}
         {isHost ? (
-          <Pressable onPress={leave} style={styles.cancel}>
-            <Text style={styles.quiet}>{t('game.justLeave')}</Text>
-          </Pressable>
+          <Button onPress={leave} tone="secondary">
+            {t('game.justLeave')}
+          </Button>
         ) : null}
       </View>
     );
@@ -106,19 +110,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: space.xl,
+    paddingVertical: space.md,
   },
-  code: { fontSize: 16, fontWeight: '700', letterSpacing: 2, color: '#495057' },
-  exit: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f1f3f5' },
-  exitText: { fontSize: 14, color: '#495057' },
-  confirm: { padding: 20, gap: 10 },
-  confirmTitle: { fontSize: 20, fontWeight: '700' },
-  confirmBody: { fontSize: 15, color: '#495057' },
-  confirmRow: { flexDirection: 'row', gap: 10 },
-  cancel: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#f1f3f5' },
-  danger: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#ffc9c9' },
-  dangerText: { color: '#a61e1e', fontWeight: '600' },
-  quiet: { color: '#868e96', fontSize: 14 },
-  error: { color: '#c92a2a' },
+  code: { ...typeScale.heading, letterSpacing: 4, color: color.inkMuted },
+  exit: {
+    paddingVertical: space.sm,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.pill,
+    backgroundColor: color.surfaceSunken,
+  },
+  exitText: { ...typeScale.label, color: color.inkMuted },
+  confirm: { padding: space.xl, gap: space.md },
+  confirmRow: { flexDirection: 'row', gap: space.sm },
+  half: { flex: 1 },
 });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { FormScreen } from './FormScreen.js';
+import { Body, Button, Chip, ChoiceRow, ErrorText, Field, Pill, Title } from '../ui.js';
 import { ApiError, type EntitlementView, type HostParticipation } from '@photochase/client';
 import {
   COLOR_SPECIFICITIES,
@@ -163,23 +163,21 @@ export function HostScreen({
     format?: (option: T) => string;
   }) {
     return (
-      <View style={styles.field}>
-        <Text style={styles.label}>{label}</Text>
-        <View style={styles.options}>
-          {options.map((option) => {
-            const ok = allowed(option);
-            return (
-              <Pressable
-                key={String(option)}
-                onPress={() => ok && onPick(option)}
-                style={!ok ? styles.optionLocked : option === value ? styles.optionPicked : styles.option}
-              >
-                <Text style={ok ? undefined : styles.mutedText}>{format ? format(option) : String(option)}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+      <ChoiceRow label={label}>
+        {options.map((option) => {
+          const ok = allowed(option);
+          return (
+            <Chip
+              key={String(option)}
+              onPress={() => ok && onPick(option)}
+              selected={option === value}
+              disabled={!ok}
+            >
+              {format ? format(option) : String(option)}
+            </Chip>
+          );
+        })}
+      </ChoiceRow>
     );
   }
 
@@ -187,25 +185,23 @@ export function HostScreen({
     <FormScreen
       action={
         <>
-          <Pressable onPress={create} style={ready ? styles.button : styles.buttonDisabled}>
-            <Text>{busy ? t('config.creating') : t('config.create')}</Text>
-          </Pressable>
+          <Button onPress={create} disabled={!ready}>
+            {busy ? t('config.creating') : t('config.create')}
+          </Button>
           {onViewPlan ? (
-            <Pressable onPress={onViewPlan} style={styles.secondary}>
-              <Text>{t('plan.title')}</Text>
-            </Pressable>
+            <Button onPress={onViewPlan} tone="secondary">
+              {t('plan.title')}
+            </Button>
           ) : null}
-          <Pressable onPress={onCancel} style={styles.secondary}>
-            <Text>{t('common.back')}</Text>
-          </Pressable>
+          <Button onPress={onCancel} tone="secondary">
+            {t('common.back')}
+          </Button>
         </>
       }
     >
-      <Text style={styles.title}>{t('config.title')}</Text>
-      {entitlement ? (
-        <Text style={styles.subtitle}>{t('plan.currentTier', { tier: entitlement.tier })}</Text>
-      ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <Title>{t('config.title')}</Title>
+      {entitlement ? <Pill>{t('plan.currentTier', { tier: entitlement.tier })}</Pill> : null}
+      {error ? <ErrorText>{error}</ErrorText> : null}
 
         {/* First, because it is about the person rather than the game, and
             because a host who is never asked ends up stuck in the lobby. */}
@@ -218,18 +214,15 @@ export function HostScreen({
           format={(role) => t(HOST_ROLE_KEY[role])}
         />
         {playing ? (
-          <View style={styles.field}>
-            <Text style={styles.label}>{t('config.hostTeam')}</Text>
-            <TextInput
-              value={hostTeamName}
-              onChangeText={setHostTeamName}
-              placeholder={t('join.teamName')}
-              maxLength={40}
-              style={styles.input}
-            />
-          </View>
+          <Field
+            label={t('config.hostTeam')}
+            value={hostTeamName}
+            onChangeText={setHostTeamName}
+            placeholder={t('join.teamName')}
+            maxLength={40}
+          />
         ) : (
-          <Text style={styles.hint}>{t('config.hostRoleHint')}</Text>
+          <Body muted>{t('config.hostRoleHint')}</Body>
         )}
         <Choices
           label={t('config.mode')}
@@ -312,25 +305,8 @@ export function HostScreen({
           onPick={(judgeWeight) => setConfig((c) => ({ ...c, judgeWeight }))}
           format={(n) => `${n}x`}
         />
-        {limits && !limits.configurableRounds ? <Text style={styles.mutedText}>{t('config.locked')}</Text> : null}
+        {limits && !limits.configurableRounds ? <Body muted>{t('config.locked')}</Body> : null}
     </FormScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  title: { fontSize: 28, fontWeight: '700' },
-  subtitle: { color: '#1971c2' },
-  error: { color: '#c92a2a' },
-  field: { paddingVertical: 10, gap: 6 },
-  label: { fontSize: 16 },
-  options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  option: { backgroundColor: '#e9ecef', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8 },
-  optionPicked: { backgroundColor: '#ffd43b', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8 },
-  optionLocked: { backgroundColor: '#f8f9fa', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8, opacity: 0.5 },
-  mutedText: { color: '#adb5bd' },
-  input: { borderColor: '#ced4da', borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16 },
-  hint: { color: '#868e96', fontSize: 13 },
-  button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
-  buttonDisabled: { backgroundColor: '#f1f3f5', padding: 16, borderRadius: 12, alignItems: 'center' },
-  secondary: { padding: 16, borderRadius: 12, alignItems: 'center' },
-});

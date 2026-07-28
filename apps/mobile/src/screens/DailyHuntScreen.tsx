@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type DailyHuntView } from '@photochase/client';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
+import { Body, Button, Card, ErrorText, Heading, Screen, Title } from '../ui.js';
 
 /**
  * The solo daily hunt: the answer to opening the app when nobody is around.
@@ -39,46 +39,29 @@ export function DailyHuntScreen({
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{t('daily.title')}</Text>
-      <Text style={styles.blurb}>{t('daily.blurb')}</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <Screen scroll>
+      <Title>{t('daily.title')}</Title>
+      <Body muted>{t('daily.blurb')}</Body>
+      {error ? <ErrorText>{error}</ErrorText> : null}
 
-      <Pressable onPress={play} style={styles.button}>
-        <Text>{run?.resumed ? t('daily.resume') : t('daily.start')}</Text>
-      </Pressable>
-
+      <Button onPress={play}>{run?.resumed ? t('daily.resume') : t('daily.start')}</Button>
       {onBack ? (
-        <Pressable onPress={onBack} style={styles.secondary}>
-          <Text>{t('common.back')}</Text>
-        </Pressable>
+        <Button onPress={onBack} tone="secondary">
+          {t('common.back')}
+        </Button>
       ) : null}
 
       {run ? (
-        <View style={styles.list}>
-          <Text style={styles.theme}>{t('daily.theme', { theme: run.theme })}</Text>
-          <ScrollView>
-            {run.items.map((item) => (
-              <View key={item.id} style={styles.row}>
-                <Text style={styles.itemLabel}>{item.label}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
+        <>
+          <Heading>{t('daily.theme', { theme: run.theme })}</Heading>
+          {run.items.map((item) => (
+            <Card key={item.id}>
+              <Body>{item.label}</Body>
+            </Card>
+          ))}
+        </>
       ) : null}
-    </View>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 10 },
-  title: { fontSize: 28, fontWeight: '700' },
-  blurb: { color: '#666' },
-  error: { color: '#c92a2a' },
-  button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
-  secondary: { padding: 16, borderRadius: 12, alignItems: 'center' },
-  list: { paddingVertical: 12, gap: 6 },
-  theme: { fontSize: 18, fontWeight: '600' },
-  row: { backgroundColor: '#e9ecef', padding: 12, borderRadius: 10, marginBottom: 6 },
-  itemLabel: { fontSize: 16 },
-});

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { EntitlementView } from '@photochase/client';
 import type { MessageKey } from '@photochase/i18n';
 import type { SkuId } from '@photochase/shared';
 import { client } from '../api.js';
+import { StyleSheet, Text } from 'react-native';
 import { t } from '../i18n.js';
+import { color, type as typeScale } from '../theme.js';
+import { Body, Button, Card, ErrorText, Heading, Pill, Row, Screen, Title } from '../ui.js';
 import { listPriceLabel, OFFERED_SKUS, unavailablePurchaseGateway, type Product, type PurchaseGateway } from '../purchases.js';
 
 /**
@@ -119,13 +121,13 @@ export function PlanScreen({
 
   if (!entitlement) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>{t('plan.title')}</Text>
-        <Text style={styles.subtitle}>{error ?? t('plan.loading')}</Text>
-        <Pressable onPress={onBack} style={styles.secondary}>
-          <Text>{t('common.back')}</Text>
-        </Pressable>
-      </View>
+      <Screen>
+        <Title>{t('plan.title')}</Title>
+        <Body muted>{error ?? t('plan.loading')}</Body>
+        <Button onPress={onBack} tone="secondary">
+          {t('common.back')}
+        </Button>
+      </Screen>
     );
   }
 
@@ -135,75 +137,68 @@ export function PlanScreen({
   })).filter((offer) => offer.product);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{t('plan.title')}</Text>
-      <Text style={styles.subtitle}>{t('plan.currentTier', { tier: entitlement.tier })}</Text>
+    <Screen scroll>
+      <Title>{t('plan.title')}</Title>
+      <Pill>{t('plan.currentTier', { tier: entitlement.tier })}</Pill>
 
       {entitlement.subscriptionActive ? (
-        <Text style={styles.detail}>{t('plan.subscriptionActive')}</Text>
+        <Body muted>{t('plan.subscriptionActive')}</Body>
       ) : entitlement.tier === 'game_pack' ? (
-        <Text style={styles.detail}>{t('plan.creditsLeft', { count: entitlement.gameCredits })}</Text>
+        <Body muted>{t('plan.creditsLeft', { count: entitlement.gameCredits })}</Body>
       ) : null}
 
       {/* The server's own reason, so the wording matches what blocked the start. */}
-      {entitlement.cannotStartReason ? <Text style={styles.error}>{entitlement.cannotStartReason}</Text> : null}
-      {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {entitlement.cannotStartReason ? <ErrorText>{entitlement.cannotStartReason}</ErrorText> : null}
+      {notice ? <Pill tone="positive">{notice}</Pill> : null}
+      {error ? <ErrorText>{error}</ErrorText> : null}
 
-      <Text style={styles.sectionTitle}>{t('plan.unlocks')}</Text>
-      <ScrollView>
-        <View style={styles.row}>
-          <Text>{t('plan.maxTeams', { count: entitlement.limits.maxTeams })}</Text>
+      <Heading>{t('plan.unlocks')}</Heading>
+      <Card>
+        <Row>
+          <Text style={styles.feature}>{t('plan.maxTeams', { count: entitlement.limits.maxTeams })}</Text>
           <Text style={styles.on}>✓</Text>
-        </View>
+        </Row>
         {Object.entries(entitlement.features).map(([feature, enabled]) => (
-          <View key={feature} style={styles.row}>
-            <Text style={enabled ? undefined : styles.muted}>{FEATURE_LABEL[feature] ?? feature}</Text>
+          <Row key={feature}>
+            <Text style={enabled ? styles.feature : styles.muted}>{FEATURE_LABEL[feature] ?? feature}</Text>
             <Text style={enabled ? styles.on : styles.muted}>{enabled ? '✓' : '—'}</Text>
-          </View>
+          </Row>
         ))}
+      </Card>
 
-        {offers.length > 0 ? (
-          <View>
-            <Text style={styles.sectionTitle}>{t('plan.upgrade')}</Text>
-            {offers.map(({ sku, product }) => {
-              const key = SKU_KEY[sku];
-              return (
-                <View key={sku} style={styles.row}>
-                  <Text>
+      {offers.length > 0 ? (
+        <>
+          <Heading>{t('plan.upgrade')}</Heading>
+          {offers.map(({ sku, product }) => {
+            const key = SKU_KEY[sku];
+            return (
+              <Card key={sku}>
+                <Row>
+                  <Text style={styles.feature}>
                     {key ? t(key) : sku} · {product!.priceLabel || listPriceLabel(sku)}
                   </Text>
-                  <Pressable onPress={() => buy(sku)} style={styles.buy}>
-                    <Text>{buying === sku ? t('purchase.buying') : t('purchase.buy')}</Text>
-                  </Pressable>
-                </View>
-              );
-            })}
-            <Pressable onPress={restore} style={styles.secondary}>
-              <Text>{t('purchase.restore')}</Text>
-            </Pressable>
-          </View>
-        ) : null}
-      </ScrollView>
+                  <Button onPress={() => buy(sku)}>
+                    {buying === sku ? t('purchase.buying') : t('purchase.buy')}
+                  </Button>
+                </Row>
+              </Card>
+            );
+          })}
+          <Button onPress={restore} tone="secondary">
+            {t('purchase.restore')}
+          </Button>
+        </>
+      ) : null}
 
-      <Pressable onPress={onBack} style={styles.secondary}>
-        <Text>{t('common.back')}</Text>
-      </Pressable>
-    </View>
+      <Button onPress={onBack} tone="secondary">
+        {t('common.back')}
+      </Button>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 8 },
-  title: { fontSize: 28, fontWeight: '700' },
-  subtitle: { fontSize: 18, color: '#1971c2' },
-  detail: { color: '#666' },
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginTop: 12 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-  on: { color: '#2f9e44' },
-  muted: { color: '#adb5bd' },
-  notice: { color: '#2f9e44' },
-  error: { color: '#c92a2a' },
-  buy: { backgroundColor: '#ffd43b', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
-  secondary: { padding: 16, borderRadius: 12, alignItems: 'center' },
+  feature: { ...typeScale.body, color: color.ink, flexShrink: 1 },
+  muted: { ...typeScale.body, color: color.inkMuted },
+  on: { ...typeScale.body, color: color.positive, fontWeight: '700' },
 });

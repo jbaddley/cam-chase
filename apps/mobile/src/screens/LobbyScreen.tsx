@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { ApiError, type GameStateView, type TeamSummary } from '@photochase/client';
 import type { MessageKey } from '@photochase/i18n';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
 import { color, space, type as typeScale } from '../theme.js';
-import { Body, Button, Card, ErrorText, Pill } from '../ui.js';
+import { Body, Button, Card, ErrorText, Pill, Row, Screen } from '../ui.js';
 
 export type LobbyTeam = TeamSummary;
 
@@ -70,7 +70,7 @@ export function LobbyScreen({
   const shownError = startError ?? error ?? null;
 
   return (
-    <View style={styles.container}>
+    <Screen scroll>
       {/* The code is the biggest thing on the screen because it is the one
           thing being read aloud across a room. */}
       <View style={styles.codeBlock}>
@@ -90,17 +90,15 @@ export function LobbyScreen({
       <Body muted>{t('lobby.teamsJoined', { count: teams.length })}</Body>
       {shownError ? <ErrorText>{shownError}</ErrorText> : null}
 
-      <ScrollView contentContainerStyle={styles.list}>
-        {teams.map((team) => (
-          <Card key={team.teamId}>
-            <View style={styles.row}>
-              <Text style={styles.teamName}>{team.name}</Text>
-              <Text style={styles.count}>{t('lobby.playerCount', { count: team.memberCount })}</Text>
-            </View>
-          </Card>
-        ))}
-        {teams.length === 0 ? <Body muted>{t('lobby.waiting')}</Body> : null}
-      </ScrollView>
+      {teams.map((team) => (
+        <Card key={team.teamId}>
+          <Row>
+            <Text style={styles.teamName}>{team.name}</Text>
+            <Text style={styles.count}>{t('lobby.playerCount', { count: team.memberCount })}</Text>
+          </Row>
+        </Card>
+      ))}
+      {teams.length === 0 ? <Body muted>{t('lobby.waiting')}</Body> : null}
 
       {canStart ? (
         <Button onPress={start}>{starting ? t('game.starting') : t('game.start')}</Button>
@@ -109,18 +107,15 @@ export function LobbyScreen({
           {t('lobby.needMore')}
         </Button>
       ) : null}
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: space.xl, gap: space.md, backgroundColor: color.surface },
   codeBlock: { alignItems: 'center', paddingVertical: space.lg },
   codeLabel: { ...typeScale.label, color: color.inkMuted },
   code: { ...typeScale.display, color: color.ink, letterSpacing: 8 },
   status: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' },
-  list: { gap: space.sm, paddingBottom: space.md },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   teamName: { ...typeScale.heading, color: color.ink, flexShrink: 1 },
   count: { ...typeScale.label, color: color.inkMuted },
 });

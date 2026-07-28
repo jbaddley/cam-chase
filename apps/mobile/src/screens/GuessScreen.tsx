@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type GuessTargetView } from '@photochase/client';
 import { COLORS, MOTIFS, SHAPES, type AttributeGuess } from '@photochase/shared';
 import { client } from '../api.js';
+import { Body, Button, Card, Chip, ChoiceRow, ErrorText, Heading, Loading, Pill, Screen, Title } from '../ui.js';
 import { t } from '../i18n.js';
 
 type Axis = 'color' | 'shape' | 'motif';
@@ -73,64 +73,40 @@ export function GuessScreen({ gameId, locked = false }: { gameId: string; locked
 
   if (!targets) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>{t('color.guessTitle')}</Text>
-        <Text style={styles.meta}>{error ?? t('watch.connecting')}</Text>
-      </View>
+      <Loading title={t('color.guessTitle')} message={error ?? t('watch.connecting')} />
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{t('color.guessTitle')}</Text>
-      {locked ? <Text style={styles.meta}>{t('color.locked')}</Text> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {status ? <Text style={styles.status}>{status}</Text> : null}
+    <Screen scroll>
+      <Title>{t('color.guessTitle')}</Title>
+      {locked ? <Body muted>{t('color.locked')}</Body> : null}
+      {error ? <ErrorText>{error}</ErrorText> : null}
+      {status ? <Pill>{status}</Pill> : null}
 
-      <ScrollView>
-        {targets.map((target) => (
-          <View key={target.teamId} style={styles.card}>
-            <Text style={styles.subject}>{t('color.guessFor', { team: target.teamName })}</Text>
-            <Text style={styles.meta}>{t('color.photosToStudy', { count: target.photoKeys.length })}</Text>
-            {(['color', 'shape', 'motif'] as const).map((axis) => (
-              <View key={axis} style={styles.axisRow}>
-                <Text style={styles.axisLabel}>{t(`color.${axis}` as 'color.color')}</Text>
-                <View style={styles.options}>
-                  {OPTIONS[axis].map((option) => (
-                    <Pressable
-                      key={option}
-                      onPress={() => pick(target.teamId, axis, option)}
-                      style={drafts[target.teamId]?.[axis] === option ? styles.optionPicked : styles.option}
-                    >
-                      <Text>{option}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-            ))}
-            <Pressable onPress={() => commit(target.teamId)} style={locked ? styles.buttonLocked : styles.button}>
-              <Text>{t('color.commit')}</Text>
-            </Pressable>
-          </View>
-        ))}
-      </ScrollView>
-    </View>
+      {targets.map((target) => (
+        <Card key={target.teamId}>
+          <Heading>{t('color.guessFor', { team: target.teamName })}</Heading>
+          <Body muted>{t('color.photosToStudy', { count: target.photoKeys.length })}</Body>
+          {(['color', 'shape', 'motif'] as const).map((axis) => (
+            <ChoiceRow key={axis} label={t(`color.${axis}` as 'color.color')}>
+              {OPTIONS[axis].map((option) => (
+                <Chip
+                  key={option}
+                  onPress={() => pick(target.teamId, axis, option)}
+                  selected={drafts[target.teamId]?.[axis] === option}
+                >
+                  {option}
+                </Chip>
+              ))}
+            </ChoiceRow>
+          ))}
+          <Button onPress={() => commit(target.teamId)} disabled={locked}>
+            {t('color.commit')}
+          </Button>
+        </Card>
+      ))}
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 8 },
-  title: { fontSize: 28, fontWeight: '700' },
-  meta: { color: '#666' },
-  error: { color: '#c92a2a' },
-  status: { color: '#1971c2' },
-  card: { paddingVertical: 16, gap: 8 },
-  subject: { fontSize: 20, fontWeight: '600' },
-  axisRow: { gap: 6 },
-  axisLabel: { fontSize: 16 },
-  options: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  option: { backgroundColor: '#e9ecef', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-  optionPicked: { backgroundColor: '#ffd43b', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-  button: { backgroundColor: '#ffd43b', padding: 14, borderRadius: 12, alignItems: 'center' },
-  buttonLocked: { backgroundColor: '#f8f9fa', padding: 14, borderRadius: 12, alignItems: 'center', opacity: 0.5 },
-});

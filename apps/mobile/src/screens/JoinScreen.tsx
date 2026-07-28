@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { FormScreen } from './FormScreen.js';
 import { color, radius, space, type as typeScale } from '../theme.js';
-import { Body, Button, Card, ErrorText, Display } from '../ui.js';
+import { Body, Button, Card, Display, ErrorText, Field } from '../ui.js';
 import { ApiError } from '@photochase/client';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
@@ -111,18 +111,8 @@ export function JoinScreen({
         autoCapitalize="characters"
         style={styles.codeInput}
       />
-      <TextInput
-        value={name}
-        onChangeText={setName}
-        placeholder={t('join.yourName')}
-        style={styles.textField}
-      />
-      <TextInput
-        value={teamName}
-        onChangeText={setTeamName}
-        placeholder={t('join.teamName')}
-        style={styles.textField}
-      />
+      <Field value={name} onChangeText={setName} placeholder={t('join.yourName')} />
+      <Field value={teamName} onChangeText={setTeamName} placeholder={t('join.teamName')} />
 
       {isTag ? (
         <Card tone="highlight">
@@ -157,16 +147,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: color.border,
     paddingVertical: space.lg,
-  },
-  textField: {
-    ...typeScale.body,
-    color: color.ink,
-    backgroundColor: color.surfaceSunken,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: color.border,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
   },
   elsewhere: { gap: space.sm, paddingTop: space.md },
 });

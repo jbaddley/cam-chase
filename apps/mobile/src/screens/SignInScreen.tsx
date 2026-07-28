@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { IdentityProvider } from '@photochase/client';
 import { signIn, SignInCancelled, type Authorizer } from '../auth.js';
 import { t } from '../i18n.js';
+import { Body, Button, Display, ErrorText, Screen } from '../ui.js';
 
 /**
  * Sign in with Apple is listed first and is not optional: the App Store
@@ -54,29 +54,19 @@ export function SignInScreen({ authorize, onSignedIn }: { authorize: Authorizer;
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{t('app.title')}</Text>
-      <Text style={styles.subtitle}>{t('auth.prompt')}</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <Screen scroll>
+      <Display>{t('app.title')}</Display>
+      <Body muted>{t('auth.prompt')}</Body>
+      {error ? <ErrorText>{error}</ErrorText> : null}
       {PROVIDERS.map((provider) => (
-        <Pressable key={provider.id} onPress={() => start(provider.id)} style={styles.button}>
-          <Text>
-            {busy === provider.id ? t('auth.opening') : t('auth.continueWith', { provider: provider.name })}
-          </Text>
-        </Pressable>
+        <Button key={provider.id} onPress={() => start(provider.id)}>
+          {busy === provider.id ? t('auth.opening') : t('auth.continueWith', { provider: provider.name })}
+        </Button>
       ))}
-      <Pressable onPress={() => start('email')} style={styles.secondaryButton}>
-        <Text>{busy === 'email' ? t('auth.opening') : t('auth.continueWithEmail')}</Text>
-      </Pressable>
-    </View>
+      <Button onPress={() => start('email')} tone="secondary">
+        {busy === 'email' ? t('auth.opening') : t('auth.continueWithEmail')}
+      </Button>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 12, justifyContent: 'center' },
-  title: { fontSize: 32, fontWeight: '700' },
-  subtitle: { fontSize: 16, color: '#666', marginBottom: 12 },
-  error: { color: '#c92a2a' },
-  button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
-  secondaryButton: { borderColor: '#ced4da', borderWidth: 1, padding: 16, borderRadius: 12, alignItems: 'center' },
-});

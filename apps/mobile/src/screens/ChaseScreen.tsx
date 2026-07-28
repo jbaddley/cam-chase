@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type AssignmentView } from '@photochase/client';
 import { client } from '../api.js';
+import { Body, Button, ErrorText, Pill, Screen, Title } from '../ui.js';
 import { useViewfinder } from '../viewfinder.js';
 import type { CaptureSource } from './CaptureScreen.js';
 
@@ -67,38 +67,25 @@ export function ChaseScreen({
 
   if (!queue) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Round 2</Text>
-        <Text style={styles.progress}>{error ?? 'Loading your assignments…'}</Text>
-      </View>
+      <Screen>
+        <Title>Round 2</Title>
+        <Body muted>{error ?? 'Loading your assignments…'}</Body>
+      </Screen>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Round 2</Text>
-      <Text style={styles.progress}>
+    <Screen>
+      <Title>Round 2</Title>
+      <Body muted>
         {chased} / {total} chased
-      </Text>
-      {current ? (
-        <Text style={styles.target}>Recreate photo #{current.order + 1}</Text>
-      ) : (
-        <Text style={styles.target}>All chases submitted!</Text>
-      )}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Pressable onPress={chase} style={current ? styles.button : styles.buttonDone}>
-        <Text>{!current ? 'Done' : busy ? 'Saving…' : 'Take chase photo'}</Text>
-      </Pressable>
-    </View>
+      </Body>
+      <Pill>{current ? `Recreate photo #${current.order + 1}` : 'All chases submitted!'}</Pill>
+      {error ? <ErrorText>{error}</ErrorText> : null}
+      <Button onPress={chase} disabled={!current}>
+        {!current ? 'Done' : busy ? 'Saving…' : 'Take chase photo'}
+      </Button>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 16, justifyContent: 'center' },
-  title: { fontSize: 28, fontWeight: '700' },
-  progress: { fontSize: 20, color: '#666' },
-  target: { fontSize: 18, color: '#1971c2' },
-  error: { color: '#c92a2a' },
-  button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
-  buttonDone: { backgroundColor: '#e9ecef', padding: 16, borderRadius: 12, alignItems: 'center' },
-});

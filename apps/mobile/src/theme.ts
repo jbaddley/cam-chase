@@ -24,6 +24,8 @@ export const color = {
   /** The secondary accent, for phases and live state. */
   accent: '#4c6ef5',
   positive: '#2f9e44',
+  /** Used for one thing: the Photo Tag proximity warning. */
+  warning: '#e8590c',
   danger: '#e03131',
   dangerSurface: '#ffe3e3',
   border: '#dee2e6',

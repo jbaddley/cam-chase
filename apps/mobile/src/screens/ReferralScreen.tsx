@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, type ReferralView } from '@photochase/client';
 import type { Flair, GameMode } from '@photochase/shared';
 import type { MessageKey } from '@photochase/i18n';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
+import { Body, Button, Card, ErrorText, Field, Heading, Pill, Screen, Title } from '../ui.js';
 
 const MODE_KEY: Record<GameMode, MessageKey> = {
   photo_chase: 'mode.photoChase',
@@ -66,79 +66,58 @@ export function ReferralScreen({ onBack }: { onBack?: () => void }) {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{t('referral.title')}</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <Screen scroll>
+      <Title>{t('referral.title')}</Title>
+      {error ? <ErrorText>{error}</ErrorText> : null}
 
       {referral ? (
-        <View style={styles.card}>
-          <Text style={styles.code}>{t('referral.yourCode', { code: referral.code })}</Text>
-          <Text style={styles.url}>{referral.inviteUrl}</Text>
-          <Text style={styles.progress}>{t('referral.credited', { count: referral.creditedReferrals })}</Text>
+        <Card tone="highlight">
+          <Heading>{t('referral.yourCode', { code: referral.code })}</Heading>
+          <Body muted>{referral.inviteUrl}</Body>
+          <Body>{t('referral.credited', { count: referral.creditedReferrals })}</Body>
 
           {referral.nextUnlock ? (
-            <Text style={styles.next}>
+            <Body muted>
               {t('referral.nextUnlock', {
                 count: referral.nextUnlock.referralsAway,
                 mode: t(MODE_KEY[referral.nextUnlock.mode]),
               })}
-            </Text>
+            </Body>
           ) : (
-            <Text style={styles.next}>{t('referral.laddered')}</Text>
+            <Body muted>{t('referral.laddered')}</Body>
           )}
 
           {referral.modesEarned.length > 0 ? (
-            <Text style={styles.earned}>
+            <Pill tone="positive">
               {t('referral.earned', { modes: referral.modesEarned.map((m) => t(MODE_KEY[m])).join(', ') })}
-            </Text>
+            </Pill>
           ) : null}
 
           {referral.flair ? (
-            <Text style={styles.flair}>{t('referral.flair', { flair: t(FLAIR_KEY[referral.flair]) })}</Text>
+            <Pill>{t('referral.flair', { flair: t(FLAIR_KEY[referral.flair]) })}</Pill>
           ) : null}
 
           {/* The reward a subscriber can actually use: their guests play free. */}
-          <Text style={styles.perk}>{t('referral.hostPerk')}</Text>
-        </View>
+          <Body muted>{t('referral.hostPerk')}</Body>
+        </Card>
       ) : null}
 
-      <Text style={styles.label}>{t('referral.redeem')}</Text>
-      <TextInput
+      <Field
+        label={t('referral.redeem')}
         value={code}
         onChangeText={(text) => setCode(text.toUpperCase())}
         maxLength={6}
         autoCapitalize="characters"
-        style={styles.input}
       />
-      <Pressable onPress={redeem} style={styles.button}>
-        <Text>{busy ? t('purchase.buying') : t('referral.redeem')}</Text>
-      </Pressable>
-      {status ? <Text style={styles.status}>{status}</Text> : null}
+      <Button onPress={redeem}>{busy ? t('purchase.buying') : t('referral.redeem')}</Button>
+      {status ? <Pill>{status}</Pill> : null}
 
       {onBack ? (
-        <Pressable onPress={onBack} style={styles.secondary}>
-          <Text>{t('common.back')}</Text>
-        </Pressable>
+        <Button onPress={onBack} tone="secondary">
+          {t('common.back')}
+        </Button>
       ) : null}
-    </View>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 10 },
-  title: { fontSize: 28, fontWeight: '700' },
-  error: { color: '#c92a2a' },
-  card: { gap: 6, paddingVertical: 12 },
-  code: { fontSize: 22, fontWeight: '700' },
-  url: { color: '#1971c2' },
-  progress: { fontSize: 18 },
-  next: { fontSize: 16, color: '#e8590c' },
-  earned: { color: '#2f9e44' },
-  flair: { fontWeight: '600' },
-  perk: { color: '#666' },
-  label: { fontSize: 16 },
-  input: { borderWidth: 1, borderColor: '#ced4da', borderRadius: 8, padding: 12, fontSize: 20 },
-  button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
-  secondary: { padding: 16, borderRadius: 12, alignItems: 'center' },
-  status: { color: '#1971c2' },
-});

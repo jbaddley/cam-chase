@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
 import type { MySecretView } from '@photochase/client';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
+import { Body, Screen, Title } from '../ui.js';
 import { CaptureScreen, type CaptureSource } from './CaptureScreen.js';
 
 /**
@@ -42,18 +42,13 @@ export function ColorShootScreen({
   }, [gameId]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.secret}>
+    <Screen>
+      <Title>
         {secret ? t('color.secret', { secret: secret.description }) : (error ?? t('watch.connecting'))}
-      </Text>
-      <Text style={styles.brief}>{t('color.brief')}</Text>
+      </Title>
+      <Body muted>{t('color.brief')}</Body>
       <CaptureScreen gameId={gameId} teamId={teamId} quota={quota} capture={capture} />
-    </View>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, gap: 4 },
-  secret: { fontSize: 22, fontWeight: '700', paddingHorizontal: 24, paddingTop: 24 },
-  brief: { fontSize: 15, color: '#666', paddingHorizontal: 24 },
-});

@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, type EntitlementView, type StandingsView } from '@photochase/client';
+import { StyleSheet, Text } from 'react-native';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
+import { color, type as typeScale } from '../theme.js';
+import { Body, Button, Card, ErrorText, Field, Heading, Row, Screen, Title } from '../ui.js';
 
 /**
  * League table and league creation.
@@ -57,90 +59,69 @@ export function LeagueScreen({
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{t('league.title')}</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <Screen scroll>
+      <Title>{t('league.title')}</Title>
+      {error ? <ErrorText>{error}</ErrorText> : null}
 
-      <TextInput
+      <Field
         value={code}
         onChangeText={(text) => setCode(text.toUpperCase())}
         placeholder={t('league.codePlaceholder')}
         maxLength={6}
         autoCapitalize="characters"
-        style={styles.input}
       />
-      <Pressable onPress={look} style={styles.button}>
-        <Text>{t('league.lookup')}</Text>
-      </Pressable>
+      <Button onPress={look}>{t('league.lookup')}</Button>
 
       {league ? (
-        <View style={styles.table}>
-          <Text style={styles.leagueName}>{league.name}</Text>
-          <Text style={styles.meta}>{t('league.code', { code: league.code })}</Text>
-          <Text style={styles.meta}>{t('league.games', { count: league.gamesPlayed })}</Text>
+        <Card>
+          <Heading>{league.name}</Heading>
+          <Body muted>{t('league.code', { code: league.code })}</Body>
+          <Body muted>{t('league.games', { count: league.gamesPlayed })}</Body>
           {league.standings.length === 0 ? (
-            <Text style={styles.meta}>{t('league.empty')}</Text>
+            <Body muted>{t('league.empty')}</Body>
           ) : (
-            <ScrollView>
-              <View style={styles.row}>
+            <>
+              <Row>
                 <Text style={styles.headTeam}>{t('league.title')}</Text>
                 <Text style={styles.headStat}>{t('league.played')}</Text>
                 <Text style={styles.headStat}>{t('league.won')}</Text>
                 <Text style={styles.headStat}>{t('league.points')}</Text>
-              </View>
+              </Row>
               {league.standings.map((standing, i) => (
-                <View key={standing.teamKey} style={styles.row}>
+                <Row key={standing.teamKey}>
                   <Text style={styles.team}>
                     {i + 1}. {standing.teamName}
                   </Text>
                   <Text style={styles.stat}>{standing.gamesPlayed}</Text>
                   <Text style={styles.stat}>{standing.wins}</Text>
                   <Text style={styles.points}>{standing.placementPoints}</Text>
-                </View>
+                </Row>
               ))}
-            </ScrollView>
+            </>
           )}
-        </View>
+        </Card>
       ) : null}
 
-      <TextInput
-        value={name}
-        onChangeText={setName}
-        placeholder={t('league.name')}
-        maxLength={60}
-        style={styles.input}
-      />
-      <Pressable onPress={create} style={canCreate ? styles.button : styles.buttonLocked}>
-        <Text>{t('league.create')}</Text>
-      </Pressable>
+      <Field value={name} onChangeText={setName} placeholder={t('league.name')} maxLength={60} />
+      <Button onPress={create} disabled={!canCreate}>
+        {t('league.create')}
+      </Button>
       {/* Shown rather than hiding the control: a host should see what a plan buys. */}
-      {canCreate ? null : <Text style={styles.meta}>{t('league.paidOnly')}</Text>}
+      {canCreate ? null : <Body muted>{t('league.paidOnly')}</Body>}
 
       {onBack ? (
-        <Pressable onPress={onBack} style={styles.secondary}>
-          <Text>{t('common.back')}</Text>
-        </Pressable>
+        <Button onPress={onBack} tone="secondary">
+          {t('common.back')}
+        </Button>
       ) : null}
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 8 },
-  title: { fontSize: 28, fontWeight: '700' },
-  error: { color: '#c92a2a' },
-  label: { fontSize: 16 },
-  input: { borderWidth: 1, borderColor: '#ced4da', borderRadius: 8, padding: 12, fontSize: 18 },
-  button: { backgroundColor: '#ffd43b', padding: 14, borderRadius: 12, alignItems: 'center' },
-  buttonLocked: { backgroundColor: '#f8f9fa', padding: 14, borderRadius: 12, alignItems: 'center', opacity: 0.5 },
-  secondary: { padding: 16, borderRadius: 12, alignItems: 'center' },
-  table: { paddingVertical: 12, gap: 4 },
-  leagueName: { fontSize: 22, fontWeight: '700' },
-  meta: { color: '#666' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  headTeam: { flex: 3, color: '#666' },
-  headStat: { flex: 1, color: '#666' },
-  team: { flex: 3, fontSize: 16 },
-  stat: { flex: 1 },
-  points: { flex: 1, fontWeight: '700', color: '#1971c2' },
+  headTeam: { flex: 3, ...typeScale.label, color: color.inkMuted },
+  headStat: { flex: 1, ...typeScale.label, color: color.inkMuted },
+  team: { flex: 3, ...typeScale.body, color: color.ink },
+  stat: { flex: 1, ...typeScale.body, color: color.ink },
+  points: { flex: 1, ...typeScale.body, fontWeight: '700', color: color.accent },
 });

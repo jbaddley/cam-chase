@@ -5,7 +5,7 @@ import type { TeamSummary } from '@photochase/client';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
 import { color, radius, space, type as typeScale } from '../theme.js';
-import { Body, Button, Card, ErrorText, Title } from '../ui.js';
+import { Button, Card, ErrorText, Loading, Screen, Title } from '../ui.js';
 
 /**
  * Score components shown under each team's total, in scoring order.
@@ -82,17 +82,14 @@ export function ResultsScreen({
 
   if (!scoreboard) {
     return (
-      <View style={styles.container}>
-        <Title>Results</Title>
-        <Body muted>{error ?? 'Tallying scores…'}</Body>
-      </View>
+      <Loading title="Results" message={error ?? 'Tallying scores…'} />
     );
   }
 
   const winner = scoreboard[0];
 
   return (
-    <View style={styles.container}>
+    <Screen>
       <Title>Results</Title>
       <ScrollView contentContainerStyle={styles.list}>
         {scoreboard.map((score, i) => (
@@ -137,12 +134,11 @@ export function ResultsScreen({
         </View>
         {consentError ? <ErrorText>{consentError}</ErrorText> : null}
       </View>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: space.xl, gap: space.md, backgroundColor: color.surface },
   list: { gap: space.md, paddingBottom: space.lg },
   winnerWrap: { marginBottom: space.xs },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

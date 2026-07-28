@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type GeoPointInput } from '@photochase/client';
 import { client } from '../api.js';
+import { Body, Button, ErrorText, Screen, Title } from '../ui.js';
 import { useViewfinder } from '../viewfinder.js';
 
 /**
@@ -49,24 +49,16 @@ export function CaptureScreen({
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Round 1</Text>
-      <Text style={styles.progress}>
+    <Screen>
+      <Title>Round 1</Title>
+      <Body muted>
         {taken} / {quota} photos
-      </Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Pressable onPress={take} style={done ? styles.buttonDone : styles.button}>
-        <Text>{done ? 'All photos taken' : busy ? 'Saving…' : 'Take photo'}</Text>
-      </Pressable>
-    </View>
+      </Body>
+      {error ? <ErrorText>{error}</ErrorText> : null}
+      <Button onPress={take} disabled={done}>
+        {done ? 'All photos taken' : busy ? 'Saving…' : 'Take photo'}
+      </Button>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 16, justifyContent: 'center' },
-  title: { fontSize: 28, fontWeight: '700' },
-  progress: { fontSize: 20, color: '#666' },
-  error: { color: '#c92a2a' },
-  button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
-  buttonDone: { backgroundColor: '#e9ecef', padding: 16, borderRadius: 12, alignItems: 'center' },
-});
