@@ -13,3 +13,12 @@ web-build/
 .next/
 test-results/
 playwright-report/
+
+# Expo prebuild output. Generated from app.json by `expo prebuild` and never
+# edited by hand — committing it would mean maintaining native projects
+# manually, which is the thing continuous native generation exists to avoid.
+# It is also ~900 MB of build artefacts. Note that `expo run:android` skips
+# prebuild when this directory already exists, so an app.json change needs an
+# explicit `expo prebuild` to reach the native config.
+apps/mobile/android/
+apps/mobile/ios/
