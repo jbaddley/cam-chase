@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type GameStateView, type TeamSummary } from '@photochase/client';
 import type { MessageKey } from '@photochase/i18n';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
+import { color, space, type as typeScale } from '../theme.js';
+import { Body, Button, Card, ErrorText, Pill } from '../ui.js';
 
 export type LobbyTeam = TeamSummary;
 
@@ -69,40 +71,56 @@ export function LobbyScreen({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.code}>{t('lobby.code', { code })}</Text>
-      <Text style={styles.phase}>{game ? t(PHASE_KEY[game.state]) : t('watch.connecting')}</Text>
-      <Text style={styles.subtitle}>{t('lobby.teamsJoined', { count: teams.length })}</Text>
-      {/* Only the host's plan gates a game, so say so: it is the clearest
-          reason a paying host has to bring more people in. */}
-      {game && game.hostTier !== 'free' ? (
-        <Text style={styles.perk}>{t('lobby.hostPlan', { tier: game.hostTier })}</Text>
-      ) : null}
-      {shownError ? <Text style={styles.error}>{shownError}</Text> : null}
-      <ScrollView>
+      {/* The code is the biggest thing on the screen because it is the one
+          thing being read aloud across a room. */}
+      <View style={styles.codeBlock}>
+        <Text style={styles.codeLabel}>{t('lobby.codeLabel')}</Text>
+        <Text style={styles.code}>{code}</Text>
+      </View>
+
+      <View style={styles.status}>
+        <Pill>{game ? t(PHASE_KEY[game.state]) : t('watch.connecting')}</Pill>
+        {/* Only the host's plan gates a game, so say so: it is the clearest
+            reason a paying host has to bring more people in. */}
+        {game && game.hostTier !== 'free' ? (
+          <Pill tone="positive">{t('lobby.hostPlan', { tier: game.hostTier })}</Pill>
+        ) : null}
+      </View>
+
+      <Body muted>{t('lobby.teamsJoined', { count: teams.length })}</Body>
+      {shownError ? <ErrorText>{shownError}</ErrorText> : null}
+
+      <ScrollView contentContainerStyle={styles.list}>
         {teams.map((team) => (
-          <View key={team.teamId} style={styles.row}>
-            <Text style={styles.teamName}>{team.name}</Text>
-            <Text>{t('lobby.playerCount', { count: team.memberCount })}</Text>
-          </View>
+          <Card key={team.teamId}>
+            <View style={styles.row}>
+              <Text style={styles.teamName}>{team.name}</Text>
+              <Text style={styles.count}>{t('lobby.playerCount', { count: team.memberCount })}</Text>
+            </View>
+          </Card>
         ))}
+        {teams.length === 0 ? <Body muted>{t('lobby.waiting')}</Body> : null}
       </ScrollView>
+
       {canStart ? (
-        <Pressable onPress={start} style={styles.button}>
-          <Text>{starting ? t('game.starting') : t('game.start')}</Text>
-        </Pressable>
+        <Button onPress={start}>{starting ? t('game.starting') : t('game.start')}</Button>
+      ) : isHost && game?.state === 'lobby' ? (
+        <Button onPress={() => {}} disabled>
+          {t('lobby.needMore')}
+        </Button>
       ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 8 },
-  code: { fontSize: 24, fontWeight: '700' },
-  phase: { fontSize: 18, color: '#1971c2' },
-  subtitle: { color: '#666' },
-  perk: { color: '#2f9e44' },
-  error: { color: '#c92a2a' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12 },
-  teamName: { fontSize: 18 },
-  button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
+  container: { flex: 1, padding: space.xl, gap: space.md, backgroundColor: color.surface },
+  codeBlock: { alignItems: 'center', paddingVertical: space.lg },
+  codeLabel: { ...typeScale.label, color: color.inkMuted },
+  code: { ...typeScale.display, color: color.ink, letterSpacing: 8 },
+  status: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' },
+  list: { gap: space.sm, paddingBottom: space.md },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  teamName: { ...typeScale.heading, color: color.ink, flexShrink: 1 },
+  count: { ...typeScale.label, color: color.inkMuted },
 });

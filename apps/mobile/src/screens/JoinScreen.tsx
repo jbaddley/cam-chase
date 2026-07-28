@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 import { FormScreen } from './FormScreen.js';
+import { color, radius, space, type as typeScale } from '../theme.js';
+import { Body, Button, Card, ErrorText, Display } from '../ui.js';
 import { ApiError } from '@photochase/client';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
@@ -92,64 +94,79 @@ export function JoinScreen({
     // a small phone the buttons below them were entirely behind the keyboard.
     <FormScreen
       action={
-        <Pressable onPress={submit} style={styles.button}>
-          <Text>{busy ? t('join.joining') : t('join.submit')}</Text>
-        </Pressable>
+        <Button onPress={submit}>{busy ? t('join.joining') : t('join.submit')}</Button>
       }
     >
-      <Text style={styles.title}>{t('join.title')}</Text>
+      <View style={styles.hero}>
+        <Display>{t('app.title')}</Display>
+        <Body muted>{t('join.title')}</Body>
+      </View>
+
+      {/* The code gets its own oversized field: it is dictated across a room,
+          six characters at a time, and typo-ing it is the commonest failure. */}
       <TextInput
         value={code}
         onChangeText={(text) => setCode(text.toUpperCase())}
         placeholder="ABC123"
         maxLength={6}
         autoCapitalize="characters"
-        style={styles.input}
+        style={styles.codeInput}
       />
-      <TextInput value={name} onChangeText={setName} placeholder={t('join.yourName')} style={styles.textField} />
-      <TextInput value={teamName} onChangeText={setTeamName} placeholder={t('join.teamName')} style={styles.textField} />
+      <TextInput
+        value={name}
+        onChangeText={setName}
+        placeholder={t('join.yourName')}
+        style={styles.textField}
+      />
+      <TextInput
+        value={teamName}
+        onChangeText={setTeamName}
+        placeholder={t('join.teamName')}
+        style={styles.textField}
+      />
+
       {isTag ? (
-        <View style={styles.consent}>
-          <Text style={styles.consentText}>{t('join.tagConsent')}</Text>
-          <Pressable onPress={() => setAgreed((yes) => !yes)} style={agreed ? styles.agreed : styles.agree}>
-            <Text>{t('join.tagAgree')}</Text>
-          </Pressable>
-        </View>
+        <Card tone="highlight">
+          <Body>{t('join.tagConsent')}</Body>
+          <Button onPress={() => setAgreed((yes) => !yes)} tone={agreed ? 'primary' : 'secondary'}>
+            {t('join.tagAgree')}
+          </Button>
+        </Card>
       ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {onHost ? (
-        <Pressable onPress={onHost} style={styles.secondary}>
-          <Text>{t('join.hostInstead')}</Text>
-        </Pressable>
-      ) : null}
-      {onDailyHunt ? (
-        <Pressable onPress={onDailyHunt} style={styles.secondary}>
-          <Text>{t('daily.title')}</Text>
-        </Pressable>
-      ) : null}
-      {onLeagues ? (
-        <Pressable onPress={onLeagues} style={styles.secondary}>
-          <Text>{t('league.title')}</Text>
-        </Pressable>
-      ) : null}
-      {onInvite ? (
-        <Pressable onPress={onInvite} style={styles.secondary}>
-          <Text>{t('referral.title')}</Text>
-        </Pressable>
-      ) : null}
+      {error ? <ErrorText>{error}</ErrorText> : null}
+
+      <View style={styles.elsewhere}>
+        {onHost ? <Button onPress={onHost} tone="secondary">{t('join.hostInstead')}</Button> : null}
+        {onDailyHunt ? <Button onPress={onDailyHunt} tone="secondary">{t('daily.title')}</Button> : null}
+        {onLeagues ? <Button onPress={onLeagues} tone="secondary">{t('league.title')}</Button> : null}
+        {onInvite ? <Button onPress={onInvite} tone="secondary">{t('referral.title')}</Button> : null}
+      </View>
     </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 28, fontWeight: '700' },
-  input: { fontSize: 24, letterSpacing: 4, borderWidth: 1, padding: 12 },
-  textField: { fontSize: 18, borderWidth: 1, padding: 12 },
-  error: { color: '#c92a2a' },
-  button: { backgroundColor: '#ffd43b', padding: 16, borderRadius: 12, alignItems: 'center' },
-  secondary: { padding: 16, borderRadius: 12, alignItems: 'center' },
-  consent: { gap: 8, paddingVertical: 8 },
-  consentText: { color: '#495057' },
-  agree: { backgroundColor: '#e9ecef', padding: 12, borderRadius: 8, alignItems: 'center' },
-  agreed: { backgroundColor: '#ffd43b', padding: 12, borderRadius: 8, alignItems: 'center' },
+  hero: { paddingBottom: space.md, gap: space.xs },
+  codeInput: {
+    ...typeScale.title,
+    letterSpacing: 6,
+    textAlign: 'center',
+    color: color.ink,
+    backgroundColor: color.surfaceSunken,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: color.border,
+    paddingVertical: space.lg,
+  },
+  textField: {
+    ...typeScale.body,
+    color: color.ink,
+    backgroundColor: color.surfaceSunken,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: color.border,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+  },
+  elsewhere: { gap: space.sm, paddingTop: space.md },
 });

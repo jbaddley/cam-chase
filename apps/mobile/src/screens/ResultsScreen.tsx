@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { GameMode, TeamScore } from '@photochase/shared';
 import type { TeamSummary } from '@photochase/client';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
+import { color, radius, space, type as typeScale } from '../theme.js';
+import { Body, Button, Card, ErrorText, Title } from '../ui.js';
 
 /**
  * Score components shown under each team's total, in scoring order.
@@ -81,60 +83,87 @@ export function ResultsScreen({
   if (!scoreboard) {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Results</Text>
-        <Text style={styles.subtitle}>{error ?? 'Tallying scores…'}</Text>
+        <Title>Results</Title>
+        <Body muted>{error ?? 'Tallying scores…'}</Body>
       </View>
     );
   }
 
+  const winner = scoreboard[0];
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Results</Text>
-      <ScrollView>
+      <Title>Results</Title>
+      <ScrollView contentContainerStyle={styles.list}>
         {scoreboard.map((score, i) => (
-          <View key={score.teamId} style={styles.card}>
-            <View style={styles.headerRow}>
-              <Text style={styles.rank}>
-                {i + 1}. {nameOf(score.teamId)}
-              </Text>
-              <Text style={styles.total}>{score.total}</Text>
-            </View>
-            {BREAKDOWN.filter(({ key }) => score[key] !== 0).map(({ key, label }) => (
-              <View key={key} style={styles.row}>
-                <Text style={styles.label}>{MODE_LABELS[mode]?.[key] ?? label}</Text>
-                <Text>{score[key]}</Text>
+          <View key={score.teamId} style={i === 0 ? styles.winnerWrap : undefined}>
+            <Card tone={i === 0 ? 'highlight' : 'plain'}>
+              <View style={styles.headerRow}>
+                <View style={styles.nameGroup}>
+                  {/* A medal beats a number for the top three; everyone else
+                      gets their placing, which is what they came to see. */}
+                  <View style={[styles.medal, { backgroundColor: color.podium[i] ?? color.surfaceSunken }]}>
+                    <Text style={styles.medalText}>{i + 1}</Text>
+                  </View>
+                  <Text style={i === 0 ? styles.winnerName : styles.teamName}>{nameOf(score.teamId)}</Text>
+                </View>
+                <Text style={i === 0 ? styles.winnerTotal : styles.total}>{score.total}</Text>
               </View>
-            ))}
+              {BREAKDOWN.filter(({ key }) => score[key] !== 0).map(({ key, label }) => (
+                <View key={key} style={styles.row}>
+                  <Text style={styles.label}>{MODE_LABELS[mode]?.[key] ?? label}</Text>
+                  <Text style={styles.value}>{score[key]}</Text>
+                </View>
+              ))}
+            </Card>
           </View>
         ))}
+        {winner ? <Text style={styles.flourish}>🏆 {nameOf(winner.teamId)} takes it</Text> : null}
       </ScrollView>
 
-      <Text style={styles.label}>{t('share.consentAsk')}</Text>
-      <View style={styles.consentRow}>
-        <Pressable onPress={() => answerConsent(true)} style={consent === true ? styles.picked : styles.choice}>
-          <Text>{t('share.consentYes')}</Text>
-        </Pressable>
-        <Pressable onPress={() => answerConsent(false)} style={consent === false ? styles.picked : styles.choice}>
-          <Text>{t('share.consentNo')}</Text>
-        </Pressable>
+      <View style={styles.consent}>
+        <Text style={styles.label}>{t('share.consentAsk')}</Text>
+        <View style={styles.consentRow}>
+          <View style={styles.consentButton}>
+            <Button onPress={() => answerConsent(true)} tone={consent === true ? 'primary' : 'secondary'}>
+              {t('share.consentYes')}
+            </Button>
+          </View>
+          <View style={styles.consentButton}>
+            <Button onPress={() => answerConsent(false)} tone={consent === false ? 'primary' : 'secondary'}>
+              {t('share.consentNo')}
+            </Button>
+          </View>
+        </View>
+        {consentError ? <ErrorText>{consentError}</ErrorText> : null}
       </View>
-      {consentError ? <Text style={styles.error}>{consentError}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 8 },
-  title: { fontSize: 28, fontWeight: '700' },
-  subtitle: { color: '#666' },
-  card: { paddingVertical: 16, gap: 4 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  rank: { fontSize: 20, fontWeight: '700' },
-  total: { fontSize: 20, fontWeight: '700', color: '#1971c2' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 12 },
-  label: { color: '#666' },
-  consentRow: { flexDirection: 'row', gap: 8 },
-  choice: { backgroundColor: '#e9ecef', padding: 12, borderRadius: 8 },
-  picked: { backgroundColor: '#ffd43b', padding: 12, borderRadius: 8 },
-  error: { color: '#c92a2a' },
+  container: { flex: 1, padding: space.xl, gap: space.md, backgroundColor: color.surface },
+  list: { gap: space.md, paddingBottom: space.lg },
+  winnerWrap: { marginBottom: space.xs },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  nameGroup: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 1 },
+  medal: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medalText: { ...typeScale.label, color: color.ink },
+  teamName: { ...typeScale.heading, color: color.ink, flexShrink: 1 },
+  winnerName: { ...typeScale.title, color: color.ink, flexShrink: 1 },
+  total: { ...typeScale.heading, color: color.accent },
+  winnerTotal: { ...typeScale.display, color: color.primaryDark },
+  row: { flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 46 },
+  label: { ...typeScale.label, color: color.inkMuted },
+  value: { ...typeScale.label, color: color.ink },
+  flourish: { ...typeScale.heading, color: color.ink, textAlign: 'center', paddingTop: space.sm },
+  consent: { gap: space.sm },
+  consentRow: { flexDirection: 'row', gap: space.sm },
+  consentButton: { flex: 1 },
 });

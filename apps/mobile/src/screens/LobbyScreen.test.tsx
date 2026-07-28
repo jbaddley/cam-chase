@@ -40,7 +40,8 @@ describe('LobbyScreen', () => {
   it('shows the code, phase, and roster', () => {
     render(<LobbyScreen game={game(2)} code="ABC123" />);
 
-    expect(screen.getByText('Code: ABC123')).toBeTruthy();
+    expect(screen.getByText('Code')).toBeTruthy();
+    expect(screen.getByText('ABC123')).toBeTruthy();
     expect(screen.getByText('Waiting for teams')).toBeTruthy();
     expect(screen.getByText('2 teams joined')).toBeTruthy();
     expect(screen.getByText('Team 0')).toBeTruthy();

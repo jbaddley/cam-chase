@@ -46,23 +46,24 @@ describe('ResultsScreen', () => {
     render(<ResultsScreen gameId="g1" teams={TEAMS} />);
 
     await screen.findByText('360');
-    const rows = screen.getAllByText(/^\d+\. /).map((n) => n.textContent);
-    expect(rows[0]).toBe('1. Blues');
-    expect(rows[1]).toBe('2. Reds');
+    // Highest total first. The placing shows as a medal beside the name, so
+    // the order is read from the names.
+    const names = screen.getAllByText(/^(Reds|Blues)$/).map((n) => n.textContent);
+    expect(names).toEqual(['Blues', 'Reds']);
   });
 
   it('resolves team ids to names from the polled state', async () => {
     getResults.mockResolvedValue({ scoreboard: [score('t1', { total: 10 })] });
     render(<ResultsScreen gameId="g1" teams={TEAMS} />);
 
-    expect(await screen.findByText('1. Reds')).toBeTruthy();
+    expect(await screen.findByText('Reds')).toBeTruthy();
   });
 
   it('falls back to the id when a team is unknown', async () => {
     getResults.mockResolvedValue({ scoreboard: [score('ghost', { total: 10 })] });
     render(<ResultsScreen gameId="g1" teams={TEAMS} />);
 
-    expect(await screen.findByText('1. ghost')).toBeTruthy();
+    expect(await screen.findByText('ghost')).toBeTruthy();
   });
 
   it('shows only the score components that scored', async () => {
@@ -71,7 +72,7 @@ describe('ResultsScreen', () => {
     });
     render(<ResultsScreen gameId="g1" teams={TEAMS} />);
 
-    await screen.findByText('1. Reds');
+    await screen.findByText('Reds');
     expect(screen.getByText('Location')).toBeTruthy();
     expect(screen.getByText('Fouls')).toBeTruthy();
     // Zeroed components stay hidden so a free game is not a wall of noughts.
@@ -92,7 +93,7 @@ describe('ResultsScreen — per-mode column labels', () => {
     getResults.mockResolvedValue({ scoreboard: [score('t1', { location: 500, pose: 40, total: 540 })] });
     render(<ResultsScreen gameId="g1" teams={TEAMS} />);
 
-    await screen.findByText('1. Reds');
+    await screen.findByText('Reds');
     expect(screen.getByText('Location')).toBeTruthy();
     expect(screen.getByText('Pose')).toBeTruthy();
   });
@@ -101,7 +102,7 @@ describe('ResultsScreen — per-mode column labels', () => {
     getResults.mockResolvedValue({ scoreboard: [score('t1', { location: 60, total: 60 })] });
     render(<ResultsScreen gameId="g1" teams={TEAMS} mode="scavenger_hunt" />);
 
-    await screen.findByText('1. Reds');
+    await screen.findByText('Reds');
     expect(screen.getByText('Items found')).toBeTruthy();
     expect(screen.queryByText('Location')).toBeNull();
   });
@@ -112,7 +113,7 @@ describe('ResultsScreen — per-mode column labels', () => {
     getResults.mockResolvedValue({ scoreboard: [score('t1', { location: 40, pose: 20, total: 60 })] });
     render(<ResultsScreen gameId="g1" teams={TEAMS} mode="color_hunt" />);
 
-    await screen.findByText('1. Reds');
+    await screen.findByText('Reds');
     expect(screen.getByText('Guessed right')).toBeTruthy();
     expect(screen.getByText('Bluff bonus')).toBeTruthy();
     expect(screen.queryByText('Pose')).toBeNull();
