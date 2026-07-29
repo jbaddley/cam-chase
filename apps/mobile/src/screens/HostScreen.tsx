@@ -124,6 +124,9 @@ export function HostScreen({
   const playing = hostRole === 'create_team';
   // Only a playing host needs a name; a judge has nothing to call themselves.
   const ready = !playing || hostTeamName.trim() !== '';
+  // Blocked only ever means "a playing host with no team name"; say so on the
+  // action rather than greying it with the same label (docs/10).
+  const createLabel = busy ? t('config.creating') : ready ? t('config.create') : t('join.needTeamName');
 
   async function create(): Promise<void> {
     // The server rejects a blank team name anyway; stopping here means the host
@@ -186,7 +189,7 @@ export function HostScreen({
       action={
         <>
           <Button onPress={create} disabled={!ready}>
-            {busy ? t('config.creating') : t('config.create')}
+            {createLabel}
           </Button>
           {onViewPlan ? (
             <Button onPress={onViewPlan} tone="secondary">

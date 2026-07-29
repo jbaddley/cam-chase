@@ -180,7 +180,9 @@ describe('HostScreen', () => {
     render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
     expect(await screen.findByText('Could not load your plan.')).toBeTruthy();
-    // Creating must stay possible; the server is the real gate.
+    // Creating must stay possible; the server is the real gate. Once the host
+    // names their team the action is live rather than stating what it needs.
+    nameTeam();
     expect(action('Create game')).toBeTruthy();
   });
 
@@ -302,7 +304,8 @@ describe('HostScreen', () => {
       render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
 
       await screen.findByText(/free/);
-      fireEvent.click(action('Create game'));
+      // Blocked, and the action says why rather than sitting greyed (docs/10).
+      fireEvent.click(action('Name your team'));
 
       expect(createGame).not.toHaveBeenCalled();
     });
@@ -313,7 +316,7 @@ describe('HostScreen', () => {
 
       await screen.findByText(/free/);
       nameTeam('   ');
-      fireEvent.click(action('Create game'));
+      fireEvent.click(action('Name your team'));
 
       expect(createGame).not.toHaveBeenCalled();
     });
@@ -371,7 +374,7 @@ describe('HostScreen', () => {
       fireEvent.click(option('You are', 'Playing'));
 
       expect(screen.getByPlaceholderText('Team name')).toBeTruthy();
-      fireEvent.click(action('Create game'));
+      fireEvent.click(action('Name your team'));
       expect(createGame).not.toHaveBeenCalled();
     });
   });
@@ -382,6 +385,7 @@ describe('HostScreen', () => {
     getEntitlement.mockResolvedValue(entitlement({}));
     render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
     await screen.findByText(/free/);
+    nameTeam();
 
     const scroll = screen.getByTestId('scrollview');
     expect(within(scroll).getByPlaceholderText('Team name')).toBeTruthy();

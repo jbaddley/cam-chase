@@ -20,12 +20,14 @@ export function HomeScreen({
   onDailyHunt,
   onLeagues,
   onInvite,
+  onProfile,
 }: {
   onJoin: () => void;
   onHost: () => void;
   onDailyHunt?: () => void;
   onLeagues?: () => void;
   onInvite?: () => void;
+  onProfile?: () => void;
 }) {
   return (
     <View style={styles.screen}>
@@ -53,6 +55,11 @@ export function HomeScreen({
         {onInvite ? (
           <Button onPress={onInvite} tone="secondary">
             {t('referral.title')}
+          </Button>
+        ) : null}
+        {onProfile ? (
+          <Button onPress={onProfile} tone="secondary">
+            {t('profile.title')}
           </Button>
         ) : null}
       </ScrollView>

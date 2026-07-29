@@ -10,9 +10,15 @@ import { PlanScreen } from './src/screens/PlanScreen.js';
 import { ReferralScreen } from './src/screens/ReferralScreen.js';
 import { SignInScreen } from './src/screens/SignInScreen.js';
 import { HostScreen } from './src/screens/HostScreen.js';
+import { CompleteProfileScreen } from './src/screens/CompleteProfileScreen.js';
+import { ProfileScreen } from './src/screens/ProfileScreen.js';
 import { placeholderCapture } from './src/capture.js';
 import { placeholderLocation, type LocationSource } from './src/location.js';
 import { session, type Authorizer } from './src/auth.js';
+import { loadProfile } from './src/profile.js';
+import type { ProfileView } from '@photochase/client';
+import { Body, Button, Loading, Screen, Title } from './src/ui.js';
+import { t } from './src/i18n.js';
 import { fixturesAvailable, setFixturesEnabled, useFixturesEnabled } from './src/dev/fixture-toggle.js';
 
 /** The game the harness drops you into: host, so the gate controls are on screen. */
@@ -30,7 +36,18 @@ const unavailableAuthorizer: Authorizer = () => {
 };
 
 /** Where the app is, outside a game. */
-type Route = 'home' | 'join' | 'host' | 'plan' | 'league' | 'referral' | 'daily';
+type Route = 'home' | 'join' | 'host' | 'plan' | 'league' | 'referral' | 'daily' | 'profile';
+
+/**
+ * Whether the signed-in user's profile has loaded yet, needs creating, or is in
+ * hand. Gates the app the way sign-in does: a player with no profile completes
+ * one before reaching home, because the join flow reads their display name.
+ */
+type ProfileState =
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: 'needed' }
+  | { status: 'ready'; profile: ProfileView };
 
 /**
  * Root navigation: sign in → home → host, join, or one of the solo/social
@@ -59,6 +76,35 @@ export default function App({
   const [signedIn, setSignedIn] = useState(session.isSignedIn);
   const [route, setRoute] = useState<Route>('home');
   const [joined, setJoined] = useState<JoinedGame | null>(null);
+  const [profileState, setProfileState] = useState<ProfileState>({ status: 'loading' });
+  const [reloadProfile, setReloadProfile] = useState(0);
+
+  // Signed in for real, or the harness has skipped the session.
+  const authed = signedIn || fixtures;
+
+  /**
+   * Load the profile once signed in. Bumping `reloadProfile` retries after a
+   * failure. A missing profile is `needed`, not an error — that is the new user
+   * whose "complete your profile" form comes next.
+   */
+  useEffect(() => {
+    if (!authed) {
+      setProfileState({ status: 'loading' });
+      return;
+    }
+    let active = true;
+    setProfileState({ status: 'loading' });
+    loadProfile()
+      .then((profile) => {
+        if (active) setProfileState(profile ? { status: 'ready', profile } : { status: 'needed' });
+      })
+      .catch(() => {
+        if (active) setProfileState({ status: 'error' });
+      });
+    return () => {
+      active = false;
+    };
+  }, [authed, reloadProfile]);
 
   /**
    * Flipping the harness on drops you straight into a game as its host — the play
@@ -106,10 +152,31 @@ export default function App({
       node
     );
 
-  // Signed in for real, or the harness has skipped the session.
-  if (!(signedIn || fixtures)) {
+  if (!authed) {
     return devFrame(<SignInScreen authorize={authorize} onSignedIn={() => setSignedIn(true)} />);
   }
+
+  // Identity lives with the login: a signed-in player without a profile fills one
+  // in before anything else, because the join flow sends their display name.
+  if (profileState.status === 'loading') {
+    return devFrame(<Loading title={t('app.title')} message={t('profile.loading')} />);
+  }
+  if (profileState.status === 'error') {
+    return devFrame(
+      <Screen>
+        <Title>{t('profile.title')}</Title>
+        <Body muted>{t('profile.loadFailed')}</Body>
+        <Button onPress={() => setReloadProfile((n) => n + 1)}>{t('profile.retry')}</Button>
+      </Screen>,
+    );
+  }
+  if (profileState.status === 'needed') {
+    return devFrame(
+      <CompleteProfileScreen onDone={(profile) => setProfileState({ status: 'ready', profile })} />,
+    );
+  }
+
+  const displayName = profileState.profile.displayName;
 
   if (joined) {
     return devFrame(
@@ -142,6 +209,7 @@ export default function App({
     case 'join':
       return devFrame(
         <JoinScreen
+          displayName={displayName}
           onJoined={(game) => {
             setRoute('home');
             setJoined(game);
@@ -149,6 +217,8 @@ export default function App({
           onBack={home}
         />,
       );
+    case 'profile':
+      return devFrame(<ProfileScreen onBack={home} />);
     default:
       return devFrame(
         <HomeScreen
@@ -157,6 +227,7 @@ export default function App({
           onDailyHunt={() => setRoute('daily')}
           onLeagues={() => setRoute('league')}
           onInvite={() => setRoute('referral')}
+          onProfile={() => setRoute('profile')}
         />,
       );
   }

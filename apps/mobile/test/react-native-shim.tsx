@@ -204,16 +204,20 @@ export const Pressable: ComponentType<
 export const TextInput: ComponentType<{
   value?: string;
   onChangeText?: (text: string) => void;
+  onBlur?: () => void;
   placeholder?: string;
   maxLength?: number;
   autoCapitalize?: 'none' | 'characters';
   style?: unknown;
-}> = ({ value, onChangeText, placeholder, maxLength }) =>
+}> = ({ value, onChangeText, onBlur, placeholder, maxLength }) =>
   createElement('input', {
     value: value ?? '',
     placeholder,
     maxLength,
     onChange: (event: { target: { value: string } }) => onChangeText?.(event.target.value),
+    // Forwarded so blur-triggered validation (a field flagging itself once left
+    // empty) can be driven with `fireEvent.blur`.
+    onBlur: () => onBlur?.(),
   });
 
 export const StyleSheet = {

@@ -19,26 +19,35 @@ const asMode = (mode: string) => spectate.mockResolvedValue({ game: { config: { 
 
 beforeEach(() => asMode('photo_chase'));
 
-/** Fill the three fields with a valid join. */
+/** Render with a signed-in display name, which now comes from the profile. */
+function renderJoin(props: Record<string, unknown> = {}) {
+  return render(<JoinScreen displayName="Ada" onJoined={vi.fn()} {...props} />);
+}
+
+/** Fill the code and team-name fields with a valid join. */
 function fillValidForm(code = 'abc123') {
   fireEvent.change(screen.getByPlaceholderText('ABC123'), { target: { value: code } });
-  fireEvent.change(screen.getByPlaceholderText('Your name'), { target: { value: 'Ada' } });
   fireEvent.change(screen.getByPlaceholderText('Team name'), { target: { value: 'Reds' } });
 }
 
 describe('JoinScreen', () => {
   it('uppercases the typed code', () => {
-    render(<JoinScreen onJoined={vi.fn()} />);
+    renderJoin();
     const input = screen.getByPlaceholderText('ABC123') as HTMLInputElement;
 
     fireEvent.change(input, { target: { value: 'abc123' } });
     expect(input.value).toBe('ABC123');
   });
 
-  it('joins with the trimmed name and creates a team', async () => {
+  it('has no "your name" field — identity comes from the profile', () => {
+    renderJoin();
+    expect(screen.queryByPlaceholderText('Your name')).toBeNull();
+  });
+
+  it('joins with the profile display name and creates a team', async () => {
     joinGame.mockResolvedValue({ gameId: 'g1', teamId: 't1', role: 'captain' });
     const onJoined = vi.fn();
-    render(<JoinScreen onJoined={onJoined} />);
+    renderJoin({ onJoined });
 
     fillValidForm();
     fireEvent.click(screen.getByRole('button', { name: 'Join' }));
@@ -53,38 +62,39 @@ describe('JoinScreen', () => {
     expect(onJoined).toHaveBeenCalledWith({ gameId: 'g1', code: 'ABC123', teamId: 't1', role: 'captain' });
   });
 
-  it('does nothing until every field is filled', () => {
-    render(<JoinScreen onJoined={vi.fn()} />);
+  it('names what is missing instead of joining silently', () => {
+    // The reported bug: pressing Join with the form incomplete did nothing at
+    // all. The action now says why it is blocked, first unmet requirement first.
+    renderJoin();
+    expect(screen.getByRole('button', { name: 'Enter the 6-character code' })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Join' }));
-    expect(joinGame).not.toHaveBeenCalled();
-
-    // A short code is still incomplete.
     fireEvent.change(screen.getByPlaceholderText('ABC123'), { target: { value: 'ABC12' } });
-    fireEvent.change(screen.getByPlaceholderText('Your name'), { target: { value: 'Ada' } });
-    fireEvent.change(screen.getByPlaceholderText('Team name'), { target: { value: 'Reds' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Join' }));
+    expect(screen.getByRole('button', { name: 'Enter the 6-character code' })).toBeTruthy();
+
+    fireEvent.change(screen.getByPlaceholderText('ABC123'), { target: { value: 'ABC123' } });
+    expect(screen.getByRole('button', { name: 'Name your team' })).toBeTruthy();
+
+    // Pressing the blocked action does nothing but keep saying why.
+    fireEvent.click(screen.getByRole('button', { name: 'Name your team' }));
     expect(joinGame).not.toHaveBeenCalled();
   });
 
-  it('rejects a whitespace-only name', async () => {
-    render(<JoinScreen onJoined={vi.fn()} />);
-
+  it('blocks a whitespace-only team name and flags the field on blur', () => {
+    renderJoin();
     fireEvent.change(screen.getByPlaceholderText('ABC123'), { target: { value: 'ABC123' } });
-    fireEvent.change(screen.getByPlaceholderText('Your name'), { target: { value: '   ' } });
-    fireEvent.change(screen.getByPlaceholderText('Team name'), { target: { value: 'Reds' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Join' }));
+    const team = screen.getByPlaceholderText('Team name');
+    fireEvent.change(team, { target: { value: '   ' } });
+    fireEvent.blur(team);
 
-    // A full code kicks off the mode peek; let it land before asserting, so the
-    // state it sets belongs to this test rather than leaking into the next one.
-    await waitFor(() => expect(spectate).toHaveBeenCalledWith('ABC123'));
+    expect(screen.getByText('Required')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Name your team' })).toBeTruthy();
     expect(joinGame).not.toHaveBeenCalled();
   });
 
   it('surfaces the server’s message when the join is refused', async () => {
     const { ApiError } = await import('@photochase/client');
     joinGame.mockRejectedValue(new ApiError(400, 'Game is full.'));
-    render(<JoinScreen onJoined={vi.fn()} />);
+    renderJoin();
 
     fillValidForm();
     fireEvent.click(screen.getByRole('button', { name: 'Join' }));
@@ -94,7 +104,7 @@ describe('JoinScreen', () => {
 
   it('falls back to a generic message when the network fails', async () => {
     joinGame.mockRejectedValue(new Error('offline'));
-    render(<JoinScreen onJoined={vi.fn()} />);
+    renderJoin();
 
     fillValidForm();
     fireEvent.click(screen.getByRole('button', { name: 'Join' }));
@@ -103,13 +113,11 @@ describe('JoinScreen', () => {
   });
 
   it('offers a way back only when the caller supplies one', () => {
-    // Hosting, the daily hunt and leagues moved to the home screen; this one
-    // does nothing but join.
-    const { rerender } = render(<JoinScreen onJoined={vi.fn()} />);
+    const { rerender } = renderJoin();
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
 
     const onBack = vi.fn();
-    rerender(<JoinScreen onJoined={vi.fn()} onBack={onBack} />);
+    rerender(<JoinScreen displayName="Ada" onJoined={vi.fn()} onBack={onBack} />);
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(onBack).toHaveBeenCalled();
   });
@@ -118,7 +126,7 @@ describe('JoinScreen', () => {
 describe('JoinScreen — tag consent', () => {
   it('asks for the photography acknowledgement only in a tag game', async () => {
     asMode('photo_tag');
-    render(<JoinScreen onJoined={vi.fn()} />);
+    renderJoin();
     fillValidForm();
 
     expect(
@@ -127,27 +135,29 @@ describe('JoinScreen — tag consent', () => {
   });
 
   it('asks nobody joining a chase', async () => {
-    render(<JoinScreen onJoined={vi.fn()} />);
+    renderJoin();
     fillValidForm();
 
     await waitFor(() => expect(spectate).toHaveBeenCalled());
     expect(screen.queryByText('Other players will photograph you during this game.')).toBeNull();
   });
 
-  it('refuses to join a tag game until the player agrees', async () => {
+  it('will not join a tag game until the player agrees', async () => {
     asMode('photo_tag');
-    render(<JoinScreen onJoined={vi.fn()} />);
+    renderJoin();
     fillValidForm();
     await screen.findByText('Other players will photograph you during this game.');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Join' }));
-    await waitFor(() => expect(joinGame).not.toHaveBeenCalled());
+    // Blocked on the acknowledgement, and the action says so rather than joining.
+    expect(screen.getByRole('button', { name: 'Agree to be photographed' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Agree to be photographed' }));
+    expect(joinGame).not.toHaveBeenCalled();
   });
 
   it('sends the acknowledgement once given', async () => {
     asMode('photo_tag');
     joinGame.mockResolvedValue({ gameId: 'g1', teamId: 't1', role: 'captain' });
-    render(<JoinScreen onJoined={vi.fn()} />);
+    renderJoin();
     fillValidForm();
     await screen.findByText('Other players will photograph you during this game.');
 
@@ -158,13 +168,15 @@ describe('JoinScreen — tag consent', () => {
     expect(joinGame.mock.calls[0]![0]).toMatchObject({ acceptsBeingPhotographed: true });
   });
 
-  it('keeps Join clear of the keyboard, with three fields above it', async () => {
+  it('keeps the action clear of the keyboard, with the fields above it', async () => {
     const { within } = await import('@testing-library/react');
-    render(<JoinScreen onJoined={vi.fn()} />);
+    renderJoin();
 
     const scroll = screen.getByTestId('scrollview');
-    expect(within(scroll).getByPlaceholderText('Your name')).toBeTruthy();
-    expect(within(scroll).queryByRole('button', { name: 'Join' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Join' })).toBeTruthy();
+    expect(within(scroll).getByPlaceholderText('Team name')).toBeTruthy();
+    // The pinned action (blocked here, so labelled with its reason) sits outside
+    // the scroll area so the keyboard never covers it.
+    expect(within(scroll).queryByRole('button', { name: 'Enter the 6-character code' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Enter the 6-character code' })).toBeTruthy();
   });
 });

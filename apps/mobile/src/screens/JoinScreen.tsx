@@ -16,21 +16,27 @@ export interface JoinedGame {
 }
 
 /**
- * Enter a 6-character game code (or arrive here via a scanned QR deep link).
+ * Enter a 6-character game code and name a team.
  *
- * Only joining. The other routes into the app moved to the home screen, which
- * left this free to be one job: get the code right.
+ * No "your name" field any more: identity comes from the signed-in profile
+ * ({@link displayName}), captured once at sign-in rather than re-entered every
+ * game. That field was also below the fold, and pressing Join with it blank did
+ * nothing at all — so the primary action now names what is missing (docs/10)
+ * instead of sitting inert, and each field flags itself once left empty.
  */
 export function JoinScreen({
+  displayName,
   onJoined,
   onBack,
 }: {
+  /** The signed-in player's display name, sent to the server as the joiner. */
+  displayName: string;
   onJoined: (game: JoinedGame) => void;
   onBack?: () => void;
 }) {
   const [code, setCode] = useState('');
-  const [name, setName] = useState('');
   const [teamName, setTeamName] = useState('');
+  const [teamTouched, setTeamTouched] = useState(false);
   const [isTag, setIsTag] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,12 +68,20 @@ export function JoinScreen({
     };
   }, [code]);
 
-  const ready =
-    code.length === 6 &&
-    name.trim().length > 0 &&
-    teamName.trim().length > 0 &&
-    (!isTag || agreed) &&
-    !busy;
+  const team = teamName.trim();
+  const ready = code.length === 6 && team !== '' && (!isTag || agreed) && !busy;
+
+  // The primary action says why it is blocked rather than sitting greyed with
+  // the same label (docs/10): the first unmet requirement, top to bottom.
+  const reason =
+    code.length !== 6
+      ? t('join.needCode')
+      : team === ''
+        ? t('join.needTeamName')
+        : isTag && !agreed
+          ? t('join.needConsent')
+          : null;
+  const label = busy ? t('join.joining') : reason ?? t('join.submit');
 
   async function submit(): Promise<void> {
     if (!ready) return;
@@ -76,8 +90,8 @@ export function JoinScreen({
     try {
       const result = await client.joinGame({
         code,
-        displayName: name.trim(),
-        action: { type: 'create_team', name: teamName.trim() },
+        displayName,
+        action: { type: 'create_team', name: team },
         ...(isTag ? { acceptsBeingPhotographed: agreed } : {}),
       });
       onJoined({ gameId: result.gameId, code, teamId: result.teamId, role: result.role });
@@ -89,13 +103,9 @@ export function JoinScreen({
   }
 
   return (
-    // Join is the most keyboard-heavy screen in the app — three fields, and on
-    // a small phone the buttons below them were entirely behind the keyboard.
-    <FormScreen
-      action={
-        <Button onPress={submit}>{busy ? t('join.joining') : t('join.submit')}</Button>
-      }
-    >
+    // Join is a keyboard-heavy screen, and on a small phone the action below the
+    // fields was entirely behind the keyboard until FormScreen pinned it.
+    <FormScreen action={<Button onPress={submit} disabled={!ready}>{label}</Button>}>
       <View style={styles.hero}>
         <Display>{t('join.title')}</Display>
         <Body muted>{t('join.prompt')}</Body>
@@ -111,8 +121,14 @@ export function JoinScreen({
         autoCapitalize="characters"
         style={styles.codeInput}
       />
-      <Field value={name} onChangeText={setName} placeholder={t('join.yourName')} />
-      <Field value={teamName} onChangeText={setTeamName} placeholder={t('join.teamName')} />
+      <Field
+        value={teamName}
+        onChangeText={setTeamName}
+        onBlur={() => setTeamTouched(true)}
+        placeholder={t('join.teamName')}
+        error={teamTouched && team === '' ? t('profile.required') : undefined}
+        maxLength={40}
+      />
 
       {isTag ? (
         <Card tone="highlight">

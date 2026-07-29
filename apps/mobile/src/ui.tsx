@@ -245,21 +245,26 @@ export function ChoiceRow({ label, children }: { label: ReactNode; children: Rea
   );
 }
 
-/** A labelled text input, styled once. */
+/** A labelled text input, styled once. `error` shows inline beneath it. */
 export function Field({
   label,
   value,
   onChangeText,
+  onBlur,
   placeholder,
   maxLength,
   autoCapitalize,
+  error,
 }: {
   label?: string;
   value: string;
   onChangeText: (text: string) => void;
+  onBlur?: () => void;
   placeholder?: string;
   maxLength?: number;
   autoCapitalize?: 'none' | 'characters';
+  /** A validation message shown beneath the input, and it reddens the border. */
+  error?: string;
 }) {
   return (
     <View style={styles.field}>
@@ -267,11 +272,13 @@ export function Field({
       <TextInput
         value={value}
         onChangeText={onChangeText}
+        onBlur={onBlur}
         placeholder={placeholder}
         maxLength={maxLength}
         autoCapitalize={autoCapitalize}
-        style={styles.input}
+        style={[styles.input, error ? styles.inputError : null]}
       />
+      {error ? <ErrorText>{error}</ErrorText> : null}
     </View>
   );
 }
@@ -408,6 +415,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
   },
+  inputError: { borderColor: color.danger },
 
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   /** 48 dp minimum target, per docs/10 — the glyph is small, the hit area is not. */

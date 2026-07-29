@@ -136,7 +136,16 @@ const FIXTURE_JPEG =
   'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwcJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPDIzNP/AABEIAAIAAgMBIgACEQEDEQH/xAAfAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgv/xAC1EAACAQMDAgQDBQUEBAAAAX0BAgMABBEFEiExQQYTUWEHInEUMoGRoQgjQrHBFVLR8CQzYnKCCQoWFxgZGiUmJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/aAAwDAQACEQMRAD8A9mooooA//9k=';
 
 /** Route → canned body. Unknown routes fail loudly rather than silently. */
-function respond(method: string, path: string): unknown {
+function respond(method: string, path: string, body: unknown): unknown {
+  // Identity lives with the login now; the harness ships a completed profile so
+  // it lands on home rather than the "complete your profile" form. A save echoes
+  // what was sent, so editing the display name reads back as it would for real.
+  if (method === 'GET' && /\/me\/profile$/.test(path)) {
+    return { firstName: 'Dev', lastName: 'Tester', displayName: 'Ducky' };
+  }
+  if (method === 'PUT' && /\/me\/profile$/.test(path)) {
+    return body ?? { firstName: 'Dev', lastName: 'Tester', displayName: 'Ducky' };
+  }
   if (method === 'GET' && /\/games\/[^/]+\/regroup$/.test(path)) return regroup();
   if (method === 'GET' && /\/games\/[^/]+$/.test(path)) return gameState();
   if (method === 'GET' && /\/games\/[^/]+\/teams$/.test(path)) return gameState().teams;
@@ -237,9 +246,10 @@ export function fixtureFetch(): FetchFn {
   return async (input, init) => {
     const method = (init?.method ?? 'GET').toUpperCase();
     const path = input.replace(/^https?:\/\/[^/]+/, '');
+    const sent = typeof init?.body === 'string' ? (JSON.parse(init.body) as unknown) : undefined;
     await new Promise((r) => setTimeout(r, 120));
     try {
-      const body = respond(method, path);
+      const body = respond(method, path, sent);
       return new Response(JSON.stringify(body), {
         status: 200,
         headers: { 'content-type': 'application/json' },
