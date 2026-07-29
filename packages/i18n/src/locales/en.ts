@@ -245,6 +245,11 @@ export const en = {
   'chase.viewHidden': 'Original hidden',
   'chase.viewSettings': 'Change',
   'chase.hideControls': 'Done',
+  'regroup.waitingFor_one': '1 team still out',
+  'host.startRound2Waiting_one': 'Waiting for 1 team',
+  'lobby.teamsJoined_one': '1 team joined',
+  'lobby.playerCount_one': '1 player',
+  'host.meetingSpot': 'Meeting spot',
 } as const;
 
 export type MessageKey = keyof typeof en;

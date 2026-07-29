@@ -246,4 +246,9 @@ export const es: Record<MessageKey, string> = {
   'chase.viewHidden': 'Original oculto',
   'chase.viewSettings': 'Cambiar',
   'chase.hideControls': 'Listo',
+  'regroup.waitingFor_one': '1 equipo aún fuera',
+  'host.startRound2Waiting_one': 'Esperando a 1 equipo',
+  'lobby.teamsJoined_one': '1 equipo se ha unido',
+  'lobby.playerCount_one': '1 jugador',
+  'host.meetingSpot': 'Punto de encuentro',
 };

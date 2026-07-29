@@ -22,9 +22,29 @@ function interpolate(template: string, params?: MessageParams): string {
   );
 }
 
-/** Look up and interpolate a message for a locale, falling back to English. */
+/**
+ * Look up and interpolate a message for a locale, falling back to English.
+ *
+ * When a `count` param is present and equal to one, a `<key>_one` entry is
+ * preferred if the catalogue has one. The base key stays the plural form, so
+ * every existing key keeps working untouched and only the messages that read
+ * badly in the singular need a sibling.
+ *
+ * This exists because the app was shipping "1 teams still out" and "1 teams
+ * joined". The web app had already hand-rolled the same problem inline
+ * (`player{n === 1 ? '' : 's'}`), which is the shape this prevents spreading:
+ * English's plural rule is not every language's, and a ternary in a component
+ * cannot be translated.
+ *
+ * Deliberately only the one/other split. Full CLDR plural categories — Polish
+ * has four, Arabic six — are a real requirement the day one of those locales
+ * ships, and guessing at them now would be inventing an API against no caller.
+ */
 export function translate(locale: Locale, key: MessageKey, params?: MessageParams): string {
-  const template = CATALOGS[locale][key] ?? CATALOGS.en[key];
+  const table = CATALOGS[locale] as Record<string, string | undefined>;
+  const fallback = CATALOGS.en as Record<string, string | undefined>;
+  const singular = params && params.count === 1 ? `${key}_one` : null;
+  const template = (singular ? table[singular] ?? fallback[singular] : undefined) ?? table[key] ?? fallback[key] ?? key;
   return interpolate(template, params);
 }
 

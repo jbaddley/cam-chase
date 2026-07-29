@@ -247,4 +247,9 @@ export const ja: Record<MessageKey, string> = {
   'chase.viewHidden': 'お題は非表示',
   'chase.viewSettings': '変更',
   'chase.hideControls': '完了',
+  'regroup.waitingFor_one': '1 チームがまだ外にいます',
+  'host.startRound2Waiting_one': '1 チームを待っています',
+  'lobby.teamsJoined_one': '1 チームが参加',
+  'lobby.playerCount_one': '1 人',
+  'host.meetingSpot': '集合場所',
 };

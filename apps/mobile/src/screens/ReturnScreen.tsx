@@ -8,8 +8,7 @@ import { CaptureError } from '../capture.js';
 import { t } from '../i18n.js';
 import type { LocationSource } from '../location.js';
 import { color, space, type as typeScale } from '../theme.js';
-import { Body, Button, Card, ErrorText, Heading, Pill, Row, Title } from '../ui.js';
-import { ViewfinderFrame } from './ViewfinderFrame.js';
+import { Body, Button, Card, Chip, ErrorText, Heading, Pill, Row, Screen, Title } from '../ui.js';
 
 /** Don't hammer the endpoint while a team walks; a fix every ten seconds is plenty. */
 const AUTO_INTERVAL_MS = 10_000;
@@ -42,7 +41,6 @@ export function ReturnScreen({
   location,
   refresh,
   onAdvanced,
-  landscape,
 }: {
   gameId: string;
   mode: GameMode;
@@ -52,7 +50,6 @@ export function ReturnScreen({
   location: LocationSource;
   refresh: () => void;
   onAdvanced?: (state: GameState) => void;
-  landscape?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -114,32 +111,29 @@ export function ReturnScreen({
 
   if (!regroup) {
     return (
-      <ViewfinderFrame landscape={landscape}>
+      <Screen>
         <Title>{t('regroup.title')}</Title>
         <Body muted>{error ?? t('watch.connecting')}</Body>
-      </ViewfinderFrame>
+      </Screen>
     );
   }
 
+  /**
+   * A scrolling screen, not a viewfinder frame.
+   *
+   * This was built on `ViewfinderFrame` by habit, because the screens either side
+   * of it are. It is not a shooting screen: nothing is captured here, the camera
+   * is not running, and the frame's transparency was buying nothing — the
+   * background is plain white regardless. What the frame *did* bring was a pinned
+   * action slot with no height budget, and a host has a check-in button, a phase
+   * gate, a force, and the spot repairs to fit in it. They did not fit; the last
+   * of them sat off the bottom edge with no way to reach it.
+   *
+   * Scrolling is the honest answer, because the number of controls genuinely
+   * varies with role and phase and cannot be capped by design.
+   */
   return (
-    <ViewfinderFrame
-      landscape={landscape}
-      action={
-        <>
-          {me ? <CheckInButton me={me} busy={busy} onPress={() => void attempt(false)} /> : null}
-          {isHost ? (
-            <HostControls
-              gameId={gameId}
-              mode={mode}
-              regroup={regroup}
-              location={location}
-              refresh={refresh}
-              onAdvanced={onAdvanced}
-            />
-          ) : null}
-        </>
-      }
-    >
+    <Screen scroll>
       <Title>{t('regroup.title')}</Title>
       <Body muted>{regroup.fenced ? t('regroup.instruction') : t('regroup.instructionUnfenced')}</Body>
 
@@ -152,7 +146,14 @@ export function ReturnScreen({
       {regroup.teams.map((team) => (
         <Card key={team.teamId} tone={team.status === 'ready' ? 'highlight' : 'plain'}>
           <Row>
-            <Text style={styles.teamName}>{team.name}</Text>
+            {/* The name yields and the status does not. "Wandering Albatross"
+                ran straight into its pill: the name could shrink but the pill
+                had no width to give, so they met in the middle. */}
+            <View style={styles.nameCell}>
+              <Text style={styles.teamName} numberOfLines={1}>
+                {team.name}
+              </Text>
+            </View>
             <Pill tone={team.status === 'ready' ? 'positive' : 'accent'}>{t(STATUS_KEY[team.status])}</Pill>
           </Row>
         </Card>
@@ -160,7 +161,19 @@ export function ReturnScreen({
 
       {headingBack ? <Body muted>{t('regroup.autoNotice')}</Body> : null}
       {failure ? <ErrorText>{failure}</ErrorText> : null}
-    </ViewfinderFrame>
+
+      {me ? <CheckInButton me={me} busy={busy} onPress={() => void attempt(false)} /> : null}
+      {isHost ? (
+        <HostControls
+          gameId={gameId}
+          mode={mode}
+          regroup={regroup}
+          location={location}
+          refresh={refresh}
+          onAdvanced={onAdvanced}
+        />
+      ) : null}
+    </Screen>
   );
 }
 
@@ -216,6 +229,7 @@ function HostControls({
   const [asking, setAsking] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [spotTools, setSpotTools] = useState(false);
 
   /**
    * Correct the meeting spot mid-game.
@@ -310,21 +324,37 @@ function HostControls({
         </>
       )}
 
-      {/* Correcting the spot beats forcing past it: a team that can check in
-          keeps its return bonus, and a team that cannot loses it. */}
-      <Button onPress={() => void setSpot(false)} tone="secondary">
-        {t('host.spotHere')}
-      </Button>
-      {regroup.fenced ? (
-        <Button onPress={() => void setSpot(true)} tone="secondary">
-          {t('host.spotClear')}
-        </Button>
+      {/*
+        Correcting the spot beats forcing past it — a team that can check in keeps
+        its return bonus — but these are repairs, not the move the host came here
+        to make. Behind a chip, because a host with the check-in button, the
+        phase gate, the force and both of these had six buttons stacked in a
+        pinned slot and the last of them was off the bottom of the screen.
+      */}
+      <Row>
+        <Chip onPress={() => setSpotTools(!spotTools)} selected={spotTools}>
+          {t('host.meetingSpot')}
+        </Chip>
+      </Row>
+      {spotTools ? (
+        <>
+          <Button onPress={() => void setSpot(false)} tone="secondary">
+            {t('host.spotHere')}
+          </Button>
+          {regroup.fenced ? (
+            <Button onPress={() => void setSpot(true)} tone="secondary">
+              {t('host.spotClear')}
+            </Button>
+          ) : null}
+        </>
       ) : null}
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  teamName: { ...typeScale.heading, color: color.ink, flexShrink: 1 },
+  /** Takes the slack so the status pill keeps its natural width. */
+  nameCell: { flex: 1, flexShrink: 1, marginRight: space.sm },
+  teamName: { ...typeScale.heading, color: color.ink },
   confirm: { gap: space.sm },
 });

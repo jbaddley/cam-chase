@@ -96,7 +96,8 @@ describe('ReturnScreen — the roster', () => {
 
   it('counts how many teams are still out', () => {
     render_(view());
-    expect(screen.getByText('1 teams still out')).toBeTruthy();
+    // Was "1 teams still out" until the catalogue learned singular forms.
+    expect(screen.getByText('1 team still out')).toBeTruthy();
   });
 
   it('says so once everyone is back', () => {
@@ -109,11 +110,17 @@ describe('ReturnScreen — the roster', () => {
     expect(screen.getByText('Check in when your team is back at the start.')).toBeTruthy();
   });
 
-  // The camera preview must stay visible: this screen sits over it like the
-  // shooting screens, and `Screen` would paint it out.
-  it('is built on the viewfinder frame, not an opaque screen', () => {
-    render_(view());
-    expect(screen.getByTestId('viewfinder-frame')).toBeTruthy();
+  /**
+   * Deliberately *not* the viewfinder frame, unlike the screens either side of it.
+   * Nothing is captured here and the camera is not running, so the frame's
+   * transparency bought nothing — what it brought was a pinned action slot with
+   * no height budget, and a host's controls ran off the bottom edge. The number
+   * of controls varies with role and phase, so the surface has to scroll.
+   */
+  it('scrolls, because a host has more controls than a pinned slot holds', () => {
+    render_(view({ me: null }), { isHost: true });
+    expect(screen.getByTestId('scrollview')).toBeTruthy();
+    expect(screen.queryByTestId('viewfinder-frame')).toBeNull();
   });
 });
 
@@ -225,9 +232,17 @@ describe('ReturnScreen — automatic check-in', () => {
 describe('ReturnScreen — the host', () => {
   const asHost = (v: RegroupView) => render_(v, { isHost: true });
 
+  /**
+   * Reveal the meeting-spot repairs. They sit behind a chip because a host with
+   * the check-in button, the phase gate, the force and both of these had six
+   * buttons stacked in a pinned slot and the last was off the bottom of the
+   * screen.
+   */
+  const openSpotTools = () => fireEvent.click(screen.getByRole('button', { name: 'Meeting spot' }));
+
   it('cannot start Round 2 while a team is out, and says how many', () => {
     asHost(view());
-    expect(screen.getByRole('button', { name: 'Waiting for 1 teams' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Waiting for 1 team' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Start round 2' })).toBeNull();
   });
 
@@ -289,6 +304,7 @@ describe('ReturnScreen — the host', () => {
    */
   it('can move the meeting spot to where the host is standing', async () => {
     asHost(view());
+    openSpotTools();
     fireEvent.click(screen.getByRole('button', { name: 'Meeting spot is here' }));
 
     await waitFor(() => expect(setStartSpot).toHaveBeenCalled());
@@ -298,6 +314,7 @@ describe('ReturnScreen — the host', () => {
 
   it('can drop the fence when the host’s own device is in the wrong place', async () => {
     asHost(view());
+    openSpotTools();
     // Re-recording from a device that reports the wrong place stores the same
     // wrong point, so clearing is the only way out.
     fireEvent.click(screen.getByRole('button', { name: 'Play without a meeting spot' }));
@@ -309,9 +326,23 @@ describe('ReturnScreen — the host', () => {
 
   it('offers nothing to clear when there is no fence', () => {
     asHost(view({ fenced: false }));
+    openSpotTools();
     expect(screen.queryByRole('button', { name: 'Play without a meeting spot' })).toBeNull();
     // Setting one is still on offer — an unfenced game may want a fence.
     expect(screen.getByRole('button', { name: 'Meeting spot is here' })).toBeTruthy();
+  });
+
+  /**
+   * The overflow this fixed: check-in, call-back, the waiting gate, force, and
+   * both spot repairs came to six buttons in a pinned action slot, and the last
+   * was off the bottom of the screen.
+   */
+  it('keeps the spot repairs out of the action stack until asked for', () => {
+    asHost(view());
+    expect(screen.queryByRole('button', { name: 'Meeting spot is here' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Play without a meeting spot' })).toBeNull();
+    // Discoverable, and one tap away.
+    expect(screen.getByRole('button', { name: 'Meeting spot' })).toBeTruthy();
   });
 
   it('does not offer either control to a player', () => {

@@ -65,3 +65,34 @@ describe('resolveLocale', () => {
     expect(resolveLocale(['kl'], 'ja')).toBe('ja');
   });
 });
+
+/**
+ * The app shipped "1 teams still out" and "1 teams joined", and the web app had
+ * already hand-rolled the same problem inline (`player{n === 1 ? '' : 's'}`) —
+ * which is untranslatable and assumes English's plural rule is universal.
+ */
+describe('singular forms', () => {
+  it('prefers a _one entry when the count is one', () => {
+    expect(translate('en', 'regroup.waitingFor', { count: 1 })).toBe('1 team still out');
+    expect(translate('en', 'regroup.waitingFor', { count: 3 })).toBe('3 teams still out');
+  });
+
+  it('does the same in every locale that has the pair', () => {
+    for (const locale of LOCALES) {
+      const one = translate(locale, 'lobby.teamsJoined', { count: 1 });
+      const many = translate(locale, 'lobby.teamsJoined', { count: 4 });
+      expect(one, locale).not.toBe(many);
+      expect(one, locale).toContain('1');
+      expect(many, locale).toContain('4');
+    }
+  });
+
+  it('leaves keys without a singular form exactly as they were', () => {
+    // The base key stays the plural, so every existing message is untouched.
+    expect(translate('en', 'plan.creditsLeft', { count: 1 })).toBe('1 game credits left');
+  });
+
+  it('ignores the rule when there is no count at all', () => {
+    expect(translate('en', 'game.start')).toBe('Start game');
+  });
+});
