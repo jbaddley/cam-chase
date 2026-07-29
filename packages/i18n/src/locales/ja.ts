@@ -244,4 +244,7 @@ export const ja: Record<MessageKey, string> = {
   'host.spotSet': '集合場所を更新しました。',
   'host.spotCleared': '集合場所なしで進めます。',
   'host.spotFailed': '集合場所を更新できませんでした。',
+  'chase.viewHidden': 'お題は非表示',
+  'chase.viewSettings': '変更',
+  'chase.hideControls': '完了',
 };

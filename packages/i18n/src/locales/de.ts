@@ -243,4 +243,7 @@ export const de: Record<MessageKey, string> = {
   'host.spotSet': 'Treffpunkt aktualisiert.',
   'host.spotCleared': 'Spiel ohne Treffpunkt.',
   'host.spotFailed': 'Der Treffpunkt konnte nicht aktualisiert werden.',
+  'chase.viewHidden': 'Original ausgeblendet',
+  'chase.viewSettings': 'Ändern',
+  'chase.hideControls': 'Fertig',
 };

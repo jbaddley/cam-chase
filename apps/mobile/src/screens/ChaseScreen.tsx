@@ -4,7 +4,7 @@ import { client } from '../api.js';
 import { CaptureError } from '../capture.js';
 import { t } from '../i18n.js';
 import { useSignedPhoto } from '../useSignedPhoto.js';
-import { Body, Button, Chip, ChoiceRow, ErrorText, Loading, Pill } from '../ui.js';
+import { Body, Button, Chip, ChoiceRow, ErrorText, Loading, Pill, Row } from '../ui.js';
 import { useViewfinder, useViewfinderLayout } from '../viewfinder.js';
 import { ChaseView, OVERLAY_LEVELS, type ChaseViewMode } from './ChaseView.js';
 import { ViewfinderFrame } from './ViewfinderFrame.js';
@@ -112,9 +112,27 @@ export function ChaseScreen({
 }
 
 /**
- * The readout and the view controls. Split out so the layout hook is read inside
- * the frame that provides it — side by side is only offered when the phone is
- * actually turned, since half a portrait screen is not a useful comparison.
+ * The readout and the view controls.
+ *
+ * The controls collapse, and that is the whole point of this component's shape.
+ * Two mode chips plus four level chips plus their labels is a slab, and the frame
+ * puts the readout over the top of the picture — so left open they cover exactly
+ * the part of the scene you are trying to line the shot up against, which is the
+ * one thing this screen exists to let you see. `ViewfinderFrame`'s own docblock
+ * says the middle stays empty; a settings panel parked over it does not.
+ *
+ * Collapsed, they are a single chip that states where the original currently
+ * stands — "Original at 80%", "Original hidden" — so the setting is still legible
+ * at a glance and one tap from being changed. Hidden, but not a secret.
+ *
+ * They stay open once opened, rather than closing on each pick: choosing a level
+ * is something you do two or three times in a row while watching the overlay
+ * settle, and a panel that shut itself after each tap would be worse than one
+ * that never closed.
+ *
+ * Split from the screen so the layout hook is read inside the frame that provides
+ * it — side by side is only offered when the phone is actually turned, since half
+ * a portrait screen is not a useful comparison.
  */
 function ChaseInfo({
   chased,
@@ -138,12 +156,21 @@ function ChaseInfo({
   onOpacity: (opacity: number) => void;
 }) {
   const { landscape } = useViewfinderLayout();
+  const [open, setOpen] = useState(false);
 
   const modes: Array<{ value: ChaseViewMode; label: string }> = [
     { value: 'hidden', label: t('chase.hide') },
     { value: 'overlay', label: t('chase.overlay') },
     ...(landscape ? [{ value: 'side_by_side' as const, label: t('chase.sideBySide') }] : []),
   ];
+
+  /** What the collapsed chip says: the state, not the verb. */
+  const summary =
+    mode === 'hidden'
+      ? t('chase.viewHidden')
+      : mode === 'side_by_side'
+        ? t('chase.sideBySide')
+        : t('chase.overlayAt', { percent: Math.round(opacity * 100) });
 
   return (
     <>
@@ -156,28 +183,39 @@ function ChaseInfo({
 
       {current ? (
         <>
-          <ChoiceRow label={t('chase.original')}>
-            {modes.map((m) => (
-              <Chip key={m.value} onPress={() => onMode(m.value)} selected={mode === m.value}>
-                {m.label}
-              </Chip>
-            ))}
-          </ChoiceRow>
+          {/* Collapsed: one chip, stating where the original stands. */}
+          <Row>
+            <Chip onPress={() => setOpen(!open)} selected={open}>
+              {open ? t('chase.hideControls') : summary}
+            </Chip>
+          </Row>
 
-          {/* The level is words rather than a bar because the harness drops
-              styles: an overlay at 25% and one at 75% are the same DOM, so this
-              is both the readable label and the only assertable one. */}
-          {mode === 'overlay' ? (
-            <ChoiceRow label={t('chase.overlayAt', { percent: Math.round(opacity * 100) })}>
-              {OVERLAY_LEVELS.map((level) => (
-                <Chip key={level} onPress={() => onOpacity(level)} selected={opacity === level}>
-                  {`${Math.round(level * 100)}%`}
-                </Chip>
-              ))}
-            </ChoiceRow>
+          {open ? (
+            <>
+              <ChoiceRow label={t('chase.original')}>
+                {modes.map((m) => (
+                  <Chip key={m.value} onPress={() => onMode(m.value)} selected={mode === m.value}>
+                    {m.label}
+                  </Chip>
+                ))}
+              </ChoiceRow>
+
+              {/* The level is words rather than a bar because the harness drops
+                  styles: an overlay at 25% and one at 75% are the same DOM, so
+                  this is both the readable label and the only assertable one. */}
+              {mode === 'overlay' ? (
+                <ChoiceRow label={t('chase.overlayAt', { percent: Math.round(opacity * 100) })}>
+                  {OVERLAY_LEVELS.map((level) => (
+                    <Chip key={level} onPress={() => onOpacity(level)} selected={opacity === level}>
+                      {`${Math.round(level * 100)}%`}
+                    </Chip>
+                  ))}
+                </ChoiceRow>
+              ) : null}
+
+              {mode === 'side_by_side' ? <Body muted>{t('chase.fullFrame')}</Body> : null}
+            </>
           ) : null}
-
-          {mode === 'side_by_side' ? <Body muted>{t('chase.fullFrame')}</Body> : null}
         </>
       ) : null}
     </>

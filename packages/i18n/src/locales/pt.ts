@@ -244,4 +244,7 @@ export const pt: Record<MessageKey, string> = {
   'host.spotSet': 'Ponto de encontro atualizado.',
   'host.spotCleared': 'Jogando sem ponto de encontro.',
   'host.spotFailed': 'Não foi possível atualizar o ponto de encontro.',
+  'chase.viewHidden': 'Original oculto',
+  'chase.viewSettings': 'Alterar',
+  'chase.hideControls': 'Pronto',
 };

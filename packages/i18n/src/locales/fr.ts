@@ -243,4 +243,7 @@ export const fr: Record<MessageKey, string> = {
   'host.spotSet': 'Point de rendez-vous mis à jour.',
   'host.spotCleared': 'Partie sans point de rendez-vous.',
   'host.spotFailed': 'Impossible de mettre à jour le point de rendez-vous.',
+  'chase.viewHidden': 'Original masqué',
+  'chase.viewSettings': 'Modifier',
+  'chase.hideControls': 'Terminé',
 };

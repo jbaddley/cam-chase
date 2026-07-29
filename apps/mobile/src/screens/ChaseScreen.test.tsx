@@ -38,6 +38,15 @@ const capture = () => Promise.resolve({ file: new Blob(['x']), location: { lat: 
  */
 const shutter = () => screen.getByRole('button', { name: 'Take chase photo' });
 
+/**
+ * Open the view controls. They are collapsed by default — left open they cover
+ * the part of the frame you are lining the shot up against — so a test that
+ * wants a mode or a level has to reveal them first, exactly as a player does.
+ */
+const openControls = async () => {
+  fireEvent.click(await screen.findByRole('button', { name: /^Original (at \d+%|hidden)$|^Side by side$/ }));
+};
+
 function assignment(order: number, chased = false): AssignmentView {
   return {
     assignmentId: `a${order}`,
@@ -131,6 +140,64 @@ describe('ChaseScreen', () => {
  * How it actually looks was checked on a device, and has to be.
  */
 describe('ChaseScreen — seeing the original', () => {
+  /**
+   * The controls were a slab covering the top half of the frame — over exactly
+   * the part of the scene you line the shot up against, which is the one thing
+   * this screen exists to let you see.
+   */
+  it('keeps the view controls out of the frame until asked for', async () => {
+    listAssignments.mockResolvedValue([assignment(0)]);
+    render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
+
+    await screen.findByTestId('chase-original');
+    // Collapsed: no mode chips, no level chips.
+    expect(screen.queryByRole('button', { name: 'Hide' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Overlay' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '25%' })).toBeNull();
+
+    // Discoverable: one chip that states where the original stands.
+    expect(screen.getByRole('button', { name: 'Original at 40%' })).toBeTruthy();
+
+    await openControls();
+    expect(screen.getByRole('button', { name: 'Hide' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '25%' })).toBeTruthy();
+  });
+
+  it('folds the controls away again', async () => {
+    listAssignments.mockResolvedValue([assignment(0)]);
+    render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
+
+    await openControls();
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('button', { name: 'Hide' })).toBeNull();
+  });
+
+  it('stays open while the level is being tried', async () => {
+    listAssignments.mockResolvedValue([assignment(0)]);
+    render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
+
+    await openControls();
+    fireEvent.click(screen.getByRole('button', { name: '25%' }));
+    // Picking a level is something you do two or three times in a row while
+    // watching the overlay settle; closing after each tap would be worse.
+    expect(screen.getByRole('button', { name: '60%' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '60%' }));
+    expect(screen.getByText('Original at 60%')).toBeTruthy();
+  });
+
+  it('says the original is hidden when it is', async () => {
+    listAssignments.mockResolvedValue([assignment(0)]);
+    render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
+
+    await openControls();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+
+    // The collapsed chip states the setting rather than a verb, so a player who
+    // hid it yesterday can tell at a glance why they see no original.
+    expect(screen.getByRole('button', { name: 'Original hidden' })).toBeTruthy();
+  });
+
   it('shows the assigned original, signed as a thumbnail', async () => {
     listAssignments.mockResolvedValue([assignment(0)]);
     render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
@@ -146,6 +213,7 @@ describe('ChaseScreen — seeing the original', () => {
     render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
 
     await screen.findByTestId('chase-original');
+    await openControls();
     fireEvent.click(screen.getByRole('button', { name: 'Hide' }));
 
     expect(screen.queryByTestId('chase-original')).toBeNull();
@@ -159,7 +227,9 @@ describe('ChaseScreen — seeing the original', () => {
 
     // The level is words because an overlay at 40% and one at 80% are the same
     // DOM here — this is the only assertable form, and the readable one.
-    expect(await screen.findByText('Original at 40%')).toBeTruthy();
+    // Collapsed, the chip itself states the level.
+    expect(await screen.findByRole('button', { name: 'Original at 40%' })).toBeTruthy();
+    await openControls();
     fireEvent.click(screen.getByRole('button', { name: '80%' }));
     expect(screen.getByText('Original at 80%')).toBeTruthy();
   });
@@ -170,18 +240,21 @@ describe('ChaseScreen — seeing the original', () => {
 
     // Half a portrait screen is not a useful comparison, so it is not offered.
     await screen.findByTestId('chase-original');
+    await openControls();
     expect(screen.queryByRole('button', { name: 'Side by side' })).toBeNull();
     unmount();
 
     render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} landscape />);
-    expect(await screen.findByRole('button', { name: 'Side by side' })).toBeTruthy();
+    await openControls();
+    expect(screen.getByRole('button', { name: 'Side by side' })).toBeTruthy();
   });
 
   it('says the photo is still full-frame when side by side', async () => {
     listAssignments.mockResolvedValue([assignment(0)]);
     render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} landscape />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Side by side' }));
+    await openControls();
+    fireEvent.click(screen.getByRole('button', { name: 'Side by side' }));
     // The split is a place to look, not a viewport. Every player assumes
     // otherwise once, and only the wording can correct it.
     expect(screen.getByText('Your photo still captures the whole frame.')).toBeTruthy();

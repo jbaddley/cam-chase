@@ -242,6 +242,9 @@ export const en = {
   'host.spotSet': 'Meeting spot updated.',
   'host.spotCleared': 'Playing without a meeting spot.',
   'host.spotFailed': 'Could not update the meeting spot.',
+  'chase.viewHidden': 'Original hidden',
+  'chase.viewSettings': 'Change',
+  'chase.hideControls': 'Done',
 } as const;
 
 export type MessageKey = keyof typeof en;
