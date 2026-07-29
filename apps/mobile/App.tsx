@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { configError } from './src/config.js';
 import { GameRouter } from './src/GameRouter.js';
@@ -14,6 +14,9 @@ import { placeholderCapture } from './src/capture.js';
 import { placeholderLocation, type LocationSource } from './src/location.js';
 import { session, type Authorizer } from './src/auth.js';
 import { DEV_FIXTURES } from './src/config.js';
+
+/** The game the harness drops you into: host, so the gate controls are on screen. */
+const DEV_GAME: JoinedGame = { gameId: 'game_dev', code: 'DEV123', teamId: 'team_dev', role: 'host' };
 import { DevSceneBar } from './src/dev/DevSceneBar.js';
 import { unavailablePurchaseGateway, type PurchaseGateway } from './src/purchases.js';
 import type { CaptureSource } from './src/screens/CaptureScreen.js';
@@ -70,20 +73,32 @@ export default function App({
    * reload is the friction it was built to remove. Host, so the gate controls are
    * on screen too.
    */
-  const [joined, setJoined] = useState<JoinedGame | null>(
-    DEV_FIXTURES ? { gameId: 'game_dev', code: 'DEV123', teamId: 'team_dev', role: 'host' } : null,
-  );
+  const [joined, setJoined] = useState<JoinedGame | null>(DEV_FIXTURES ? DEV_GAME : null);
 
   if (!signedIn) return <SignInScreen authorize={authorize} onSignedIn={() => setSignedIn(true)} />;
 
-  if (joined) {
-    return (
+  /**
+   * With fixtures on, the bar wraps everything — in a game or out of it — because
+   * the harness drops you into a game and the only way back out was a button
+   * inside it, with no way back in.
+   */
+  const devFrame = (node: ReactNode) =>
+    DEV_FIXTURES ? (
       <View style={styles.withDevBar}>
-        <DevSceneBar />
-        <View style={styles.devBarBody}>
-          <GameRouter joined={joined} capture={capture} location={location} onExit={() => setJoined(null)} />
-        </View>
+        <DevSceneBar
+          inGame={joined !== null}
+          onEnterGame={() => setJoined(DEV_GAME)}
+          onLeaveGame={() => setJoined(null)}
+        />
+        <View style={styles.devBarBody}>{node}</View>
       </View>
+    ) : (
+      node
+    );
+
+  if (joined) {
+    return devFrame(
+      <GameRouter joined={joined} capture={capture} location={location} onExit={() => setJoined(null)} />,
     );
   }
 
@@ -91,15 +106,15 @@ export default function App({
 
   switch (route) {
     case 'plan':
-      return <PlanScreen onBack={home} purchases={purchases} />;
+      return devFrame(<PlanScreen onBack={home} purchases={purchases} />);
     case 'league':
-      return <LeagueScreen onBack={home} />;
+      return devFrame(<LeagueScreen onBack={home} />);
     case 'referral':
-      return <ReferralScreen onBack={home} />;
+      return devFrame(<ReferralScreen onBack={home} />);
     case 'daily':
-      return <DailyHuntScreen onBack={home} />;
+      return devFrame(<DailyHuntScreen onBack={home} />);
     case 'host':
-      return (
+      return devFrame(
         <HostScreen
           onHosting={(game) => {
             setRoute('home');
@@ -107,27 +122,27 @@ export default function App({
           }}
           onCancel={home}
           onViewPlan={() => setRoute('plan')}
-        />
+        />,
       );
     case 'join':
-      return (
+      return devFrame(
         <JoinScreen
           onJoined={(game) => {
             setRoute('home');
             setJoined(game);
           }}
           onBack={home}
-        />
+        />,
       );
     default:
-      return (
+      return devFrame(
         <HomeScreen
           onHost={() => setRoute('host')}
           onJoin={() => setRoute('join')}
           onDailyHunt={() => setRoute('daily')}
           onLeagues={() => setRoute('league')}
           onInvite={() => setRoute('referral')}
-        />
+        />,
       );
   }
 }

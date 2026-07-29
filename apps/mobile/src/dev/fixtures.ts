@@ -28,7 +28,23 @@ export type FixtureScene =
   | 'round1_heading_back'
   | 'round1_all_back'
   | 'round1_far_away'
-  | 'round2_chasing';
+  | 'round2_chasing'
+  | 'rating'
+  | 'finals'
+  | 'results';
+
+/** Scenes that put you inside a game, as opposed to the app's other routes. */
+export const IN_GAME: FixtureScene[] = [
+  'lobby',
+  'round1_shooting',
+  'round1_heading_back',
+  'round1_all_back',
+  'round1_far_away',
+  'round2_chasing',
+  'rating',
+  'finals',
+  'results',
+];
 
 let scene: FixtureScene = 'round1_shooting';
 
@@ -40,14 +56,7 @@ export function currentScene(): FixtureScene {
   return scene;
 }
 
-export const SCENES: FixtureScene[] = [
-  'lobby',
-  'round1_shooting',
-  'round1_heading_back',
-  'round1_all_back',
-  'round1_far_away',
-  'round2_chasing',
-];
+export const SCENES: FixtureScene[] = [...IN_GAME];
 
 const GAME_ID = 'game_dev';
 const TEAM = 'team_dev';
@@ -56,6 +65,9 @@ const TEAM = 'team_dev';
 function stateFor(s: FixtureScene): string {
   if (s === 'lobby') return 'lobby';
   if (s === 'round2_chasing') return 'round2_active';
+  if (s === 'rating') return 'rating';
+  if (s === 'finals') return 'finals_voting';
+  if (s === 'results') return 'results';
   return 'round1_active';
 }
 
@@ -135,6 +147,48 @@ function respond(method: string, path: string): unknown {
       { assignmentId: 'a2', order: 2, originalPhotoId: 'p2', originalPhotoKey: 'k2', chasePhotoId: 'c2' },
     ];
   }
+  if (method === 'GET' && /\/games\/[^/]+\/rateable$/.test(path)) {
+    return [
+      {
+        assignmentId: 'a0',
+        originalPhotoId: 'p0',
+        originalPhotoKey: 'k0',
+        chasePhotoId: 'c0',
+        chasePhotoKey: 'ck0',
+        myVotes: { pose: null, angle: null, validity: null },
+        originalFouls: [],
+      },
+      {
+        assignmentId: 'a1',
+        originalPhotoId: 'p1',
+        originalPhotoKey: 'k1',
+        chasePhotoId: 'c1',
+        chasePhotoKey: 'ck1',
+        myVotes: { pose: 4, angle: 3, validity: null },
+        originalFouls: ['no_face'],
+      },
+    ];
+  }
+  if (method === 'GET' && /\/games\/[^/]+\/finals$/.test(path)) {
+    return {
+      categories: [
+        { id: 'best_overall_match', label: 'Best overall match' },
+        { id: 'Craziest Pose', label: 'Craziest Pose' },
+      ],
+      teams: gameState().teams.map((t) => ({ teamId: t.teamId, name: t.name })),
+      myVotes: {},
+    };
+  }
+  if (method === 'GET' && /\/games\/[^/]+\/results$/.test(path)) {
+    return {
+      scoreboard: [
+        { teamId: TEAM, location: 420, pose: 88, angle: 72, timeBonus: 40, fouls: 0, finals: 25, total: 645 },
+        { teamId: 'team_b', location: 380, pose: 74, angle: 66, timeBonus: 30, fouls: -20, finals: 0, total: 530 },
+        { teamId: 'team_c', location: 210, pose: 51, angle: 44, timeBonus: 20, fouls: 0, finals: 0, total: 325 },
+      ],
+    };
+  }
+  if (method === 'POST' && /\/votes$/.test(path)) return { voteId: 'v1' };
   if (method === 'POST' && /\/downloads$/.test(path)) return { url: FIXTURE_JPEG };
   if (method === 'POST' && /\/checkins$/.test(path)) {
     // The scene the whole distance-formatting fix was written for.
