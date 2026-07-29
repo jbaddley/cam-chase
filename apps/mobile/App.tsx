@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { configError } from './src/config.js';
 import { GameRouter } from './src/GameRouter.js';
@@ -13,7 +13,7 @@ import { HostScreen } from './src/screens/HostScreen.js';
 import { placeholderCapture } from './src/capture.js';
 import { placeholderLocation, type LocationSource } from './src/location.js';
 import { session, type Authorizer } from './src/auth.js';
-import { DEV_FIXTURES } from './src/config.js';
+import { fixturesAvailable, setFixturesEnabled, useFixturesEnabled } from './src/dev/fixture-toggle.js';
 
 /** The game the harness drops you into: host, so the gate controls are on screen. */
 const DEV_GAME: JoinedGame = { gameId: 'game_dev', code: 'DEV123', teamId: 'team_dev', role: 'host' };
@@ -52,8 +52,24 @@ export default function App({
   capture?: CaptureSource;
   location?: LocationSource;
 } = {}) {
-  // With fixtures on there is no session to have; the harness exists to skip it.
-  const [signedIn, setSignedIn] = useState(session.isSignedIn || DEV_FIXTURES);
+  // On when the harness has been switched on for this device this session; off
+  // on every launch. See `dev/fixture-toggle.ts` for why it is no longer an env
+  // flag baked into the bundle.
+  const fixtures = useFixturesEnabled();
+  const [signedIn, setSignedIn] = useState(session.isSignedIn);
+  const [route, setRoute] = useState<Route>('home');
+  const [joined, setJoined] = useState<JoinedGame | null>(null);
+
+  /**
+   * Flipping the harness on drops you straight into a game as its host — the play
+   * screens are what it exists to reach, and there is no join code to reach one
+   * otherwise. Flipping it off drops you back out, so a fake game id never gets
+   * pointed at the real API. Only on the transition, so the bar's leave/enter can
+   * move you around freely while it stays on.
+   */
+  useEffect(() => {
+    setJoined(fixtures ? DEV_GAME : null);
+  }, [fixtures]);
 
   // Before anything else: an app pointed at nothing cannot sign anyone in, and
   // the failure it produces otherwise ("Invalid client id" from Cognito, or a
@@ -66,26 +82,20 @@ export default function App({
       </View>
     );
   }
-  const [route, setRoute] = useState<Route>('home');
-  /**
-   * With fixtures on, start already in a game as its host. The harness exists to
-   * reach the play screens, and walking home → join → code to get to them every
-   * reload is the friction it was built to remove. Host, so the gate controls are
-   * on screen too.
-   */
-  const [joined, setJoined] = useState<JoinedGame | null>(DEV_FIXTURES ? DEV_GAME : null);
-
-  if (!signedIn) return <SignInScreen authorize={authorize} onSignedIn={() => setSignedIn(true)} />;
 
   /**
-   * With fixtures on, the bar wraps everything — in a game or out of it — because
-   * the harness drops you into a game and the only way back out was a button
-   * inside it, with no way back in.
+   * In a development bundle the bar wraps everything — even the sign-in screen,
+   * so the harness can be switched on before there is a session, and even out of
+   * a game, so the home routes stay reachable after the harness drops you into
+   * one. Absent entirely from any release bundle: {@link fixturesAvailable} is
+   * `__DEV__`.
    */
   const devFrame = (node: ReactNode) =>
-    DEV_FIXTURES ? (
+    fixturesAvailable() ? (
       <View style={styles.withDevBar}>
         <DevSceneBar
+          enabled={fixtures}
+          onToggle={() => setFixturesEnabled(!fixtures)}
           inGame={joined !== null}
           onEnterGame={() => setJoined(DEV_GAME)}
           onLeaveGame={() => setJoined(null)}
@@ -95,6 +105,11 @@ export default function App({
     ) : (
       node
     );
+
+  // Signed in for real, or the harness has skipped the session.
+  if (!(signedIn || fixtures)) {
+    return devFrame(<SignInScreen authorize={authorize} onSignedIn={() => setSignedIn(true)} />);
+  }
 
   if (joined) {
     return devFrame(
@@ -151,7 +166,7 @@ const styles = StyleSheet.create({
   configError: { flex: 1, padding: 24, gap: 12, justifyContent: 'center' },
   configTitle: { fontSize: 24, fontWeight: '700' },
   configBody: { fontSize: 15, color: '#495057' },
-  /** Both are inert unless the fixtures are on: `DevSceneBar` renders null. */
+  /** The frame is present in dev; `DevSceneBar` is a thin strip until switched on. */
   withDevBar: { flex: 1 },
   devBarBody: { flex: 1 },
 });
