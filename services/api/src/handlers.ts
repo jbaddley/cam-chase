@@ -21,7 +21,9 @@ import {
   FOUL_REASONS,
   RATING_AXES,
   GameConfigSchema,
+  IMPLAUSIBLE_RETURN_DISTANCE_M,
   allTeamsReady,
+  formatDistance,
   isBackAtStart,
   metresToStart,
   planAssignments,
@@ -353,6 +355,48 @@ export async function getGameState(repo: GameRepository, gameId: string): Promis
     playerCount: game.memberships.length,
     hostTier: game.tier,
   });
+}
+
+// --- the meeting spot -------------------------------------------------------
+
+/**
+ * Move the meeting spot, or drop it.
+ *
+ * The spot is recorded when the host presses Start, which assumes the host is
+ * standing at it. Hosts will not always be: they press Start in the car, at
+ * home, on the way over. Without this, that mistake is unrecoverable — the fence
+ * is measured from the wrong place, no team can ever check in, and the host's
+ * only escape is forcing past the gate, which costs every team its return bonus.
+ *
+ * Clearing is not a lesser version of moving; it is the only way out when the
+ * host's *own* device is what is in the wrong place, since re-recording from
+ * there would just store the same wrong point again. A game with no spot accepts
+ * check-ins anywhere, exactly as one has always done when the host declines
+ * location.
+ *
+ * Host only. Where a team checks in from is the one thing a player could most
+ * usefully lie about.
+ */
+export async function setStartSpot(
+  repo: GameRepository,
+  input: { gameId: string; hostUserId: string; location?: unknown; clear?: boolean },
+  now = Date.now,
+): Promise<Result<{ fenced: boolean }>> {
+  const found = await requireHost(repo, input.gameId, input.hostUserId);
+  if (!found.ok) return found;
+  const game = found.data;
+
+  if (input.clear === true) {
+    delete game.startSpot;
+    await repo.save(game);
+    return ok({ fenced: resolveReturnFence(game) !== null });
+  }
+
+  const parsed = StartLocation.safeParse(input.location);
+  if (!parsed.success) return err('That meeting spot is not a position.');
+  game.startSpot = { ...parsed.data, at: now() };
+  await repo.save(game);
+  return ok({ fenced: true });
 }
 
 // --- regroup ----------------------------------------------------------------
@@ -1466,11 +1510,17 @@ export async function checkIn(
 
   if (!isBackAtStart(game, location as GeoPoint)) {
     const away = metresToStart(game, location as GeoPoint);
-    return err(
-      away === null || away === 0
-        ? 'You are not at the start point yet.'
-        : `You are not at the start point yet — about ${away} m to go.`,
-    );
+    if (away === null || away === 0) return err('You are not at the start point yet.');
+    // A distance nobody could walk is not a distance, it is a wrong meeting
+    // spot — usually a host who pressed Start before getting there. Saying
+    // "941950 m to go" reads as a broken app and sends the player nowhere; the
+    // host is the only person who can fix it, so name them.
+    if (away >= IMPLAUSIBLE_RETURN_DISTANCE_M) {
+      return err(
+        `You are ${formatDistance(away)} from the start point — the host needs to reset the meeting spot.`,
+      );
+    }
+    return err(`You are not at the start point yet — about ${formatDistance(away)} to go.`);
   }
 
   // The location itself is deliberately not stored. It has served its purpose

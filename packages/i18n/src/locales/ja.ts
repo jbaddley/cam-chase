@@ -239,4 +239,9 @@ export const ja: Record<MessageKey, string> = {
   'host.startAnywayConfirm': 'このまま開始しますか？',
   'host.startAnywayBody': 'まだ戻っていないチームは復帰ボーナスを得られません。',
   'host.advanceFailed': 'ゲームを進められませんでした。',
+  'host.spotHere': '集合場所はここ',
+  'host.spotClear': '集合場所なしで進める',
+  'host.spotSet': '集合場所を更新しました。',
+  'host.spotCleared': '集合場所なしで進めます。',
+  'host.spotFailed': '集合場所を更新できませんでした。',
 };

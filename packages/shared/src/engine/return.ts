@@ -33,6 +33,26 @@ export const DEFAULT_RETURN_RADIUS_M = 75;
  */
 export const MAX_ACCURACY_SLACK_M = 100;
 
+/**
+ * Past this, a team is not "still walking" — something is wrong with the spot.
+ *
+ * A misrecorded meeting point produces a distance nobody could cover on foot,
+ * and telling that player how many metres they have to go reads as a broken app
+ * rather than a misconfiguration. Five kilometres is well beyond any plausible
+ * round on foot and well inside "the host pressed Start in the wrong city".
+ */
+export const IMPLAUSIBLE_RETURN_DISTANCE_M = 5_000;
+
+/**
+ * A distance a person can read. Metres up to a kilometre, then kilometres to one
+ * decimal — `941950 m to go` is technically true and completely useless.
+ */
+export function formatDistance(metres: number): string {
+  if (metres < 1_000) return `${metres} m`;
+  const km = metres / 1_000;
+  return `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+}
+
 /** Where the host gathered the teams, recorded when they pressed Start. */
 export interface StartSpot {
   lat: number;

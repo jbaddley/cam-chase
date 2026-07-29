@@ -238,4 +238,9 @@ export const fr: Record<MessageKey, string> = {
   'host.startAnywayConfirm': 'Commencer quand même ?',
   'host.startAnywayBody': 'Les équipes encore dehors n\'auront aucun bonus de retour.',
   'host.advanceFailed': 'Impossible de faire avancer la partie.',
+  'host.spotHere': 'Le point de rendez-vous est ici',
+  'host.spotClear': 'Jouer sans point de rendez-vous',
+  'host.spotSet': 'Point de rendez-vous mis à jour.',
+  'host.spotCleared': 'Partie sans point de rendez-vous.',
+  'host.spotFailed': 'Impossible de mettre à jour le point de rendez-vous.',
 };

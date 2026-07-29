@@ -4,10 +4,12 @@ import type { RegroupView } from '@photochase/client';
 
 const checkIn = vi.fn();
 const advanceGame = vi.fn();
+const setStartSpot = vi.fn();
 vi.mock('../api.js', () => ({
   client: {
     checkIn: (id: string, input: unknown) => checkIn(id, input),
     advanceGame: (id: string, event: string, opts?: unknown) => advanceGame(id, event, opts),
+    setStartSpot: (id: string, input: unknown) => setStartSpot(id, input),
   },
 }));
 
@@ -18,11 +20,14 @@ afterEach(() => {
   vi.useRealTimers();
   checkIn.mockReset();
   advanceGame.mockReset();
+  setStartSpot.mockReset();
   checkIn.mockResolvedValue({ round: 'round1', at: 1 });
   advanceGame.mockResolvedValue({ state: 'round2_active' });
+  setStartSpot.mockResolvedValue({ fenced: true });
 });
 checkIn.mockResolvedValue({ round: 'round1', at: 1 });
 advanceGame.mockResolvedValue({ state: 'round2_active' });
+setStartSpot.mockResolvedValue({ fenced: true });
 
 const FIX = { lat: 40, lng: -74, accuracyM: 5 };
 
@@ -273,5 +278,45 @@ describe('ReturnScreen — the host', () => {
   it('shows a connecting state before the roster arrives', () => {
     render_(null);
     expect(screen.getByText('Head back to the start')).toBeTruthy();
+  });
+
+  /**
+   * The spot is recorded at Start, assuming the host stood at it. When they did
+   * not — Start pressed in the car, or on a device reporting somewhere else — the
+   * fence measures from the wrong place and nobody can check in at all. Without a
+   * way to correct it the only escape is forcing, which costs every team its
+   * return bonus.
+   */
+  it('can move the meeting spot to where the host is standing', async () => {
+    asHost(view());
+    fireEvent.click(screen.getByRole('button', { name: 'Meeting spot is here' }));
+
+    await waitFor(() => expect(setStartSpot).toHaveBeenCalled());
+    expect(setStartSpot.mock.calls[0]![1]).toEqual({ location: FIX });
+    expect(await screen.findByText('Meeting spot updated.')).toBeTruthy();
+  });
+
+  it('can drop the fence when the host’s own device is in the wrong place', async () => {
+    asHost(view());
+    // Re-recording from a device that reports the wrong place stores the same
+    // wrong point, so clearing is the only way out.
+    fireEvent.click(screen.getByRole('button', { name: 'Play without a meeting spot' }));
+
+    await waitFor(() => expect(setStartSpot).toHaveBeenCalled());
+    expect(setStartSpot.mock.calls[0]![1]).toEqual({ clear: true });
+    expect(await screen.findByText('Playing without a meeting spot.')).toBeTruthy();
+  });
+
+  it('offers nothing to clear when there is no fence', () => {
+    asHost(view({ fenced: false }));
+    expect(screen.queryByRole('button', { name: 'Play without a meeting spot' })).toBeNull();
+    // Setting one is still on offer — an unfenced game may want a fence.
+    expect(screen.getByRole('button', { name: 'Meeting spot is here' })).toBeTruthy();
+  });
+
+  it('does not offer either control to a player', () => {
+    render_(view());
+    expect(screen.queryByRole('button', { name: 'Meeting spot is here' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Play without a meeting spot' })).toBeNull();
   });
 });

@@ -132,6 +132,8 @@ export function ReturnScreen({
               gameId={gameId}
               mode={mode}
               regroup={regroup}
+              location={location}
+              refresh={refresh}
               onAdvanced={onAdvanced}
             />
           ) : null}
@@ -199,16 +201,51 @@ function HostControls({
   gameId,
   mode,
   regroup,
+  location,
+  refresh,
   onAdvanced,
 }: {
   gameId: string;
   mode: GameMode;
   regroup: RegroupView;
+  location: LocationSource;
+  refresh: () => void;
   onAdvanced?: (state: GameState) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+
+  /**
+   * Correct the meeting spot mid-game.
+   *
+   * The spot is recorded when Start is pressed, which assumes the host was
+   * standing at it. They will not always be — they press Start in the car, at
+   * home, on the way over — and without this that mistake is unrecoverable:
+   * the fence is measured from the wrong place, nobody can check in, and the only
+   * escape is forcing past the gate and costing every team its return bonus.
+   *
+   * Clearing is not a weaker version of moving. When the host's *own* device is
+   * what is in the wrong place, re-recording from it stores the same wrong point
+   * again, so dropping the fence is the only way out.
+   */
+  async function setSpot(clear: boolean): Promise<void> {
+    if (busy) return;
+    setBusy(true);
+    setFailure(null);
+    setNote(null);
+    try {
+      const fix = clear ? undefined : await location.current();
+      await client.setStartSpot(gameId, clear ? { clear: true } : { location: fix });
+      setNote(clear ? t('host.spotCleared') : t('host.spotSet'));
+      refresh();
+    } catch (e) {
+      setFailure(e instanceof ApiError || e instanceof CaptureError ? e.message : t('host.spotFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const waiting = regroup.teamCount - regroup.readyCount;
   const completeEvent = regroup.round === 1 ? 'COMPLETE_RETURN1' : 'COMPLETE_RETURN2';
@@ -251,6 +288,7 @@ function HostControls({
   return (
     <>
       {failure ? <ErrorText>{failure}</ErrorText> : null}
+      {note ? <Body muted>{note}</Body> : null}
       {/* Still shooting: the host closes the round for everyone. */}
       {!regroup.calledBack ? (
         <Button onPress={() => void advance(endEvent)} tone="secondary">
@@ -271,6 +309,17 @@ function HostControls({
           </Button>
         </>
       )}
+
+      {/* Correcting the spot beats forcing past it: a team that can check in
+          keeps its return bonus, and a team that cannot loses it. */}
+      <Button onPress={() => void setSpot(false)} tone="secondary">
+        {t('host.spotHere')}
+      </Button>
+      {regroup.fenced ? (
+        <Button onPress={() => void setSpot(true)} tone="secondary">
+          {t('host.spotClear')}
+        </Button>
+      ) : null}
     </>
   );
 }

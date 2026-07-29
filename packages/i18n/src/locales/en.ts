@@ -237,6 +237,11 @@ export const en = {
   'host.startAnywayConfirm': 'Start anyway?',
   'host.startAnywayBody': 'Teams still out will score no return bonus.',
   'host.advanceFailed': 'Could not move the game on.',
+  'host.spotHere': 'Meeting spot is here',
+  'host.spotClear': 'Play without a meeting spot',
+  'host.spotSet': 'Meeting spot updated.',
+  'host.spotCleared': 'Playing without a meeting spot.',
+  'host.spotFailed': 'Could not update the meeting spot.',
 } as const;
 
 export type MessageKey = keyof typeof en;

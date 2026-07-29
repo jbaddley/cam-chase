@@ -239,4 +239,9 @@ export const pt: Record<MessageKey, string> = {
   'host.startAnywayConfirm': 'Começar mesmo assim?',
   'host.startAnywayBody': 'Equipes ainda fora não terão bônus de volta.',
   'host.advanceFailed': 'Não foi possível avançar o jogo.',
+  'host.spotHere': 'O ponto de encontro é aqui',
+  'host.spotClear': 'Jogar sem ponto de encontro',
+  'host.spotSet': 'Ponto de encontro atualizado.',
+  'host.spotCleared': 'Jogando sem ponto de encontro.',
+  'host.spotFailed': 'Não foi possível atualizar o ponto de encontro.',
 };

@@ -371,6 +371,17 @@ export class PhotoChaseClient {
     });
   }
 
+  /**
+   * Move the meeting spot to `location`, or drop it with `clear`. Host only.
+   *
+   * The spot is recorded at Start, which assumes the host was standing at it.
+   * When they were not, this is the only way to correct it — and clearing is the
+   * only way out when the host's own device is what is in the wrong place.
+   */
+  setStartSpot(gameId: string, input: { location?: GeoPointInput; clear?: boolean }): Promise<{ fenced: boolean }> {
+    return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/start-spot`, input);
+  }
+
   /** Who is back at the start point and who is still out. Participants only. */
   getRegroup(gameId: string): Promise<RegroupView> {
     return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/regroup`);

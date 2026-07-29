@@ -238,4 +238,9 @@ export const de: Record<MessageKey, string> = {
   'host.startAnywayConfirm': 'Trotzdem starten?',
   'host.startAnywayBody': 'Teams, die noch unterwegs sind, bekommen keinen Rückkehr-Bonus.',
   'host.advanceFailed': 'Das Spiel konnte nicht weitergeschaltet werden.',
+  'host.spotHere': 'Treffpunkt ist hier',
+  'host.spotClear': 'Ohne Treffpunkt spielen',
+  'host.spotSet': 'Treffpunkt aktualisiert.',
+  'host.spotCleared': 'Spiel ohne Treffpunkt.',
+  'host.spotFailed': 'Der Treffpunkt konnte nicht aktualisiert werden.',
 };

@@ -11,6 +11,7 @@ import {
   getFinals,
   getGameState,
   getRegroup,
+  setStartSpot,
   getSpectatorView,
   getResults,
   joinByCode,
@@ -182,6 +183,15 @@ const ROUTES: Route[] = [
   ),
   compile('GET', '/games/:id/regroup', ({ container, params, auth }) =>
     getRegroup(container.games, { gameId: params.id!, userId: auth.userId }),
+  ),
+  compile('POST', '/games/:id/start-spot', ({ container, params, body, auth }) =>
+    setStartSpot(container.games, {
+      gameId: params.id!,
+      hostUserId: auth.userId,
+      location: body.location,
+      // `=== true` so a truthy string cannot silently drop a game's fence.
+      clear: body.clear === true,
+    }),
   ),
   compile('POST', '/games/:id/consent', ({ container, params, body, auth }) =>
     setSharingConsent(container.games, { ...body, gameId: params.id, userId: auth.userId }),

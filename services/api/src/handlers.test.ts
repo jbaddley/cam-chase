@@ -18,6 +18,7 @@ import {
   listAssignments,
   listRateable,
   listTeams,
+  setStartSpot,
   startGame,
   submitChase,
   submitPhoto,
@@ -667,6 +668,78 @@ describe('return check-in', () => {
     const game = (await repo.get(gameId)) as Game;
     expect(game.startSpot).toBeUndefined();
     expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: -33, lng: 151 } })).ok).toBe(true);
+  });
+
+  /**
+   * The spot is recorded at Start, which assumes the host was standing at it.
+   * When they were not — Start pressed in the car, or on a device that reports
+   * somewhere else entirely — the fence measures from the wrong place and nobody
+   * can ever check in. This is the way out.
+   */
+  describe('correcting the meeting spot', () => {
+    it('moves the spot to where the host is now', async () => {
+      const { gameId } = await gameReturning();
+      await unwrap(setStartSpot(repo, { gameId, hostUserId: 'host', location: { lat: 40, lng: -74 } }));
+
+      // Far from the new spot: refused.
+      expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: 41, lng: -74 } })).ok).toBe(false);
+      expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: 40, lng: -74 } })).ok).toBe(true);
+    });
+
+    it('drops the fence entirely when the host clears it', async () => {
+      const { gameId } = await gameReturning();
+      await unwrap(setStartSpot(repo, { gameId, hostUserId: 'host', location: { lat: 40, lng: -74 } }));
+      expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: -33, lng: 151 } })).ok).toBe(false);
+
+      // Clearing is the only escape when the host's own device is the thing in
+      // the wrong place — re-recording from it stores the same wrong point.
+      const res = await unwrap(setStartSpot(repo, { gameId, hostUserId: 'host', clear: true }));
+      expect(res.fenced).toBe(false);
+      expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: -33, lng: 151 } })).ok).toBe(true);
+    });
+
+    it('is host only', async () => {
+      const { gameId } = await gameReturning();
+      // Where a team checks in from is the one thing a player would most like to
+      // decide for themselves.
+      expect((await setStartSpot(repo, { gameId, hostUserId: 'uA', location: { lat: 1, lng: 2 } })).ok).toBe(false);
+      expect((await setStartSpot(repo, { gameId, hostUserId: 'uA', clear: true })).ok).toBe(false);
+    });
+
+    it('rejects a spot that is not a position', async () => {
+      const { gameId } = await gameReturning();
+      expect((await setStartSpot(repo, { gameId, hostUserId: 'host', location: { lat: 'here' } })).ok).toBe(false);
+      expect((await setStartSpot(repo, { gameId, hostUserId: 'host' })).ok).toBe(false);
+    });
+
+    it('reports a hopeless distance as a wrong spot, not a walk', async () => {
+      const { gameId } = await gameReturning();
+      // Googleplex, which is what an Android emulator reports, against a real
+      // phone in Utah — the exact shape of the bug this came from.
+      await unwrap(setStartSpot(repo, { gameId, hostUserId: 'host', location: { lat: 37.4219983, lng: -122.084 } }));
+
+      const res = await checkIn(repo, { gameId, userId: 'uA', location: { lat: 40.379352, lng: -111.8741695 } });
+      expect(res.ok).toBe(false);
+      if (!res.ok) {
+        // Not "941950 m to go", which reads as a broken app and sends the player
+        // nowhere. Kilometres, and it names who can fix it.
+        expect(res.error).toMatch(/942 km/);
+        expect(res.error).toMatch(/host needs to reset the meeting spot/);
+        expect(res.error).not.toMatch(/941950/);
+      }
+    });
+
+    it('still gives a walkable distance in metres', async () => {
+      const { gameId } = await gameReturning();
+      await unwrap(setStartSpot(repo, { gameId, hostUserId: 'host', location: { lat: 40, lng: -74 } }));
+
+      const res = await checkIn(repo, { gameId, userId: 'uA', location: { lat: 40.004, lng: -74 } });
+      expect(res.ok).toBe(false);
+      if (!res.ok) {
+        expect(res.error).toMatch(/about \d+ m to go/);
+        expect(res.error).not.toMatch(/reset the meeting spot/);
+      }
+    });
   });
 
   it('refuses to complete the return while a team is still out', async () => {
