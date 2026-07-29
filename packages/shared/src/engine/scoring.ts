@@ -12,6 +12,15 @@ export const TIME_BONUS_BY_RANK: readonly number[] = [40, 30, 20, 10, 0, 0];
 export const BEST_MATCH_BONUS = 50;
 export const SPECIAL_BONUS = 15;
 
+/** Ratings run 1–5 stars (see the product spec and `ScoreVote.stars`). */
+export const MAX_STARS = 5;
+/**
+ * Most a single chase can earn on pose, and the same again on angle. These are
+ * the recreation-quality axes; location accuracy (up to 100 per chase) stays the
+ * dominant one, so each of these sits a clear step below it.
+ */
+export const RATING_AXIS_MAX = 20;
+
 const EARTH_RADIUS_M = 6_371_000;
 const toRad = (deg: number): number => (deg * Math.PI) / 180;
 
@@ -132,6 +141,24 @@ export interface ScoringInput {
   specialWinners?: string[];
 }
 
+/** A running weighted tally of star ratings for one chase on one axis. */
+interface WeightedStars {
+  /** Σ stars×weight. */
+  stars: number;
+  /** Σ weight. */
+  weight: number;
+}
+
+/**
+ * One chase's points on a single axis: its weighted-mean star rating as a
+ * fraction of a perfect score, times {@link RATING_AXIS_MAX}, rounded so the
+ * results breakdown stays whole. Zero when nobody rated that axis.
+ */
+function axisPoints({ stars, weight }: WeightedStars): number {
+  if (weight === 0) return 0;
+  return Math.round((stars / weight / MAX_STARS) * RATING_AXIS_MAX);
+}
+
 function emptyScore(teamId: string): TeamScore {
   return {
     teamId,
@@ -165,15 +192,31 @@ export function computeScoreboard(input: ScoringInput): TeamScore[] {
       }
     }
   }
+  // Pose and angle are a weighted mean per chase scaled to points — not a
+  // running sum of stars. A chase is rated by everyone not on the chasing team
+  // (see the sim harness), so a bigger team's chase draws fewer raters; summing
+  // stars quietly scored it lower for its size, and skewed the finals bonuses it
+  // could win on head-count alone. A mean depends on *how* a chase was rated, not
+  // *how many* rated it — mirroring the weighted mean the scavenger and colour
+  // scorers already use.
   const assignmentToChaser = new Map(input.assignments.map((a) => [a.id, a.chaserTeamId]));
+  const tallies = new Map<string, { pose: WeightedStars; angle: WeightedStars }>();
   for (const v of input.votes) {
-    const teamId = assignmentToChaser.get(v.assignmentId);
-    if (teamId === undefined) continue;
-    const score = scores.get(teamId);
+    if (!assignmentToChaser.has(v.assignmentId)) continue;
+    let tally = tallies.get(v.assignmentId);
+    if (!tally) {
+      tally = { pose: { stars: 0, weight: 0 }, angle: { stars: 0, weight: 0 } };
+      tallies.set(v.assignmentId, tally);
+    }
+    const axis = v.axis === 'pose' ? tally.pose : tally.angle;
+    axis.stars += v.stars * v.weight;
+    axis.weight += v.weight;
+  }
+  for (const [assignmentId, tally] of tallies) {
+    const score = scores.get(assignmentToChaser.get(assignmentId)!);
     if (!score) continue;
-    const points = v.stars * v.weight;
-    if (v.axis === 'pose') score.pose += points;
-    else score.angle += points;
+    score.pose += axisPoints(tally.pose);
+    score.angle += axisPoints(tally.angle);
   }
 
   applyFouls(scores, input.fouls);

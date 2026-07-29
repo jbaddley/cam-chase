@@ -9,6 +9,8 @@ import {
   locationPoints,
   resolveVoteWeight,
   SPECIAL_BONUS,
+  type ScoreAssignment,
+  type ScoreVote,
   type ScoringInput,
 } from './scoring.js';
 
@@ -77,9 +79,43 @@ describe('computeScoreboard', () => {
     const b = board.find((s) => s.teamId === 'B')!;
     expect(a.location).toBe(100);
     expect(b.location).toBe(0);
-    expect(a.pose).toBe(5 * 1 + 4 * 5); // 25
-    expect(a.angle).toBe(4);
-    expect(b.pose).toBe(2);
+    // Pose/angle are a weighted mean per chase, scaled by RATING_AXIS_MAX (20),
+    // rounded — not a sum of stars. A's one chase: pose mean (5·1 + 4·5)/6 = 4.17
+    // → round(4.17/5·20) = 17; angle mean 4 → 4/5·20 = 16. B's one chase: pose
+    // mean 2 → 2/5·20 = 8; angle unrated → 0.
+    expect(a.pose).toBe(17);
+    expect(a.angle).toBe(16);
+    expect(b.pose).toBe(8);
+    expect(b.angle).toBe(0);
+  });
+
+  it('scores a chase on its mean rating, not its number of raters', () => {
+    // The reason pose/angle stopped being a sum. You cannot rate your own chase,
+    // so a bigger team's chase always draws fewer raters — here A's chase gets
+    // one rater and B's identical chase gets three, as if B were the larger team.
+    // Summing stars would score B three times as high for that alone; the mean,
+    // which is what actually reflects how well each chase was recreated, must not.
+    const assignments: ScoreAssignment[] = [
+      { id: 'a1', chaserTeamId: 'A', ownerTeamId: 'B', originalPhotoId: 'pB', chasePhotoId: 'cA' },
+      { id: 'a2', chaserTeamId: 'B', ownerTeamId: 'A', originalPhotoId: 'pA', chasePhotoId: 'cB' },
+    ];
+    const votes: ScoreVote[] = [
+      { assignmentId: 'a1', axis: 'pose', stars: 4, weight: 1 },
+      { assignmentId: 'a1', axis: 'angle', stars: 5, weight: 1 },
+      ...[0, 1, 2].flatMap((): ScoreVote[] => [
+        { assignmentId: 'a2', axis: 'pose', stars: 4, weight: 1 },
+        { assignmentId: 'a2', axis: 'angle', stars: 5, weight: 1 },
+      ]),
+    ];
+    const board = computeScoreboard({ teamIds: ['A', 'B'], assignments, locations: {}, votes });
+    const a = board.find((s) => s.teamId === 'A')!;
+    const b = board.find((s) => s.teamId === 'B')!;
+
+    expect(a.pose).toBe(b.pose);
+    expect(a.angle).toBe(b.angle);
+    // The value is the mean scaled, not the sum: pose 4 → 4/5·20 = 16, angle 5 → 20.
+    expect(a.pose).toBe(16);
+    expect(a.angle).toBe(20);
   });
 
   it('applies foul penalties, best-match and special bonuses', () => {

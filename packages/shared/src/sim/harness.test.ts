@@ -19,10 +19,12 @@ describe('simulateGame — full lifecycle', () => {
 
 describe('simulateGame — hand-computed scoreboard', () => {
   // 2 teams, 1 member each, no judges, 1 photo/round, round robin, exact chases.
+  // Pose/angle are a weighted mean per chase scaled by RATING_AXIS_MAX (20): with
+  // one voter the mean is that vote, so stars s → round(s/5·20) = s·4.
   // T0 chases T1's photo (exact → 100 loc); voter is T1's member (1x):
-  //   pose 5, angle 4. T0 is faster (rank 0 → +40) and wins best match (+50).
+  //   pose 5 → 20, angle 4 → 16. T0 is faster (rank 0 → +40) and wins best match (+50).
   // T1 chases T0's photo (exact → 100 loc); voter is T0's member:
-  //   pose 4, angle 3. rank 1 → +30.
+  //   pose 4 → 16, angle 3 → 12. rank 1 → +30.
   it('matches an independently computed scoreboard exactly', () => {
     const result = simulateGame({
       numTeams: 2,
@@ -36,24 +38,24 @@ describe('simulateGame — hand-computed scoreboard', () => {
       {
         teamId: 'T0',
         location: 100,
-        pose: 5,
-        angle: 4,
+        pose: 20,
+        angle: 16,
         timeBonus: 40,
         bestMatchBonus: 50,
         specialBonus: 0,
         foulPenalty: 0,
-        total: 199,
+        total: 226,
       },
       {
         teamId: 'T1',
         location: 100,
-        pose: 4,
-        angle: 3,
+        pose: 16,
+        angle: 12,
         timeBonus: 30,
         bestMatchBonus: 0,
         specialBonus: 0,
         foulPenalty: 0,
-        total: 137,
+        total: 158,
       },
     ];
     expect(result.scoreboard).toEqual(expected);
