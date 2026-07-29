@@ -252,4 +252,5 @@ export const ja: Record<MessageKey, string> = {
   'lobby.playerCount_one': '1 人',
   'host.meetingSpot': '集合場所',
   'chase.topAndBottom': '上下に並べる',
+  'chase.viewOptions': '表示オプション',
 };

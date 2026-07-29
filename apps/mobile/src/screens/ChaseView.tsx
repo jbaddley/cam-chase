@@ -1,5 +1,4 @@
 import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { useViewfinderLayout } from '../viewfinder.js';
 import { layoutViewport, placementFor } from '../viewport.js';
 
 /** How the original is shown while you line up the recreation. */
@@ -30,13 +29,15 @@ export function ChaseView({
   uri,
   mode,
   opacity,
+  landscape,
 }: {
   uri: string | null;
   mode: ChaseViewMode;
   /** Onion-skin level, 0–1. Ignored unless `mode` is `overlay`. */
   opacity: number;
+  /** Passed in rather than read from context: this no longer sits inside the frame. */
+  landscape: boolean;
 }) {
-  const { landscape } = useViewfinderLayout();
   const window = useWindowDimensions();
 
   if (uri === null || mode === 'hidden') return null;

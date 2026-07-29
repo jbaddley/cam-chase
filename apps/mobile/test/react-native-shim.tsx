@@ -97,6 +97,26 @@ export const Image: ComponentType<{
 export const KeyboardAvoidingView = box();
 
 /**
+ * A sheet renders its children when visible and nothing when not, which is the
+ * only part of a modal this shim can honestly model — it has no window manager,
+ * no backdrop and no animation. `onRequestClose` is surfaced as a button so a
+ * test can dismiss the way a hardware back press would.
+ */
+export const Modal: ComponentType<
+  Styled & { visible?: boolean; transparent?: boolean; animationType?: string; onRequestClose?: () => void }
+> = ({ children, visible = true, onRequestClose }) =>
+  visible
+    ? createElement(
+        'div',
+        { 'data-testid': 'modal' },
+        onRequestClose
+          ? createElement('button', { type: 'button', onClick: onRequestClose }, 'dismiss-modal')
+          : null,
+        children,
+      )
+    : null;
+
+/**
  * Animation is style, and this shim does not model style — so `Animated.View`
  * is a plain box and the drivers are no-ops that report as finished. Tests here
  * assert what is on screen; whether it slid in belongs to a device.
@@ -154,9 +174,28 @@ export const useWindowDimensions = () => ({ width: 400, height: 800 });
 /** Only ever read for `Platform.OS`; the shim stands in for a phone. */
 export const Platform = { OS: 'android' as const, select: <T,>(o: { android?: T; default?: T }) => o.android ?? o.default };
 
-/** Pressable maps to a button so Testing Library's click drives `onPress`. */
-export const Pressable: ComponentType<Styled & { onPress?: () => void }> = ({ children, onPress }) =>
-  createElement('button', { onClick: onPress, type: 'button' }, children);
+/**
+ * Pressable maps to a button so Testing Library's click drives `onPress`.
+ *
+ * `accessibilityLabel` becomes `aria-label`, which is not a convenience: an
+ * icon-only button has no text, so the label is the only name it has — to a test
+ * and to a screen reader alike. Dropping it made header icons unreachable by
+ * either, which is the kind of gap that reads as "untestable" when it is really
+ * "unlabelled".
+ */
+export const Pressable: ComponentType<
+  Styled & { onPress?: () => void; accessibilityLabel?: string; disabled?: boolean }
+> = ({ children, onPress, accessibilityLabel, testID }) =>
+  createElement(
+    'button',
+    {
+      onClick: onPress,
+      type: 'button',
+      ...(accessibilityLabel ? { 'aria-label': accessibilityLabel } : {}),
+      ...(testID ? { 'data-testid': testID } : {}),
+    },
+    children,
+  );
 
 /**
  * TextInput maps to an input. RN reports the new text directly, while the DOM

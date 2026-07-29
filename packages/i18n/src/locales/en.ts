@@ -250,6 +250,7 @@ export const en = {
   'lobby.playerCount_one': '1 player',
   'host.meetingSpot': 'Meeting spot',
   'chase.topAndBottom': 'Top and bottom',
+  'chase.viewOptions': 'View options',
 } as const;
 
 export type MessageKey = keyof typeof en;

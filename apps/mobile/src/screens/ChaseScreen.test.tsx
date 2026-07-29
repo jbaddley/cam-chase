@@ -39,12 +39,11 @@ const capture = () => Promise.resolve({ file: new Blob(['x']), location: { lat: 
 const shutter = () => screen.getByRole('button', { name: 'Take chase photo' });
 
 /**
- * Open the view controls. They are collapsed by default — left open they cover
- * the part of the frame you are lining the shot up against — so a test that
- * wants a mode or a level has to reveal them first, exactly as a player does.
+ * Open the view options: a gear in the header, and a sheet (docs/10). Options set
+ * once or twice and then ignored do not sit on top of the picture.
  */
 const openControls = async () => {
-  fireEvent.click(await screen.findByRole('button', { name: /^Original (at \d+%|hidden)$|^Side by side$/ }));
+  fireEvent.click(await screen.findByTestId('chase-options'));
 };
 
 function assignment(order: number, chased = false): AssignmentView {
@@ -65,13 +64,18 @@ describe('ChaseScreen', () => {
     expect(await screen.findByText('1 / 2 chased')).toBeTruthy();
   });
 
-  // Recreating a photo is the screen that most needs the preview — you are
-  // matching a frame — so it must not be built on the opaque screen.
-  it('is built on the viewfinder frame, not an opaque screen', async () => {
+  /**
+   * Three zones, and nothing crosses between them (docs/10): the readout is chrome,
+   * the middle is the picture, and the shutter is the one action. The old inline
+   * panel is gone, so there is no scrim and no `viewfinder-frame` here.
+   */
+  it('keeps the readout in the header and out of the picture', async () => {
     listAssignments.mockResolvedValue([assignment(0)]);
     render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
 
-    expect(await screen.findByTestId('viewfinder-frame')).toBeTruthy();
+    expect(await screen.findByText('0 / 1 chased')).toBeTruthy();
+    expect(screen.getByTestId('chase-options')).toBeTruthy();
+    expect(screen.queryByTestId('viewfinder-frame')).toBeNull();
   });
 
   it('targets the first unchased assignment, not simply the first', async () => {
@@ -145,31 +149,32 @@ describe('ChaseScreen — seeing the original', () => {
    * the part of the scene you line the shot up against, which is the one thing
    * this screen exists to let you see.
    */
-  it('keeps the view controls out of the frame until asked for', async () => {
+  it('keeps the options in a sheet, not on the picture', async () => {
     listAssignments.mockResolvedValue([assignment(0)]);
     render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
 
     await screen.findByTestId('chase-original');
-    // Collapsed: no mode chips, no level chips.
+    // Closed: nothing configural is on screen while it is being ignored.
+    expect(screen.queryByTestId('sheet')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Hide' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Overlay' })).toBeNull();
     expect(screen.queryByRole('button', { name: '25%' })).toBeNull();
 
-    // Discoverable: one chip that states where the original stands.
-    expect(screen.getByRole('button', { name: 'Original at 40%' })).toBeTruthy();
+    // The state is still legible from the header without opening anything.
+    expect(screen.getByText('Original at 40%')).toBeTruthy();
 
     await openControls();
+    expect(screen.getByTestId('sheet')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Hide' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '25%' })).toBeTruthy();
   });
 
-  it('folds the controls away again', async () => {
+  it('closes on Done', async () => {
     listAssignments.mockResolvedValue([assignment(0)]);
     render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
 
     await openControls();
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-    expect(screen.queryByRole('button', { name: 'Hide' })).toBeNull();
+    expect(screen.queryByTestId('sheet')).toBeNull();
   });
 
   it('stays open while the level is being tried', async () => {
@@ -193,9 +198,9 @@ describe('ChaseScreen — seeing the original', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hide' }));
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
 
-    // The collapsed chip states the setting rather than a verb, so a player who
-    // hid it yesterday can tell at a glance why they see no original.
-    expect(screen.getByRole('button', { name: 'Original hidden' })).toBeTruthy();
+    // The header states the setting rather than a verb, so a player who hid it
+    // can tell at a glance why they see no original.
+    expect(screen.getByText('Original hidden')).toBeTruthy();
   });
 
   it('shows the assigned original, signed as a thumbnail', async () => {
@@ -227,8 +232,8 @@ describe('ChaseScreen — seeing the original', () => {
 
     // The level is words because an overlay at 40% and one at 80% are the same
     // DOM here — this is the only assertable form, and the readable one.
-    // Collapsed, the chip itself states the level.
-    expect(await screen.findByRole('button', { name: 'Original at 40%' })).toBeTruthy();
+    // The header states the level without opening anything.
+    expect(await screen.findByText('Original at 40%')).toBeTruthy();
     await openControls();
     fireEvent.click(screen.getByRole('button', { name: '80%' }));
     expect(screen.getByText('Original at 80%')).toBeTruthy();

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { color, radius, shadow, space, type } from './theme.js';
 
 /**
@@ -107,6 +107,83 @@ export function Loading({ title, message }: { title: ReactNode; message: ReactNo
       <Title>{title}</Title>
       <Body muted>{message}</Body>
     </Screen>
+  );
+}
+
+/**
+ * A round icon button for the header — the options gear, and anything like it.
+ *
+ * Header-sized rather than `Button`-sized because it sits in chrome, not in the
+ * action zone. It still meets the 48 dp minimum target (docs/10): the glyph is
+ * small, the hit area is not.
+ */
+export function IconButton({
+  glyph,
+  onPress,
+  accessibilityLabel,
+  testID,
+}: {
+  glyph: string;
+  onPress: () => void;
+  accessibilityLabel: string;
+  testID?: string;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityLabel={accessibilityLabel}
+      testID={testID}
+      style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+    >
+      <Text style={styles.iconGlyph}>{glyph}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * A modal sheet for controls that are set occasionally and then left alone.
+ *
+ * The convention it exists to serve (docs/10): options like view modes and
+ * opacity do not belong on screen while they are being ignored, and they do not
+ * belong on top of the picture. They belong behind a header affordance, in a sheet
+ * with an explicit Done.
+ *
+ * Rises from the bottom because that is where a thumb is, and dismisses on the
+ * backdrop as well as the button — a sheet you can only leave by finding the right
+ * control is a trap on a phone.
+ */
+export function Sheet({
+  visible,
+  title,
+  onClose,
+  doneLabel,
+  dismissLabel,
+  children,
+}: {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
+  doneLabel: string;
+  /**
+   * Names the tap-away area. Distinct from `doneLabel` on purpose: two controls
+   * with the same name are ambiguous to a screen reader reading them out, not just
+   * to a test looking for one.
+   */
+  dismissLabel: string;
+  children: ReactNode;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.sheetBackdrop}>
+        {/* Tapping away closes it. Explicit rather than relying on the button. */}
+        <Pressable style={styles.sheetDismissArea} onPress={onClose} accessibilityLabel={dismissLabel} />
+        <View style={styles.sheet} testID="sheet">
+          <Heading>{title}</Heading>
+          {children}
+          <Button onPress={onClose}>{doneLabel}</Button>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -333,4 +410,24 @@ const styles = StyleSheet.create({
   },
 
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  /** 48 dp minimum target, per docs/10 — the glyph is small, the hit area is not. */
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.pill,
+    backgroundColor: color.surfaceSunken,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconGlyph: { fontSize: 20, color: color.inkMuted },
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheetDismissArea: { flex: 1 },
+  sheet: {
+    backgroundColor: color.surface,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    padding: space.xl,
+    paddingBottom: space.xxl,
+    gap: space.md,
+  },
 });

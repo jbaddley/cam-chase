@@ -251,4 +251,5 @@ export const fr: Record<MessageKey, string> = {
   'lobby.playerCount_one': '1 joueur',
   'host.meetingSpot': 'Point de rendez-vous',
   'chase.topAndBottom': 'Haut et bas',
+  'chase.viewOptions': 'Options d\'affichage',
 };
