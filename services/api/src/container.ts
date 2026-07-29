@@ -4,9 +4,11 @@ import {
   DynamoDBAiJudgingRepository,
   DynamoDBDailyHuntRepository,
   DynamoDBEntitlementRepository,
+  DynamoDBProfileRepository,
   DynamoDBTournamentRepository,
 } from './dynamodb-supporting-repos.js';
 import { InMemoryEntitlementRepository, type EntitlementRepository } from './entitlements-repo.js';
+import { InMemoryProfileRepository, type ProfileRepository } from './profile-repo.js';
 import {
   InMemoryAiJudgingRepository,
   InMemoryReferralRepository,
@@ -29,6 +31,7 @@ import {
 export interface Container {
   games: GameRepository;
   entitlements: EntitlementRepository;
+  profiles: ProfileRepository;
   referrals: ReferralRepository;
   ai: AiJudgingRepository;
   tournaments: TournamentRepository;
@@ -67,6 +70,7 @@ export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container 
     return {
       games: new DynamoDBGameRepository(cfg),
       entitlements: new DynamoDBEntitlementRepository(cfg),
+      profiles: new DynamoDBProfileRepository(cfg),
       referrals: new DynamoDBReferralRepository(cfg),
       ai: new DynamoDBAiJudgingRepository(cfg),
       tournaments: new DynamoDBTournamentRepository(cfg),
@@ -81,6 +85,7 @@ export function buildContainer(env: NodeJS.ProcessEnv = process.env): Container 
   return {
     games: new InMemoryGameRepository(),
     entitlements: new InMemoryEntitlementRepository(),
+    profiles: new InMemoryProfileRepository(),
     referrals: new InMemoryReferralRepository(),
     ai: new InMemoryAiJudgingRepository(),
     tournaments: new InMemoryTournamentRepository(),

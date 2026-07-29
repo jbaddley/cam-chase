@@ -3,9 +3,48 @@ import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { EntitlementRepository } from './entitlements-repo.js';
 import { monthKey, type AiJudgingRepository, type ReferralRepository } from './growth-repo.js';
+import type { ProfileRepository, UserProfile } from './profile-repo.js';
 import type { DailyHuntRepository, Tournament, TournamentRepository } from './tournament-repo.js';
 
 const uid = (prefix: string) => `${prefix}_${randomUUID()}`;
+
+/** Contract for ProfileRepository. */
+export function profileRepositoryContract(
+  name: string,
+  makeRepo: () => ProfileRepository | Promise<ProfileRepository>,
+): void {
+  describe(name, () => {
+    it('returns null for a user with no profile', async () => {
+      const repo = await makeRepo();
+      expect(await repo.get(uid('user'))).toBeNull();
+    });
+
+    it('saves and reads back a profile', async () => {
+      const repo = await makeRepo();
+      const profile: UserProfile = { userId: uid('user'), firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess' };
+      await repo.save(profile);
+      expect(await repo.get(profile.userId)).toEqual(profile);
+    });
+
+    it('a save replaces the previous profile', async () => {
+      const repo = await makeRepo();
+      const userId = uid('user');
+      await repo.save({ userId, firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess' });
+      await repo.save({ userId, firstName: 'Ada', lastName: 'Lovelace', displayName: 'Ada L.' });
+      expect(await repo.get(userId)).toEqual({ userId, firstName: 'Ada', lastName: 'Lovelace', displayName: 'Ada L.' });
+    });
+
+    it('keeps profiles separate per user', async () => {
+      const repo = await makeRepo();
+      const a = uid('user');
+      const b = uid('user');
+      await repo.save({ userId: a, firstName: 'Ada', lastName: 'L', displayName: 'A' });
+      await repo.save({ userId: b, firstName: 'Bea', lastName: 'M', displayName: 'B' });
+      expect((await repo.get(a))?.displayName).toBe('A');
+      expect((await repo.get(b))?.displayName).toBe('B');
+    });
+  });
+}
 
 /** Contract for EntitlementRepository. */
 export function entitlementRepositoryContract(

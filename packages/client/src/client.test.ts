@@ -48,6 +48,26 @@ describe('PhotoChaseClient', () => {
     expect(result).toEqual({ gameId: 'g1', teamId: 't1', role: 'captain' });
   });
 
+  it('getProfile GETs /me/profile and returns null when none exists', async () => {
+    const { config, calls } = recorder(null);
+    const profile = await new PhotoChaseClient(config).getProfile();
+
+    expect(calls[0]!.url).toBe('https://api.example.com/me/profile');
+    expect(calls[0]!.init?.method).toBe('GET');
+    expect(profile).toBeNull();
+  });
+
+  it('saveProfile PUTs /me/profile with the profile body', async () => {
+    const profile = { firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess' };
+    const { config, calls } = recorder(profile);
+    const result = await new PhotoChaseClient(config).saveProfile(profile);
+
+    expect(calls[0]!.url).toBe('https://api.example.com/me/profile');
+    expect(calls[0]!.init?.method).toBe('PUT');
+    expect(JSON.parse(calls[0]!.init!.body as string)).toEqual(profile);
+    expect(result).toEqual(profile);
+  });
+
   it('listTeams GETs the team list and url-encodes the id', async () => {
     const { config, calls } = recorder([{ teamId: 't1', name: 'Reds', memberCount: 3 }]);
     const teams = await new PhotoChaseClient(config).listTeams('game/1');

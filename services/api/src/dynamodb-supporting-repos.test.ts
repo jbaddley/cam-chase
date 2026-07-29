@@ -9,11 +9,13 @@ import {
   DynamoDBAiJudgingRepository,
   DynamoDBEntitlementRepository,
   DynamoDBDailyHuntRepository,
+  DynamoDBProfileRepository,
   DynamoDBTournamentRepository,
 } from './dynamodb-supporting-repos.js';
 import {
   aiJudgingRepositoryContract,
   entitlementRepositoryContract,
+  profileRepositoryContract,
   dailyHuntRepositoryContract,
   tournamentRepositoryContract,
 } from './repo-contracts.js';
@@ -35,6 +37,7 @@ afterAll(async () => {
 });
 
 entitlementRepositoryContract('DynamoDBEntitlementRepository', () => new DynamoDBEntitlementRepository({ tableName: TABLE, client }));
+profileRepositoryContract('DynamoDBProfileRepository', () => new DynamoDBProfileRepository({ tableName: TABLE, client }));
 aiJudgingRepositoryContract('DynamoDBAiJudgingRepository', () => new DynamoDBAiJudgingRepository({ tableName: TABLE, client }));
 tournamentRepositoryContract('DynamoDBTournamentRepository', () => new DynamoDBTournamentRepository({ tableName: TABLE, client }));
 dailyHuntRepositoryContract('DynamoDBDailyHuntRepository', () => new DynamoDBDailyHuntRepository({ tableName: TABLE, client }));

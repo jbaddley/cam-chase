@@ -235,6 +235,13 @@ export interface EntitlementView {
   features: Record<string, boolean>;
 }
 
+/** A player's own identity, captured at first sign-in and editable after. */
+export interface ProfileView {
+  firstName: string;
+  lastName: string;
+  displayName: string;
+}
+
 /**
  * Who is back at the start point and who is still out.
  *
@@ -427,6 +434,16 @@ export class PhotoChaseClient {
   /** The caller's own tier, credits, limits, and feature flags. */
   getEntitlement(): Promise<EntitlementView> {
     return request(this.config, 'GET', '/me/entitlement');
+  }
+
+  /** The caller's own profile, or null if they have not completed one yet. */
+  getProfile(): Promise<ProfileView | null> {
+    return request(this.config, 'GET', '/me/profile');
+  }
+
+  /** Create or replace the caller's profile. Returns the stored profile. */
+  saveProfile(input: ProfileView): Promise<ProfileView> {
+    return request(this.config, 'PUT', '/me/profile', input);
   }
 
   /** The caller's invite code, progress toward the next unlock, and flair. */

@@ -32,6 +32,7 @@ import {
   type Result,
 } from './handlers.js';
 import { createGameForHost, getMyEntitlement, handlePurchaseWebhook, startGameForHost } from './billing-handlers.js';
+import { getMyProfile, saveMyProfile } from './profile-handlers.js';
 import {
   createShareCard,
   getMyReferral,
@@ -233,6 +234,8 @@ const ROUTES: Route[] = [
     startDailyHunt(container.games, container.dailyHunts, { userId: auth.userId }),
   ),
   compile('GET', '/me/entitlement', ({ container, auth }) => getMyEntitlement(container.entitlements, auth.userId)),
+  compile('GET', '/me/profile', ({ container, auth }) => getMyProfile(container.profiles, auth.userId)),
+  compile('PUT', '/me/profile', ({ container, body, auth }) => saveMyProfile(container.profiles, auth.userId, body)),
   compile('GET', '/me/referral', ({ container, auth }) => getMyReferral(container.referrals, auth.userId)),
   compile('POST', '/me/referral/redeem', ({ container, body, auth }) =>
     redeemReferralCode(container.referrals, { ...body, inviteeUserId: auth.userId }),

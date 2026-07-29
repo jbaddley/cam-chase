@@ -2,6 +2,7 @@ import { freeEntitlement, type AiJudgement, type Entitlement } from '@photochase
 import { GetCommand, PutCommand, type DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import type { EntitlementRepository } from './entitlements-repo.js';
 import type { AiJudgingRepository } from './growth-repo.js';
+import type { ProfileRepository, UserProfile } from './profile-repo.js';
 import type { DailyHuntRepository, Tournament, TournamentRepository } from './tournament-repo.js';
 
 /**
@@ -14,6 +15,7 @@ export interface SupportingRepoConfig {
 }
 
 const userKey = (userId: string) => ({ pk: `USER#${userId}`, sk: 'ENTITLEMENT' });
+const profileKey = (userId: string) => ({ pk: `USER#${userId}`, sk: 'PROFILE' });
 const aiKey = (gameId: string) => ({ pk: `GAME#${gameId}`, sk: 'AIJUDGEMENTS' });
 const tourneyKey = (id: string) => ({ pk: `TOURNEY#${id}`, sk: 'TOURNEY' });
 /** Code → id pointer, so a league is reachable by the code it is shared by. */
@@ -40,6 +42,21 @@ export class DynamoDBEntitlementRepository implements EntitlementRepository {
     const created = freeEntitlement(userId);
     await this.save(created);
     return created;
+  }
+}
+
+export class DynamoDBProfileRepository implements ProfileRepository {
+  constructor(private readonly cfg: SupportingRepoConfig) {}
+
+  async get(userId: string): Promise<UserProfile | null> {
+    const res = await this.cfg.client.send(new GetCommand({ TableName: this.cfg.tableName, Key: profileKey(userId) }));
+    return (res.Item?.profile as UserProfile | undefined) ?? null;
+  }
+
+  async save(profile: UserProfile): Promise<void> {
+    await this.cfg.client.send(
+      new PutCommand({ TableName: this.cfg.tableName, Item: { ...profileKey(profile.userId), entity: 'profile', profile } }),
+    );
   }
 }
 
