@@ -29,6 +29,21 @@ export const API_URL = read('EXPO_PUBLIC_API_URL');
 export const AUTH_DOMAIN = read('EXPO_PUBLIC_AUTH_DOMAIN');
 export const USER_POOL_CLIENT_ID = read('EXPO_PUBLIC_USER_POOL_CLIENT_ID');
 
+/**
+ * Answer every request from canned fixtures instead of the API, and start signed
+ * in — so the real screens can be driven on a real device without a session or a
+ * live game. See `src/dev/fixtures.ts`.
+ *
+ * Guarded twice, and both halves matter. `__DEV__` is false in any release
+ * bundle, so a production build cannot reach it however the environment is set;
+ * the explicit flag means a developer running the dev client normally still
+ * talks to the real API, because a harness that switched itself on would be a
+ * trap. It is also never set in `eas.json`, so no build profile can turn it on
+ * by accident.
+ */
+export const DEV_FIXTURES =
+  typeof __DEV__ !== 'undefined' && __DEV__ && read('EXPO_PUBLIC_DEV_FIXTURES') === '1';
+
 /** RevenueCat is genuinely optional: without it the app simply sells nothing. */
 export const REVENUECAT_KEY = read('EXPO_PUBLIC_REVENUECAT_KEY');
 

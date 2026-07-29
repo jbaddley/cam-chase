@@ -1,6 +1,7 @@
 import { PhotoChaseClient } from '@photochase/client';
 import { session } from './auth.js';
-import { API_URL } from './config.js';
+import { API_URL, DEV_FIXTURES } from './config.js';
+import { fixtureFetch } from './dev/fixtures.js';
 
 // Empty when unconfigured; `App` shows the configuration error instead of any
 // screen that could issue a request. A localhost fallback used to live here,
@@ -16,4 +17,8 @@ const baseUrl = API_URL ?? '';
 export const client = new PhotoChaseClient({
   baseUrl,
   getToken: () => session.getAccessToken(),
+  // Dev only, and off unless asked for: answers from canned fixtures so the real
+  // screens can be driven on a device with no session and no live game. See
+  // `DEV_FIXTURES` for why the guard is in two parts.
+  ...(DEV_FIXTURES ? { fetch: fixtureFetch() } : {}),
 });

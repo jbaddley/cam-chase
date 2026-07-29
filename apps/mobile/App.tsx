@@ -13,6 +13,8 @@ import { HostScreen } from './src/screens/HostScreen.js';
 import { placeholderCapture } from './src/capture.js';
 import { placeholderLocation, type LocationSource } from './src/location.js';
 import { session, type Authorizer } from './src/auth.js';
+import { DEV_FIXTURES } from './src/config.js';
+import { DevSceneBar } from './src/dev/DevSceneBar.js';
 import { unavailablePurchaseGateway, type PurchaseGateway } from './src/purchases.js';
 import type { CaptureSource } from './src/screens/CaptureScreen.js';
 
@@ -47,7 +49,8 @@ export default function App({
   capture?: CaptureSource;
   location?: LocationSource;
 } = {}) {
-  const [signedIn, setSignedIn] = useState(session.isSignedIn);
+  // With fixtures on there is no session to have; the harness exists to skip it.
+  const [signedIn, setSignedIn] = useState(session.isSignedIn || DEV_FIXTURES);
 
   // Before anything else: an app pointed at nothing cannot sign anyone in, and
   // the failure it produces otherwise ("Invalid client id" from Cognito, or a
@@ -61,11 +64,28 @@ export default function App({
     );
   }
   const [route, setRoute] = useState<Route>('home');
-  const [joined, setJoined] = useState<JoinedGame | null>(null);
+  /**
+   * With fixtures on, start already in a game as its host. The harness exists to
+   * reach the play screens, and walking home → join → code to get to them every
+   * reload is the friction it was built to remove. Host, so the gate controls are
+   * on screen too.
+   */
+  const [joined, setJoined] = useState<JoinedGame | null>(
+    DEV_FIXTURES ? { gameId: 'game_dev', code: 'DEV123', teamId: 'team_dev', role: 'host' } : null,
+  );
 
   if (!signedIn) return <SignInScreen authorize={authorize} onSignedIn={() => setSignedIn(true)} />;
 
-  if (joined) return <GameRouter joined={joined} capture={capture} location={location} onExit={() => setJoined(null)} />;
+  if (joined) {
+    return (
+      <View style={styles.withDevBar}>
+        <DevSceneBar />
+        <View style={styles.devBarBody}>
+          <GameRouter joined={joined} capture={capture} location={location} onExit={() => setJoined(null)} />
+        </View>
+      </View>
+    );
+  }
 
   const home = () => setRoute('home');
 
@@ -116,4 +136,7 @@ const styles = StyleSheet.create({
   configError: { flex: 1, padding: 24, gap: 12, justifyContent: 'center' },
   configTitle: { fontSize: 24, fontWeight: '700' },
   configBody: { fontSize: 15, color: '#495057' },
+  /** Both are inert unless the fixtures are on: `DevSceneBar` renders null. */
+  withDevBar: { flex: 1 },
+  devBarBody: { flex: 1 },
 });
