@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect } from 'react';
+import type { CameraPlacement } from './viewport.js';
 
 /**
  * Whether the live camera preview should be running.
@@ -47,4 +48,29 @@ export const ViewfinderLayoutContext = createContext<{ landscape: boolean }>({ l
 
 export function useViewfinderLayout(): { landscape: boolean } {
   return useContext(ViewfinderLayoutContext);
+}
+
+/**
+ * Where the square preview should sit.
+ *
+ * Every photo is square, so the preview is a square window rather than the whole
+ * screen — and a screen showing the original *beside* the camera has to move that
+ * window out of the way. Declared by the screen and obeyed by whoever owns the
+ * camera, the same shape as {@link ViewfinderContext}, because the alternative is
+ * a screen reaching into the camera to reposition it.
+ *
+ * The default is centred: a screen that never says anything gets the largest
+ * square the window holds, which is what Round 1 wants.
+ */
+export const CameraPlacementContext = createContext<(placement: CameraPlacement) => void>(() => {});
+
+/** Ask for a placement for as long as this screen wants it. */
+export function useCameraPlacement(placement: CameraPlacement): void {
+  const setPlacement = useContext(CameraPlacementContext);
+  useEffect(() => {
+    setPlacement(placement);
+    // Back to centred on the way out, so the next screen is not left holding a
+    // split layout it never asked for.
+    return () => setPlacement('center');
+  }, [setPlacement, placement]);
 }

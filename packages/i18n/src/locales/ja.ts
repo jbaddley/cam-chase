@@ -214,7 +214,6 @@ export const ja: Record<MessageKey, string> = {
   'chase.overlay': '重ねる',
   'chase.sideBySide': '並べる',
   'chase.overlayAt': 'お題を {percent}% で表示',
-  'chase.fullFrame': '写真は画面全体が写ります。',
   'chase.originalUnavailable': 'お題の写真を読み込めませんでした。',
   'regroup.title': 'スタート地点に戻ろう',
   'regroup.instruction': 'チームでスタート地点に戻ってチェックインしてください。',
@@ -252,4 +251,5 @@ export const ja: Record<MessageKey, string> = {
   'lobby.teamsJoined_one': '1 チームが参加',
   'lobby.playerCount_one': '1 人',
   'host.meetingSpot': '集合場所',
+  'chase.topAndBottom': '上下に並べる',
 };

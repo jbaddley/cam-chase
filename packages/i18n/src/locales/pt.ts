@@ -214,7 +214,6 @@ export const pt: Record<MessageKey, string> = {
   'chase.overlay': 'Sobrepor',
   'chase.sideBySide': 'Lado a lado',
   'chase.overlayAt': 'Original a {percent}%',
-  'chase.fullFrame': 'Sua foto continua capturando o quadro inteiro.',
   'chase.originalUnavailable': 'Não foi possível carregar o original.',
   'regroup.title': 'Voltem ao ponto de partida',
   'regroup.instruction': 'Levem a equipe de volta ao ponto de partida e registrem a chegada.',
@@ -252,4 +251,5 @@ export const pt: Record<MessageKey, string> = {
   'lobby.teamsJoined_one': '1 equipe entrou',
   'lobby.playerCount_one': '1 jogador',
   'host.meetingSpot': 'Ponto de encontro',
+  'chase.topAndBottom': 'Acima e abaixo',
 };

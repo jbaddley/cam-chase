@@ -87,8 +87,15 @@ function gameState() {
 }
 
 function regroup() {
+  // `round2_chasing` has to read as still-working, or the router sends it to the
+  // regroup screen — which is correct behaviour and made the scene show the wrong
+  // screen entirely. The harness found its own bug first.
   const meStatus =
-    scene === 'round1_shooting' ? 'shooting' : scene === 'round1_all_back' ? 'ready' : 'heading_back';
+    scene === 'round1_shooting' || scene === 'round2_chasing'
+      ? 'shooting'
+      : scene === 'round1_all_back'
+        ? 'ready'
+        : 'heading_back';
   const allBack = scene === 'round1_all_back';
   return {
     round: scene === 'round2_chasing' ? 2 : 1,

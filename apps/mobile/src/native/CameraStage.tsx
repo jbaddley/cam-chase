@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { ViewfinderContext } from '../viewfinder.js';
+import { CameraPlacementContext, ViewfinderContext } from '../viewfinder.js';
+import { layoutViewport, type CameraPlacement } from '../viewport.js';
 import { ensureLocationPermission, makeCapture, type CameraHandle } from './capture.js';
 import type { CaptureSource } from '../screens/CaptureScreen.js';
 
@@ -21,6 +22,8 @@ export function CameraStage({ children }: { children: (capture: CaptureSource) =
   const [permission, requestPermission] = useCameraPermissions();
   const [wanted, setWanted] = useState(false);
   const [ready, setReady] = useState(false);
+  const [placement, setPlacement] = useState<CameraPlacement>('center');
+  const window = useWindowDimensions();
   const camera = useRef<CameraView | null>(null);
 
   const granted = permission?.granted === true;
@@ -50,22 +53,39 @@ export function CameraStage({ children }: { children: (capture: CaptureSource) =
     if (live) void ensureLocationPermission();
   }, [live]);
 
+  /**
+   * The preview is a square window, not the whole screen, because every photo
+   * this game takes is square — so the frame you see has to be the frame you get.
+   * It used to fill the window, which meant a screen showing the original beside
+   * the camera was showing you half of a wider shot and capturing all of it.
+   */
+  const { camera: box } = layoutViewport(placement, window);
+
   return (
     <View style={styles.stage}>
       {live ? (
-        <CameraView
-          ref={camera}
-          style={StyleSheet.absoluteFill}
-          facing="back"
-          onCameraReady={() => setReady(true)}
-        />
+        // `overflow: hidden` is what makes this a viewport rather than a hint:
+        // the preview is clipped to the square, so nothing outside it is ever on
+        // screen pretending to be part of the shot.
+        <View style={[styles.window, { left: box.left, top: box.top, width: box.width, height: box.height }]}>
+          <CameraView
+            ref={camera}
+            style={StyleSheet.absoluteFill}
+            facing="back"
+            onCameraReady={() => setReady(true)}
+          />
+        </View>
       ) : null}
       {/* Transparent, with no scrim of its own. Washing the whole window to
           keep dark text readable made the preview useless for the one thing it
           is for — seeing what you are pointing at — so the scrim moved to
           `ViewfinderFrame`, which puts it behind the words and nowhere else. */}
       <View style={styles.overlay}>
-        <ViewfinderContext.Provider value={setActive}>{children(capture)}</ViewfinderContext.Provider>
+        <ViewfinderContext.Provider value={setActive}>
+          <CameraPlacementContext.Provider value={setPlacement}>
+            {children(capture)}
+          </CameraPlacementContext.Provider>
+        </ViewfinderContext.Provider>
       </View>
       {/* Only after a real refusal — `undetermined` means the sheet is still to
           come, and covering the screen then would be a lie. */}
@@ -92,6 +112,8 @@ const styles = StyleSheet.create({
    * it belongs here now that the camera fills the window rather than the inset.
    */
   stage: { flex: 1, backgroundColor: '#fff' },
+  /** Absolute so the square can sit anywhere; clipped so it is a real viewport. */
+  window: { position: 'absolute', overflow: 'hidden', backgroundColor: '#000' },
   overlay: { flex: 1 },
   denied: {
     position: 'absolute',

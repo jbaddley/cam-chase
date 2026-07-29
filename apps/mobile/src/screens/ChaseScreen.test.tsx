@@ -234,30 +234,44 @@ describe('ChaseScreen — seeing the original', () => {
     expect(screen.getByText('Original at 80%')).toBeTruthy();
   });
 
-  it('offers side by side only when the phone is turned', async () => {
+  /**
+   * One mode, named for the arrangement in use. Splitting is the same idea either
+   * way — show me both at once — so the player picks that, not a direction.
+   */
+  it('names the split for how the phone is held', async () => {
     listAssignments.mockResolvedValue([assignment(0)]);
     const { unmount } = render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
 
-    // Half a portrait screen is not a useful comparison, so it is not offered.
     await screen.findByTestId('chase-original');
     await openControls();
+    expect(screen.getByRole('button', { name: 'Top and bottom' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Side by side' })).toBeNull();
     unmount();
 
     render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} landscape />);
     await openControls();
     expect(screen.getByRole('button', { name: 'Side by side' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Top and bottom' })).toBeNull();
   });
 
-  it('says the photo is still full-frame when side by side', async () => {
+  /**
+   * The bug this replaces: the original took half the screen while the camera
+   * quietly kept all of it, so the half you were matching against was not the
+   * shot you were taking. There used to be a string here explaining that away.
+   * The camera is clipped to its own square now, so there is nothing to explain.
+   */
+  it('puts the original beside the camera when split, and over it when overlaid', async () => {
     listAssignments.mockResolvedValue([assignment(0)]);
     render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} landscape />);
 
+    // Overlay is the default: the original sits on the camera square.
+    expect(await screen.findByTestId('chase-original-over')).toBeTruthy();
+
     await openControls();
     fireEvent.click(screen.getByRole('button', { name: 'Side by side' }));
-    // The split is a place to look, not a viewport. Every player assumes
-    // otherwise once, and only the wording can correct it.
-    expect(screen.getByText('Your photo still captures the whole frame.')).toBeTruthy();
+
+    expect(screen.getByTestId('chase-original-beside')).toBeTruthy();
+    expect(screen.queryByTestId('chase-original-over')).toBeNull();
   });
 
   it('says so when the original cannot be signed', async () => {

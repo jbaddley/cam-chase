@@ -212,7 +212,6 @@ export const en = {
   'chase.overlay': 'Overlay',
   'chase.sideBySide': 'Side by side',
   'chase.overlayAt': 'Original at {percent}%',
-  'chase.fullFrame': 'Your photo still captures the whole frame.',
   'chase.originalUnavailable': 'Could not load the original.',
   'regroup.title': 'Head back to the start',
   'regroup.instruction': 'Get your team back to where you started and check in.',
@@ -250,6 +249,7 @@ export const en = {
   'lobby.teamsJoined_one': '1 team joined',
   'lobby.playerCount_one': '1 player',
   'host.meetingSpot': 'Meeting spot',
+  'chase.topAndBottom': 'Top and bottom',
 } as const;
 
 export type MessageKey = keyof typeof en;

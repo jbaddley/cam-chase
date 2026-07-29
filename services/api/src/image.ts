@@ -20,14 +20,37 @@ export function isThumbnailKey(key: string): boolean {
 }
 
 /**
- * Resize an image to fit within `maxDim` on its longest side, preserving aspect
- * ratio, and re-encode as JPEG. Images already within bounds are re-encoded
- * unchanged in dimensions.
+ * Centre-crop to a square, then size to `maxDim`, and re-encode as JPEG.
+ *
+ * Square because a chase is a comparison, and comparing a portrait original with
+ * a landscape recreation penalises the pair for something that has nothing to do
+ * with how well either was framed. Every photo the game shows is square, so every
+ * derivative is cut to one here.
+ *
+ * Centre, because the app frames a centred square: the preview is a square window
+ * in the middle of its half of the screen, so the middle of the captured frame is
+ * what the player was looking at.
+ *
+ * Honest limit: this is close to what the player saw, not identical to it. The
+ * preview square and the sensor frame are different rectangles, so a centred crop
+ * of the capture and the centred square on screen agree on the subject and can
+ * disagree at the edges. Making them the same needs the crop to happen on the
+ * device, against the preview's own geometry — `expo-image-manipulator`, and a
+ * prebuild. Worth doing when edge-exactness starts mattering; not before.
  */
 export async function resizeToFit(input: Buffer, maxDim: number = THUMBNAIL_WIDTH): Promise<Buffer> {
   const image = await Jimp.fromBuffer(input);
-  if (image.width > maxDim || image.height > maxDim) {
-    image.scaleToFit({ w: maxDim, h: maxDim });
+
+  const side = Math.min(image.width, image.height);
+  if (image.width !== image.height) {
+    image.crop({
+      x: Math.round((image.width - side) / 2),
+      y: Math.round((image.height - side) / 2),
+      w: side,
+      h: side,
+    });
   }
+
+  if (image.width > maxDim) image.scaleToFit({ w: maxDim, h: maxDim });
   return image.getBuffer('image/jpeg');
 }

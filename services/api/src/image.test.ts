@@ -27,16 +27,41 @@ describe('resizeToFit', () => {
     const original = await makeJpeg(2000, 1500);
     const resized = await resizeToFit(original, 1024);
     const { width, height } = await dimensionsOf(resized);
-    expect(width).toBeLessThanOrEqual(1024);
-    expect(height).toBeLessThanOrEqual(1024);
-    expect(width).toBe(1024); // longest side hits the cap
+    expect(width).toBe(1024);
+    expect(height).toBe(1024); // square, so both sides hit the cap
     expect(resized.length).toBeLessThan(original.length);
   });
 
-  it('leaves a small image within bounds (no upscale)', async () => {
+  /**
+   * A chase is a comparison, and comparing a portrait original with a landscape
+   * recreation penalises the pair for something neither player did wrong. Every
+   * photo the game shows is square, so every derivative is cut to one.
+   */
+  it('centre-crops a landscape photo to a square', async () => {
+    const { width, height } = await dimensionsOf(await resizeToFit(await makeJpeg(1600, 900), 1024));
+    expect(width).toBe(height);
+    // Bounded by the short side, then capped: min(900, 1024).
+    expect(width).toBe(900);
+  });
+
+  it('centre-crops a portrait photo to the same square', async () => {
+    const { width, height } = await dimensionsOf(await resizeToFit(await makeJpeg(900, 1600), 1024));
+    expect(width).toBe(height);
+    expect(width).toBe(900);
+  });
+
+  it('leaves an already-square photo square', async () => {
+    const { width, height } = await dimensionsOf(await resizeToFit(await makeJpeg(800, 800), 1024));
+    expect(width).toBe(800);
+    expect(height).toBe(800);
+  });
+
+  it('crops a small image to square but never upscales it', async () => {
     const original = await makeJpeg(500, 400);
     const { width, height } = await dimensionsOf(await resizeToFit(original, 1024));
-    expect(width).toBe(500);
+    // Cropped to the short side, and left there: 400 is well under the 1024 cap,
+    // and stretching a small photo to fill it would invent detail.
+    expect(width).toBe(400);
     expect(height).toBe(400);
   });
 });

@@ -5,7 +5,8 @@ import { CaptureError } from '../capture.js';
 import { t } from '../i18n.js';
 import { useSignedPhoto } from '../useSignedPhoto.js';
 import { Body, Button, Chip, ChoiceRow, ErrorText, Loading, Pill, Row } from '../ui.js';
-import { useViewfinder, useViewfinderLayout } from '../viewfinder.js';
+import { useCameraPlacement, useViewfinder, useViewfinderLayout } from '../viewfinder.js';
+import { placementFor } from '../viewport.js';
 import { ChaseView, OVERLAY_LEVELS, type ChaseViewMode } from './ChaseView.js';
 import { ViewfinderFrame } from './ViewfinderFrame.js';
 import type { CaptureSource } from './CaptureScreen.js';
@@ -157,19 +158,26 @@ function ChaseInfo({
 }) {
   const { landscape } = useViewfinderLayout();
   const [open, setOpen] = useState(false);
+  // Declared from here because this is inside the frame, so it is the first place
+  // that knows both the mode and which way the phone is held.
+  useCameraPlacement(placementFor(mode, landscape));
 
   const modes: Array<{ value: ChaseViewMode; label: string }> = [
     { value: 'hidden', label: t('chase.hide') },
     { value: 'overlay', label: t('chase.overlay') },
-    ...(landscape ? [{ value: 'side_by_side' as const, label: t('chase.sideBySide') }] : []),
+    // One idea — "show me both at once" — arranged by how the phone is held
+    // rather than offered as two choices the player has to understand.
+    { value: 'split' as const, label: landscape ? t('chase.sideBySide') : t('chase.topAndBottom') },
   ];
 
   /** What the collapsed chip says: the state, not the verb. */
   const summary =
     mode === 'hidden'
       ? t('chase.viewHidden')
-      : mode === 'side_by_side'
-        ? t('chase.sideBySide')
+      : mode === 'split'
+        ? landscape
+          ? t('chase.sideBySide')
+          : t('chase.topAndBottom')
         : t('chase.overlayAt', { percent: Math.round(opacity * 100) });
 
   return (
@@ -213,7 +221,7 @@ function ChaseInfo({
                 </ChoiceRow>
               ) : null}
 
-              {mode === 'side_by_side' ? <Body muted>{t('chase.fullFrame')}</Body> : null}
+    
             </>
           ) : null}
         </>
