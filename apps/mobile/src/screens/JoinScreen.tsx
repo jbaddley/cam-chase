@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { FormScreen } from './FormScreen.js';
 import { color, radius, space, type as typeScale } from '../theme.js';
@@ -38,15 +38,18 @@ interface Resolved {
  */
 export function JoinScreen({
   displayName,
+  initialCode,
   onJoined,
   onBack,
 }: {
   /** The signed-in player's display name, sent to the server as the joiner. */
   displayName: string;
+  /** A code from a deep link, resolved automatically as if it had been typed. */
+  initialCode?: string;
   onJoined: (game: JoinedGame) => void;
   onBack?: () => void;
 }) {
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(initialCode ?? '');
   const [resolved, setResolved] = useState<Resolved | null>(null);
   const [resolving, setResolving] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -84,6 +87,15 @@ export function JoinScreen({
     },
     [resolve],
   );
+
+  // A code delivered from outside — a deep link the app was opened with —
+  // resolves on its own, exactly as a typed or scanned one does.
+  useEffect(() => {
+    if (initialCode && initialCode.length === 6) {
+      setCode(initialCode);
+      void resolve(initialCode);
+    }
+  }, [initialCode, resolve]);
 
   /** Step two: join, either starting a team or joining one on the roster. */
   async function join(action: JoinAction): Promise<void> {

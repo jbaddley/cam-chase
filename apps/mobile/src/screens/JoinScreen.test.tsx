@@ -150,6 +150,22 @@ describe('JoinScreen — team step', () => {
   });
 });
 
+describe('JoinScreen — deep link', () => {
+  it('auto-resolves a code delivered as initialCode', async () => {
+    resolveWith([{ teamId: 't1', name: 'Reds', memberCount: 2 }]);
+    render(<JoinScreen displayName="Ada" initialCode="ABC234" onJoined={vi.fn()} />);
+
+    await waitFor(() => expect(spectate).toHaveBeenCalledWith('ABC234'));
+    await screen.findByText('Start your own team, or join one already in the game.');
+  });
+
+  it('waits for a full code before resolving', () => {
+    render(<JoinScreen displayName="Ada" initialCode="ABC" onJoined={vi.fn()} />);
+    expect(spectate).not.toHaveBeenCalled();
+    expect(screen.getByPlaceholderText('ABC123')).toBeTruthy();
+  });
+});
+
 describe('JoinScreen — scanning', () => {
   /** Render inside a controllable camera so a scan can be fired into it. */
   function renderWithCamera() {

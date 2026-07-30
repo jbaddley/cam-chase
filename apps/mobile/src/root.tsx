@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet } from 'react-native';
+import { Linking, StyleSheet } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { parseJoinCode } from '@photochase/shared';
 import App from '../App.js';
 import { session, setCryptoSource } from './auth.js';
 import { unavailablePurchaseGateway, type PurchaseGateway } from './purchases.js';
@@ -33,6 +34,23 @@ const purchases: PurchaseGateway = env.EXPO_PUBLIC_REVENUECAT_KEY
   ? makePurchaseGateway(env.EXPO_PUBLIC_REVENUECAT_KEY, () => session.userId)
   : unavailablePurchaseGateway;
 
+/**
+ * Deep links into the join flow. RN's core Linking handles the app's registered
+ * `photochase://` scheme (app.json), so this needs no extra native module: an
+ * inbound URL — whether the app was cold-launched with it or was already running
+ * — is parsed to a join code and handed up. Universal https links additionally
+ * need domain verification and a prebuild, and are not wired yet.
+ */
+function nativeDeepLinks(onCode: (code: string) => void): () => void {
+  const handle = (url: string | null) => {
+    const code = url ? parseJoinCode(url) : null;
+    if (code) onCode(code);
+  };
+  void Linking.getInitialURL().then(handle);
+  const sub = Linking.addEventListener('url', ({ url }) => handle(url));
+  return () => sub.remove();
+}
+
 export function PhotoChaseApp() {
   return (
     <SafeAreaProvider>
@@ -49,7 +67,13 @@ export function PhotoChaseApp() {
       <CameraStage>
         {(capture) => (
           <SafeAreaView style={styles.ui} edges={['top', 'bottom', 'left', 'right']}>
-            <App authorize={nativeAuthorizer} purchases={purchases} capture={capture} location={nativeLocation} />
+            <App
+              authorize={nativeAuthorizer}
+              purchases={purchases}
+              capture={capture}
+              location={nativeLocation}
+              deepLinks={nativeDeepLinks}
+            />
           </SafeAreaView>
         )}
       </CameraStage>

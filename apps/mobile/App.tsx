@@ -35,6 +35,15 @@ const unavailableAuthorizer: Authorizer = () => {
   throw new Error('No authorizer configured. Pass expo-auth-session openAuthSessionAsync.');
 };
 
+/**
+ * Subscribe to join codes arriving from a deep link (`photochase://j/<code>`);
+ * returns an unsubscribe. Injected, like the camera and auth, so `App` stays free
+ * of native imports — the real implementation reads them via Linking in
+ * `root.tsx`. The default registers nothing.
+ */
+export type DeepLinkSource = (onCode: (code: string) => void) => () => void;
+const noDeepLinks: DeepLinkSource = () => () => {};
+
 /** Where the app is, outside a game. */
 type Route = 'home' | 'join' | 'host' | 'plan' | 'league' | 'referral' | 'daily' | 'profile';
 
@@ -63,11 +72,13 @@ export default function App({
   purchases = unavailablePurchaseGateway,
   capture = placeholderCapture,
   location = placeholderLocation,
+  deepLinks = noDeepLinks,
 }: {
   authorize?: Authorizer;
   purchases?: PurchaseGateway;
   capture?: CaptureSource;
   location?: LocationSource;
+  deepLinks?: DeepLinkSource;
 } = {}) {
   // On when the harness has been switched on for this device this session; off
   // on every launch. See `dev/fixture-toggle.ts` for why it is no longer an env
@@ -78,6 +89,22 @@ export default function App({
   const [joined, setJoined] = useState<JoinedGame | null>(null);
   const [profileState, setProfileState] = useState<ProfileState>({ status: 'loading' });
   const [reloadProfile, setReloadProfile] = useState(0);
+  const [deepLinkCode, setDeepLinkCode] = useState<string | null>(null);
+
+  /**
+   * A deep link drops you into the join flow with its code ready to resolve. The
+   * gates below still apply — a link tapped while signed out lands here once
+   * sign-in and the profile are done, because the route is remembered.
+   */
+  useEffect(
+    () =>
+      deepLinks((code) => {
+        setDeepLinkCode(code);
+        setJoined(null);
+        setRoute('join');
+      }),
+    [deepLinks],
+  );
 
   // Signed in for real, or the harness has skipped the session.
   const authed = signedIn || fixtures;
@@ -210,11 +237,16 @@ export default function App({
       return devFrame(
         <JoinScreen
           displayName={displayName}
+          initialCode={deepLinkCode ?? undefined}
           onJoined={(game) => {
+            setDeepLinkCode(null);
             setRoute('home');
             setJoined(game);
           }}
-          onBack={home}
+          onBack={() => {
+            setDeepLinkCode(null);
+            home();
+          }}
         />,
       );
     case 'profile':
