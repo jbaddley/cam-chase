@@ -1,0 +1,35 @@
+# AWS Amplify Hosting build spec (pnpm workspace monorepo).
+#
+# Amplify reads this from the repo root. `appRoot` scopes the deploy to the
+# Next.js web app, while pnpm still installs the whole workspace it depends on
+# (running `pnpm install` inside a workspace package installs the entire
+# workspace). This mirrors exactly the build this repo runs locally:
+#   pnpm install --frozen-lockfile && pnpm --filter @photochase/web build
+#
+# Set these in the Amplify console (App settings > Environment variables), not
+# here — they are per-environment config, and two are effectively deploy secrets:
+#   NEXT_PUBLIC_API_URL               the API the /j and /watch pages call
+#   APPLE_APP_ID                      <AppleTeamID>.app.photochase.client
+#   ANDROID_SHA256_CERT_FINGERPRINTS  comma-separated signing SHA-256 fingerprints
+version: 1
+applications:
+  - appRoot: apps/web
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            # Node 20 to satisfy the repo's engines constraint, and the exact
+            # pnpm from the root package.json's packageManager field.
+            - nvm install 20
+            - corepack enable
+            - corepack prepare pnpm@10.33.0 --activate
+            - pnpm install --frozen-lockfile
+        build:
+          commands:
+            - pnpm run build
+      artifacts:
+        # Next.js App Router build output; Amplify detects Next and deploys it
+        # as SSR, which the /j page and the dynamic .well-known routes need.
+        baseDirectory: .next
+        files:
+          - '**/*'
