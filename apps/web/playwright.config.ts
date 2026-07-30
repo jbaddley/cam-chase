@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 3100;
+// Overridable so a run can dodge a port already held by another local server.
+const PORT = Number(process.env.PW_PORT) || 3100;
 const baseURL = `http://127.0.0.1:${PORT}`;
 
 /**
