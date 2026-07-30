@@ -10,6 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.photochase.client",
+      "associatedDomains": ["applinks:photochase.app"],
       "infoPlist": {
         "NSCameraUsageDescription": "PhotoChase uses the camera to take the photos the game is played with and to scan a game's join code.",
         "NSLocationWhenInUseUsageDescription": "PhotoChase records where a photo was taken so the game can score how close a recreation is. Location is only read during a round."
@@ -26,6 +27,14 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "photochase.app", "pathPrefix": "/j" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
       ]
     },
     "plugins": [
