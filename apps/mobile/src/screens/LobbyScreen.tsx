@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ApiError, type GameStateView, type TeamSummary } from '@photochase/client';
+import { joinCodeUrl } from '@photochase/shared';
 import type { MessageKey } from '@photochase/i18n';
 import { client } from '../api.js';
+import { QrCode } from '../QrCode.js';
 import type { LocationSource } from '../location.js';
 import { t } from '../i18n.js';
 import { color, space, type as typeScale } from '../theme.js';
@@ -95,6 +97,9 @@ export function LobbyScreen({
       <View style={styles.codeBlock}>
         <Text style={styles.codeLabel}>{t('lobby.codeLabel')}</Text>
         <Text style={styles.code}>{code}</Text>
+        {/* A QR to scan instead of reading six characters aloud — only while the
+            game is still open to join. */}
+        {game?.state === 'lobby' ? <QrCode value={joinCodeUrl(code)} testID="lobby-qr" /> : null}
       </View>
 
       <View style={styles.status}>

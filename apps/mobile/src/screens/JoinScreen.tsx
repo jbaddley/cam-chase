@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { FormScreen } from './FormScreen.js';
 import { color, radius, space, type as typeScale } from '../theme.js';
 import { Body, Button, Card, Chip, ChoiceRow, Display, ErrorText, Field } from '../ui.js';
 import { ApiError, type JoinAction, type TeamSummary } from '@photochase/client';
+import { parseJoinCode } from '@photochase/shared';
 import { client } from '../api.js';
+import { useBarcodeScan } from '../viewfinder.js';
 import { t } from '../i18n.js';
 
 /** Handed back once the player is in the lobby, so the app can poll teams. */
@@ -47,26 +49,41 @@ export function JoinScreen({
   const [code, setCode] = useState('');
   const [resolved, setResolved] = useState<Resolved | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [teamTouched, setTeamTouched] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /** Step one: look the game up by its code and learn its roster and mode. */
-  async function find(): Promise<void> {
-    if (code.length !== 6 || resolving) return;
+  /**
+   * Step one: look the game up by its code and learn its roster and mode. Stable
+   * so it can be a scan handler's target without re-subscribing; it reads only
+   * its argument and setters, never render-scoped state.
+   */
+  const resolve = useCallback(async (value: string): Promise<void> => {
+    if (value.length !== 6) return;
     setResolving(true);
     setError(null);
     try {
-      const view = await client.spectate(code);
+      const view = await client.spectate(value);
       setResolved({ teams: view.game.teams, isTag: view.game.config.mode === 'photo_tag' });
     } catch {
       setError(t('join.notFound'));
     } finally {
       setResolving(false);
     }
-  }
+  }, []);
+
+  /** A scanned QR resolves the game the same way typing the code does. */
+  const onScanned = useCallback(
+    (scanned: string) => {
+      setScanning(false);
+      setCode(scanned);
+      void resolve(scanned);
+    },
+    [resolve],
+  );
 
   /** Step two: join, either starting a team or joining one on the roster. */
   async function join(action: JoinAction): Promise<void> {
@@ -92,10 +109,14 @@ export function JoinScreen({
     }
   }
 
+  if (scanning) {
+    return <JoinScanner onScan={onScanned} onCancel={() => setScanning(false)} />;
+  }
+
   if (!resolved) {
     const label = resolving ? t('join.finding') : code.length === 6 ? t('join.findGame') : t('join.needCode');
     return (
-      <FormScreen action={<Button onPress={find} disabled={code.length !== 6 || resolving}>{label}</Button>}>
+      <FormScreen action={<Button onPress={() => void resolve(code)} disabled={code.length !== 6 || resolving}>{label}</Button>}>
         <View style={styles.hero}>
           <Display>{t('join.title')}</Display>
           <Body muted>{t('join.prompt')}</Body>
@@ -111,6 +132,12 @@ export function JoinScreen({
           autoCapitalize="characters"
           style={styles.codeInput}
         />
+
+        {/* Scanning is the shortcut past typing six characters read across a
+            room; typing stays as the fallback when a camera is refused. */}
+        <Button onPress={() => setScanning(true)} tone="secondary">
+          {t('join.scan')}
+        </Button>
         {error ? <ErrorText>{error}</ErrorText> : null}
 
         {onBack ? (
@@ -203,8 +230,48 @@ export function JoinScreen({
   );
 }
 
+/**
+ * The scan sub-screen: the camera preview runs behind (owned by CameraStage),
+ * and this is the transparent overlay on top of it — a hint and a way out.
+ *
+ * The handler is idempotent: `onBarcodeScanned` fires repeatedly on the same
+ * code, so a `done` ref disarms after the first *valid* one. A scan that is not
+ * a join code is ignored, leaving the camera reading, rather than consumed.
+ */
+function JoinScanner({ onScan, onCancel }: { onScan: (code: string) => void; onCancel: () => void }) {
+  const done = useRef(false);
+  const handle = useCallback(
+    (data: string) => {
+      if (done.current) return;
+      const code = parseJoinCode(data);
+      if (!code) return;
+      done.current = true;
+      onScan(code);
+    },
+    [onScan],
+  );
+  useBarcodeScan(handle);
+
+  return (
+    <View style={styles.scan} testID="join-scanner">
+      <View style={styles.scanHint}>
+        <Card>
+          <Body>{t('join.scanHint')}</Body>
+        </Card>
+        <Button onPress={onCancel} tone="secondary">
+          {t('common.back')}
+        </Button>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   hero: { paddingBottom: space.md, gap: space.xs },
+  // Transparent so the camera preview behind it shows through; the hint and the
+  // way out sit at the bottom third, in a thumb's reach (docs/10).
+  scan: { flex: 1, justifyContent: 'flex-end' },
+  scanHint: { padding: space.xl, gap: space.md },
   codeInput: {
     ...typeScale.title,
     letterSpacing: 6,

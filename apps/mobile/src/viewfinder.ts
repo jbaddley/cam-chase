@@ -33,6 +33,44 @@ export function useViewfinder(active = true): void {
 }
 
 /**
+ * Subscribe a handler to QR scans for as long as a screen wants to read one.
+ *
+ * The camera owner runs the barcode scanner only while a handler is registered,
+ * so MLKit is not analysing every frame for the whole game — the same "declare
+ * it and the owner obeys" shape as {@link ViewfinderContext}, and the same
+ * reason: a screen never imports the camera, so it still renders under the DOM
+ * test harness with a fake subscriber. The subscribe function returns an
+ * unsubscribe; the default is a no-op that registers nothing.
+ */
+export const BarcodeScanContext = createContext<(onScan: (data: string) => void) => () => void>(
+  () => () => {},
+);
+
+/**
+ * Read a QR scan while `active`, turning the preview on for as long as it lasts.
+ *
+ * `onScan` should be stable (memoise it) — it re-subscribes when it changes. It
+ * must also be idempotent: `onBarcodeScanned` fires repeatedly on the same code,
+ * so the caller disarms itself (navigates away, or a `done` guard) rather than
+ * relying on a single delivery.
+ */
+export function useBarcodeScan(onScan: (data: string) => void, active = true): void {
+  const subscribe = useContext(BarcodeScanContext);
+  useViewfinder(active);
+  useEffect(() => {
+    if (!active) return;
+    return subscribe(onScan);
+  }, [subscribe, onScan, active]);
+}
+
+/**
+ * Dev-only channel to fire a synthetic scan at whatever screen is reading one,
+ * so the fixtures bar can exercise the join-by-scan path in the emulator with no
+ * code to point a camera at. The default is a no-op.
+ */
+export const DevScanContext = createContext<(data: string) => void>(() => {});
+
+/**
  * Whether the frame arranged itself sideways.
  *
  * `ViewfinderFrame` already decides this — `landscape ?? width > height` — and

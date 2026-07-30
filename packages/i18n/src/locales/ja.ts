@@ -33,6 +33,8 @@ export const ja: Record<MessageKey, string> = {
   'join.startTeam': 'チームを作る',
   'join.members': '{count}人のメンバー',
   'join.members_one': '1人のメンバー',
+  'join.scan': 'ホストのコードをスキャン',
+  'join.scanHint': 'ホストのQRコードに向けてください。',
   'profile.completeTitle': 'プロフィールを完成させましょう',
   'profile.completePrompt': '表示名は他のプレイヤーに見える名前です。あとで変更できます。',
   'profile.firstName': '名',

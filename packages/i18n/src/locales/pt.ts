@@ -33,6 +33,8 @@ export const pt: Record<MessageKey, string> = {
   'join.startTeam': 'Criar um time',
   'join.members': '{count} membros',
   'join.members_one': '1 membro',
+  'join.scan': 'Escanear o código do anfitrião',
+  'join.scanHint': 'Aponte para o QR code do anfitrião.',
   'profile.completeTitle': 'Complete seu perfil',
   'profile.completePrompt': 'Seu nome de exibição é o que os outros jogadores veem. Você pode alterá-lo depois.',
   'profile.firstName': 'Nome',

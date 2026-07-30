@@ -17,6 +17,7 @@ export * from './billing/entitlements.js';
 export * from './billing/pricing.js';
 export * from './ai/judge.js';
 export * from './ai/recap.js';
+export * from './growth/qr.js';
 export * from './growth/referrals.js';
 export * from './growth/rewards.js';
 export * from './growth/share-card.js';

@@ -147,6 +147,8 @@ function respond(method: string, path: string, body: unknown): unknown {
     return body ?? { firstName: 'Dev', lastName: 'Tester', displayName: 'Ducky' };
   }
   if (method === 'GET' && /\/games\/[^/]+\/regroup$/.test(path)) return regroup();
+  // The public peek the join flow uses to resolve a code (typed or scanned).
+  if (method === 'GET' && /\/spectate\/[^/]+$/.test(path)) return { game: gameState(), scoreboard: null };
   if (method === 'GET' && /\/games\/[^/]+$/.test(path)) return gameState();
   if (method === 'GET' && /\/games\/[^/]+\/teams$/.test(path)) return gameState().teams;
   if (method === 'GET' && /\/games\/[^/]+\/assignments$/.test(path)) {

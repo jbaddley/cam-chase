@@ -2,10 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { CameraPlacementContext, ViewfinderContext } from '../viewfinder.js';
+import { BarcodeScanContext, CameraPlacementContext, DevScanContext, ViewfinderContext } from '../viewfinder.js';
 import { layoutViewport, type CameraPlacement } from '../viewport.js';
 import { ensureLocationPermission, makeCapture, type CameraHandle } from './capture.js';
 import type { CaptureSource } from '../screens/CaptureScreen.js';
+
+/**
+ * Frozen so the native `barcodeScannerSettings` prop keeps its identity — a
+ * fresh object each render churns the native side. QR only: the app scans join
+ * codes and nothing else.
+ */
+const QR_SCANNER = { barcodeTypes: ['qr' as const] };
 
 /**
  * Owns the camera for the whole app and hands the screens a {@link CaptureSource}.
@@ -23,8 +30,12 @@ export function CameraStage({ children }: { children: (capture: CaptureSource) =
   const [wanted, setWanted] = useState(false);
   const [ready, setReady] = useState(false);
   const [placement, setPlacement] = useState<CameraPlacement>('center');
+  const [scanning, setScanning] = useState(false);
   const window = useWindowDimensions();
   const camera = useRef<CameraView | null>(null);
+  // The one screen currently reading a QR, if any. A ref so a scan can reach it
+  // without the settings prop churning on every subscribe.
+  const scanHandler = useRef<((data: string) => void) | null>(null);
 
   const granted = permission?.granted === true;
   const live = wanted && granted;
@@ -40,6 +51,30 @@ export function CameraStage({ children }: { children: (capture: CaptureSource) =
   const setActive = useCallback((active: boolean) => {
     setWanted(active);
     if (!active) setReady(false);
+  }, []);
+
+  // Register the one screen reading a QR; scanning is only wired to the camera
+  // while a handler is present, so MLKit is not analysing frames all game.
+  const subscribeScan = useCallback((onScan: (data: string) => void) => {
+    scanHandler.current = onScan;
+    setScanning(true);
+    return () => {
+      scanHandler.current = null;
+      setScanning(false);
+    };
+  }, []);
+
+  // `onBarcodeScanned` fires repeatedly on the same code; the handler is
+  // idempotent (it disarms itself), so this just forwards every delivery.
+  const handleScan = useCallback((result: { data: string }) => {
+    scanHandler.current?.(result.data);
+  }, []);
+
+  // Dev-only: let the fixtures bar fire a synthetic scan at whatever is reading
+  // one, so the join-by-scan path is exercisable in the emulator without a code
+  // to point at. Inert unless a screen is actually scanning.
+  const fireDevScan = useCallback((data: string) => {
+    scanHandler.current?.(data);
   }, []);
 
   useEffect(() => {
@@ -73,6 +108,8 @@ export function CameraStage({ children }: { children: (capture: CaptureSource) =
             style={StyleSheet.absoluteFill}
             facing="back"
             onCameraReady={() => setReady(true)}
+            // Only attached while a screen is reading a QR — see subscribeScan.
+            {...(scanning ? { onBarcodeScanned: handleScan, barcodeScannerSettings: QR_SCANNER } : {})}
           />
         </View>
       ) : null}
@@ -83,7 +120,9 @@ export function CameraStage({ children }: { children: (capture: CaptureSource) =
       <View style={styles.overlay}>
         <ViewfinderContext.Provider value={setActive}>
           <CameraPlacementContext.Provider value={setPlacement}>
-            {children(capture)}
+            <BarcodeScanContext.Provider value={subscribeScan}>
+              <DevScanContext.Provider value={fireDevScan}>{children(capture)}</DevScanContext.Provider>
+            </BarcodeScanContext.Provider>
           </CameraPlacementContext.Provider>
         </ViewfinderContext.Provider>
       </View>

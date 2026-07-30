@@ -11,7 +11,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "app.photochase.client",
       "infoPlist": {
-        "NSCameraUsageDescription": "PhotoChase uses the camera to take the photos the game is played with.",
+        "NSCameraUsageDescription": "PhotoChase uses the camera to take the photos the game is played with and to scan a game's join code.",
         "NSLocationWhenInUseUsageDescription": "PhotoChase records where a photo was taken so the game can score how close a recreation is. Location is only read during a round."
       }
     },
@@ -32,7 +32,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "PhotoChase uses the camera to take the photos the game is played with."
+          "cameraPermission": "PhotoChase uses the camera to take the photos the game is played with and to scan a game's join code."
         }
       ],
       [

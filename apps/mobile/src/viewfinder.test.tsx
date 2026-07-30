@@ -1,6 +1,6 @@
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ViewfinderContext, useViewfinder } from './viewfinder.js';
+import { BarcodeScanContext, ViewfinderContext, useBarcodeScan, useViewfinder } from './viewfinder.js';
 
 /**
  * The camera preview is owned above the screens, so what these tests pin is the
@@ -44,5 +44,36 @@ describe('useViewfinder', () => {
     // The default is a no-op rather than a throw: a screen is perfectly usable
     // with a placeholder capture source and no camera in the tree.
     expect(() => render(<Shooter />)).not.toThrow();
+  });
+});
+
+function ScanReader({ onScan }: { onScan: (data: string) => void }) {
+  useBarcodeScan(onScan);
+  return <span>reading</span>;
+}
+
+describe('useBarcodeScan', () => {
+  it('subscribes and asks for the preview while mounted, and releases both on unmount', () => {
+    const unsubscribe = vi.fn();
+    const subscribe = vi.fn(() => unsubscribe);
+    const setActive = vi.fn();
+
+    const view = render(
+      <ViewfinderContext.Provider value={setActive}>
+        <BarcodeScanContext.Provider value={subscribe}>
+          <ScanReader onScan={() => {}} />
+        </BarcodeScanContext.Provider>
+      </ViewfinderContext.Provider>,
+    );
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(setActive).toHaveBeenCalledWith(true);
+
+    view.unmount();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(setActive).toHaveBeenLastCalledWith(false);
+  });
+
+  it('renders with no camera above it, so a scan screen is testable in isolation', () => {
+    expect(() => render(<ScanReader onScan={() => {}} />)).not.toThrow();
   });
 });

@@ -32,6 +32,8 @@ export const de: Record<MessageKey, string> = {
   'join.startTeam': 'Team gründen',
   'join.members': '{count} Mitglieder',
   'join.members_one': '1 Mitglied',
+  'join.scan': 'Code des Gastgebers scannen',
+  'join.scanHint': 'Richte die Kamera auf den QR-Code des Gastgebers.',
   'profile.completeTitle': 'Vervollständige dein Profil',
   'profile.completePrompt': 'Dein Anzeigename ist das, was andere Spieler sehen. Du kannst ihn später ändern.',
   'profile.firstName': 'Vorname',

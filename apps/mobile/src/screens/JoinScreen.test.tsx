@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const joinGame = vi.fn();
@@ -8,6 +8,7 @@ vi.mock('../api.js', () => ({
 }));
 
 const { JoinScreen } = await import('./JoinScreen.js');
+const { BarcodeScanContext, ViewfinderContext } = await import('../viewfinder.js');
 
 afterEach(() => {
   cleanup();
@@ -146,6 +147,49 @@ describe('JoinScreen — team step', () => {
     fireEvent.change(screen.getByPlaceholderText('Team name'), { target: { value: 'Reds' } });
     fireEvent.click(screen.getByRole('button', { name: 'Start a team' }));
     expect(await screen.findByText('This game is full.')).toBeTruthy();
+  });
+});
+
+describe('JoinScreen — scanning', () => {
+  /** Render inside a controllable camera so a scan can be fired into it. */
+  function renderWithCamera() {
+    let fire: ((data: string) => void) | null = null;
+    const subscribe = (handler: (data: string) => void) => {
+      fire = handler;
+      return () => {
+        fire = null;
+      };
+    };
+    render(
+      <ViewfinderContext.Provider value={() => {}}>
+        <BarcodeScanContext.Provider value={subscribe}>
+          <JoinScreen displayName="Ada" onJoined={vi.fn()} />
+        </BarcodeScanContext.Provider>
+      </ViewfinderContext.Provider>,
+    );
+    return { fire: (data: string) => act(() => fire!(data)) };
+  }
+
+  it('resolves a scanned code the same as typing it', async () => {
+    resolveWith([]);
+    const scanner = renderWithCamera();
+    fireEvent.click(screen.getByRole('button', { name: 'Scan the host’s code' }));
+    expect(screen.getByTestId('join-scanner')).toBeTruthy();
+
+    scanner.fire('https://photochase.app/j/ABC234');
+
+    await waitFor(() => expect(spectate).toHaveBeenCalledWith('ABC234'));
+    await screen.findByText('Start your own team, or join one already in the game.');
+  });
+
+  it('ignores a scan that is not a join code, staying on the scanner', () => {
+    const scanner = renderWithCamera();
+    fireEvent.click(screen.getByRole('button', { name: 'Scan the host’s code' }));
+
+    scanner.fire('just some text');
+
+    expect(spectate).not.toHaveBeenCalled();
+    expect(screen.getByTestId('join-scanner')).toBeTruthy();
   });
 });
 

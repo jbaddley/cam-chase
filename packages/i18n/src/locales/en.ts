@@ -31,6 +31,8 @@ export const en = {
   'join.startTeam': 'Start a team',
   'join.members': '{count} members',
   'join.members_one': '1 member',
+  'join.scan': 'Scan the host’s code',
+  'join.scanHint': 'Point at the host’s QR code.',
   'profile.completeTitle': 'Complete your profile',
   'profile.completePrompt': 'Your display name is what other players see. You can change it later.',
   'profile.firstName': 'First name',

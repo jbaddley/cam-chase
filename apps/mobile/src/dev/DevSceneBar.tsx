@@ -1,8 +1,13 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { joinCodeUrl } from '@photochase/shared';
 import { fixturesAvailable } from './fixture-toggle.js';
+import { DevScanContext } from '../viewfinder.js';
 import { color, radius, space, type as typeScale } from '../theme.js';
 import { IN_GAME, SCENES, currentScene, setScene, type FixtureScene } from './fixtures.js';
+
+/** The code a pretend scan carries — the fixture game's, so it resolves under fixtures. */
+const DEV_SCAN_CODE = 'DEV123';
 
 /**
  * A strip for switching the fixture harness on and, once on, jumping between
@@ -38,6 +43,7 @@ export function DevSceneBar({
   onLeaveGame?: () => void;
 } = {}) {
   const [, force] = useState(0);
+  const fireScan = useContext(DevScanContext);
   if (!fixturesAvailable()) return null;
 
   const pick = (s: FixtureScene) => {
@@ -65,6 +71,12 @@ export function DevSceneBar({
               reached at all — the harness drops you straight into a game. */}
           <Pressable onPress={() => onLeaveGame?.()} testID="dev-scene-exit">
             <Text style={[styles.chip, !inGame && styles.chipOn]}>{inGame ? 'leave' : 'out'}</Text>
+          </Pressable>
+          {/* Fires a synthetic QR scan at the join scanner, so join-by-scan is
+              exercisable in the emulator with no code to point at. Inert unless a
+              screen is actually scanning. */}
+          <Pressable onPress={() => fireScan(joinCodeUrl(DEV_SCAN_CODE))} testID="dev-scan">
+            <Text style={styles.chip}>scan</Text>
           </Pressable>
           {SCENES.map((s) => (
             <Pressable key={s} onPress={() => pick(s)} testID={`dev-scene-${s}`}>
