@@ -40,6 +40,7 @@ const CONFIG: GameConfig = {
   photosPerRound: 6,
   judgeWeight: 3,
   specialCategories: { presets: ['silliest_pose'], custom: [] },
+  geofencing: true,
   returnSpot: { lat: 40.0, lng: -74.0, radiusM: 200 },
 };
 

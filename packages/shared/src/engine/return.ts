@@ -89,13 +89,18 @@ export function returnRoundOf(state: GameState): ReturnRound | null {
 /**
  * The fence a check-in is judged against, or null when the game has none.
  *
- * A host-configured `returnSpot` wins outright, radius included — they chose
- * that number and it is not ours to widen. Failing that, the point captured at
- * Start with the default radius. Failing both, null: check-ins are accepted
- * anywhere and only their timing counts, which is exactly how every game
- * behaved before a start point could be recorded at all.
+ * Geofencing is a paid feature (docs/01): a free game still captures a start
+ * point and runs the whole return loop — teams check in, the roster shows who is
+ * back — but the check-in is accepted anywhere and no time bonus is scored. Only
+ * `config.geofencing` turns the point into a fence, so this returns null first
+ * when it is off, whatever start point the game happens to hold.
+ *
+ * With it on: a host-configured `returnSpot` wins outright, radius included —
+ * they chose that number and it is not ours to widen. Failing that, the point
+ * captured at Start with the default radius. Failing both, still null.
  */
 export function resolveReturnFence(game: Game): Geofence | null {
+  if (!game.config.geofencing) return null;
   const configured = game.config.returnSpot;
   if (configured) {
     return { center: { lat: configured.lat, lng: configured.lng }, radiusM: configured.radiusM };

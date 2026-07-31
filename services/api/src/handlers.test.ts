@@ -444,9 +444,13 @@ describe('fouls', () => {
 describe('return check-in', () => {
   const SPOT = { lat: 40.0, lng: -74.0, radiusM: 100 };
 
-  /** Play into round1_return, optionally with a return geofence configured. */
-  async function gameReturning(returnSpot?: typeof SPOT) {
-    const config = { ...DEFAULT_CONFIG, maxTeams: 2, photosPerRound: 5, ...(returnSpot ? { returnSpot } : {}) };
+  /**
+   * Play into round1_return, geofenced by default (the paid flag that makes the
+   * fence real), optionally with a return geofence configured. Pass
+   * `geofencing: false` for a free game, where the fence is never enforced.
+   */
+  async function gameReturning(returnSpot?: typeof SPOT, geofencing = true) {
+    const config = { ...DEFAULT_CONFIG, maxTeams: 2, photosPerRound: 5, geofencing, ...(returnSpot ? { returnSpot } : {}) };
     const { gameId, code } = await unwrap(createGame(repo, { hostUserId: 'host', tier: 'game_pack', config }));
     const a = await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
     const b = await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));
@@ -488,6 +492,40 @@ describe('return check-in', () => {
   it('accepts a check-in anywhere when no return spot is configured', async () => {
     const { gameId } = await gameReturning();
     expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: 12, lng: 34 } })).ok).toBe(true);
+  });
+
+  it('does not fence a free game, even with a return spot set', async () => {
+    // Geofencing is paid: a free game may carry a return spot but never fences
+    // against it, so a check-in from far away is still accepted.
+    const { gameId } = await gameReturning(SPOT, false);
+    expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: 41.5, lng: -75.5 } })).ok).toBe(true);
+  });
+
+  it('scores a return-time bonus only when geofencing is on', async () => {
+    // Two finished games differing only in the paid flag: the geofenced one
+    // earns a timing bonus (A returned before B), the free one earns none.
+    const finished = (id: string, geofencing: boolean): Game => ({
+      id, hostUserId: 'host', code: 'ZZZ999', tier: 'unlimited',
+      config: { ...DEFAULT_CONFIG, geofencing },
+      state: 'results',
+      teams: [
+        { id: 'A', gameId: id, name: 'A', createdAt: 0 },
+        { id: 'B', gameId: id, name: 'B', createdAt: 0 },
+      ],
+      memberships: [
+        { id: 'mA', gameId: id, userId: 'uA', teamId: 'A', role: 'captain', returnCheckins: { round1: 5_000 } },
+        { id: 'mB', gameId: id, userId: 'uB', teamId: 'B', role: 'captain', returnCheckins: { round1: 9_000 } },
+      ],
+      photos: [], assignments: [], votes: [], createdAt: 0,
+      roundStartedAt: { round1: 1_000 },
+    });
+    await repo.save(finished('geo-on', true));
+    await repo.save(finished('geo-off', false));
+
+    const paid = (await unwrap(getResults(repo, 'geo-on'))).scoreboard;
+    const free = (await unwrap(getResults(repo, 'geo-off'))).scoreboard;
+    expect(paid.find((s) => s.teamId === 'A')!.timeBonus).toBeGreaterThan(0);
+    expect(free.every((s) => s.timeBonus === 0)).toBe(true);
   });
 
   it('rejects check-ins from judges and from non-members', async () => {
@@ -647,7 +685,7 @@ describe('return check-in', () => {
 
   it('records the host’s location at start and fences check-ins against it', async () => {
     const { gameId, code } = await unwrap(
-      createGame(repo, { hostUserId: 'host', tier: 'game_pack', config: { ...DEFAULT_CONFIG, maxTeams: 2, photosPerRound: 5 } }),
+      createGame(repo, { hostUserId: 'host', tier: 'game_pack', config: { ...DEFAULT_CONFIG, maxTeams: 2, photosPerRound: 5, geofencing: true } }),
     );
     await unwrap(joinByCode(repo, { code, userId: 'uA', displayName: 'A', action: { type: 'create_team', name: 'A' } }));
     await unwrap(joinByCode(repo, { code, userId: 'uB', displayName: 'B', action: { type: 'create_team', name: 'B' } }));

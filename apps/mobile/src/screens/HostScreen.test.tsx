@@ -379,6 +379,36 @@ describe('HostScreen', () => {
     });
   });
 
+  describe('geofencing', () => {
+    it('lets a paid host turn it on and sends it in the config', async () => {
+      getEntitlement.mockResolvedValue(entitlement({ allowGeofencing: true }, 'game_pack'));
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/game_pack/);
+      nameTeam();
+      fireEvent.click(option('Geofencing', 'On'));
+      fireEvent.click(action('Create game'));
+
+      await waitFor(() => expect(createGame).toHaveBeenCalled());
+      expect(createGame.mock.calls[0]![0]).toMatchObject({ geofencing: true });
+    });
+
+    it('greys out On for a plan without it, so it cannot be enabled', async () => {
+      getEntitlement.mockResolvedValue(entitlement({}, 'free')); // allowGeofencing: false
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/free/);
+      nameTeam();
+      fireEvent.click(option('Geofencing', 'On')); // disabled — a no-op
+      fireEvent.click(action('Create game'));
+
+      await waitFor(() => expect(createGame).toHaveBeenCalled());
+      expect(createGame.mock.calls[0]![0]).toMatchObject({ geofencing: false });
+    });
+  });
+
   it('keeps Create game clear of the keyboard, below the scrolling settings', async () => {
     // The team-name field puts a keyboard up, and every option plus the create
     // button sat behind it.

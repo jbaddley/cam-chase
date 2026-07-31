@@ -1719,7 +1719,9 @@ export async function getResults(
         fouls: huntFouls,
         bestMatchTeamId: finals.bestMatchTeamId,
         specialWinners: finals.specialWinners,
-        returnDurations: returnDurations(game),
+        // Return-time bonuses are the paid half of geofencing (docs/01): a free
+        // game still runs the return loop but scores no timing bonus.
+        returnDurations: game.config.geofencing ? returnDurations(game) : undefined,
       }),
     });
   }
@@ -1755,7 +1757,9 @@ export async function getResults(
     fouls,
     bestMatchTeamId: finals.bestMatchTeamId,
     specialWinners: finals.specialWinners,
-    returnDurations: returnDurations(game),
+    // Return-time bonuses are the paid half of geofencing (docs/01): a free game
+    // still runs the return loop but scores no timing bonus.
+    returnDurations: game.config.geofencing ? returnDurations(game) : undefined,
   });
   return ok({ scoreboard });
 }

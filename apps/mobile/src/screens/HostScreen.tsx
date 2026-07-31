@@ -23,6 +23,7 @@ const TEAM_CHOICES = [2, 3, 4, 5, 6];
 const PHOTO_CHOICES = [5, 8, 10, 15, 20];
 const MINUTE_CHOICES = [5, 10, 15, 20];
 const JUDGE_WEIGHT_CHOICES = [1, 2, 3, 4, 5];
+const GEOFENCE_CHOICES = ['off', 'on'] as const;
 const GAME_TYPES: GameType[] = ['round_robin', 'random', 'relay', 'decoy'];
 const MODES: GameMode[] = ['photo_chase', 'scavenger_hunt', 'color_hunt', 'photo_tag'];
 
@@ -119,6 +120,7 @@ export function HostScreen({
     rounds: () => !limits || limits.configurableRounds,
     gameType: (type: GameType) => !limits || limits.allowedGameTypes.includes(type),
     judgeWeight: (n: number) => !limits || n <= limits.maxJudgeWeight,
+    geofencing: () => !limits || limits.allowGeofencing,
   };
 
   const playing = hostRole === 'create_team';
@@ -308,6 +310,18 @@ export function HostScreen({
           onPick={(judgeWeight) => setConfig((c) => ({ ...c, judgeWeight }))}
           format={(n) => `${n}x`}
         />
+        {/* Paid: fences return check-ins to the meeting spot and scores the
+            return-time bonus. `On` is greyed for a plan that can't use it, like
+            the other paid options; the server re-checks it regardless. */}
+        <Choices
+          label={t('config.geofencing')}
+          options={GEOFENCE_CHOICES}
+          value={config.geofencing ? 'on' : 'off'}
+          allowed={(v) => v === 'off' || allows.geofencing()}
+          onPick={(v) => setConfig((c) => ({ ...c, geofencing: v === 'on' }))}
+          format={(v) => (v === 'on' ? t('config.on') : t('config.off'))}
+        />
+        {config.geofencing ? <Body muted>{t('config.geofencingHint')}</Body> : null}
         {limits && !limits.configurableRounds ? <Body muted>{t('config.locked')}</Body> : null}
     </FormScreen>
   );

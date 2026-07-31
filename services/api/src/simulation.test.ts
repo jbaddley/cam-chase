@@ -41,6 +41,7 @@ const CONFIG: GameConfig = {
   photosPerRound: 5,
   judgeWeight: 3,
   specialCategories: { presets: [], custom: ['Craziest Pose'] },
+  geofencing: true,
   returnSpot: { lat: 40.0, lng: -74.0, radiusM: 200 },
 };
 

@@ -85,7 +85,9 @@ function gameState() {
       gameType: 'round_robin',
       judgeWeight: 1,
       specialCategories: { presets: [], custom: [] },
-      geofencing: false,
+      // On, so the regroup scenes are representative: the fence is what makes
+      // `fenced: true` and the far-away rejection below meaningful.
+      geofencing: true,
       aiJudging: false,
     },
     teams: [

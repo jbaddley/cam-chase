@@ -115,7 +115,11 @@ describe('lambda route (authenticated)', () => {
   });
 
   it('records the host’s start location through the route', async () => {
-    const { gameId, code } = (await call(container, 'POST', '/games', { config: FREE_CONFIG }, 'host')).data;
+    // Geofencing is paid, so the host needs a paying tier and the flag on — a
+    // free game records the point but never fences against it.
+    await container.entitlements.save({ userId: 'host', tier: 'game_pack', gameCredits: 5, subscriptionActive: false });
+    const config = { ...FREE_CONFIG, geofencing: true };
+    const { gameId, code } = (await call(container, 'POST', '/games', { config }, 'host')).data;
     await call(container, 'POST', '/games/join', { code, displayName: 'A', action: { type: 'create_team', name: 'A' } }, 'uA');
     await call(container, 'POST', '/games/join', { code, displayName: 'B', action: { type: 'create_team', name: 'B' } }, 'uB');
     // The route forwarded no body at all before this, so the location had nowhere

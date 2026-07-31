@@ -47,6 +47,12 @@ function game(overrides: Partial<Game> = {}): Game {
   };
 }
 
+/** A geofenced game: the paid flag that turns a start point into a real fence. */
+function fenced(overrides: Partial<Game> = {}): Game {
+  const base = game(overrides);
+  return { ...base, config: { ...base.config, geofencing: true } };
+}
+
 describe('returnRoundOf', () => {
   // The active phases count, not only the *_return ones. A team that has taken
   // its photos is done whether or not the host has called everyone in — that is
@@ -67,7 +73,7 @@ describe('returnRoundOf', () => {
 
 describe('resolveReturnFence', () => {
   it('prefers the host-configured spot, radius and all', () => {
-    const g = game({
+    const g = fenced({
       config: { ...DEFAULT_CONFIG, returnSpot: { lat: 1, lng: 2, radiusM: 300 } },
       startSpot: { ...START, at: 0 },
     });
@@ -77,12 +83,21 @@ describe('resolveReturnFence', () => {
   });
 
   it('falls back to the point captured at Start, with the default radius', () => {
-    const g = game({ startSpot: { ...START, at: 0 } });
+    const g = fenced({ startSpot: { ...START, at: 0 } });
     expect(resolveReturnFence(g)).toEqual({ center: START, radiusM: DEFAULT_RETURN_RADIUS_M });
   });
 
   it('has no fence when the host declined location', () => {
     expect(resolveReturnFence(game())).toBeNull();
+  });
+
+  it('has no fence when geofencing is off, even with a start point', () => {
+    // Geofencing is the paid feature: a free game captures the point but never
+    // fences against it — the return loop still runs, only enforcement is off.
+    const g = game({ startSpot: { ...START, at: 0 } }); // geofencing defaults off
+    expect(resolveReturnFence(g)).toBeNull();
+    expect(isBackAtStart(g, { lat: -33, lng: 151 })).toBe(true); // accepted anywhere
+    expect(metresToStart(g, { lat: 40.01, lng: -74 })).toBeNull();
   });
 });
 
@@ -93,7 +108,7 @@ describe('isBackAtStart', () => {
   });
 
   it('accepts inside the fence and refuses well outside it', () => {
-    const g = game({ startSpot: { ...START, at: 0 } });
+    const g = fenced({ startSpot: { ...START, at: 0 } });
     expect(isBackAtStart(g, START)).toBe(true);
     expect(isBackAtStart(g, { lat: 40.01, lng: -74 })).toBe(false); // ~1.1 km
   });
@@ -101,21 +116,21 @@ describe('isBackAtStart', () => {
   // A fix that says "within 60 m" should not be judged as though it were exact:
   // rejecting a team that is genuinely standing there strands them mid-game.
   it('widens the fence by the accuracy the device reported', () => {
-    const g = game({ startSpot: { ...START, at: 0 } });
+    const g = fenced({ startSpot: { ...START, at: 0 } });
     const justOutside = { lat: 40.0009, lng: -74 }; // ~100 m, beyond the 75 m fence
     expect(isBackAtStart(g, justOutside)).toBe(false);
     expect(isBackAtStart(g, { ...justOutside, accuracyM: 60 })).toBe(true);
   });
 
   it('caps the slack so a hopeless fix cannot check in from anywhere', () => {
-    const g = game({ startSpot: { ...START, at: 0 } });
+    const g = fenced({ startSpot: { ...START, at: 0 } });
     const farAway = { lat: 40.01, lng: -74, accuracyM: 50_000 };
     expect(MAX_ACCURACY_SLACK_M).toBeLessThan(1_000);
     expect(isBackAtStart(g, farAway)).toBe(false);
   });
 
   it('also forgives uncertainty in the host’s own fix', () => {
-    const g = game({ startSpot: { ...START, accuracyM: 80, at: 0 } });
+    const g = fenced({ startSpot: { ...START, accuracyM: 80, at: 0 } });
     expect(isBackAtStart(g, { lat: 40.0011, lng: -74 })).toBe(true); // ~122 m
   });
 });
@@ -123,11 +138,11 @@ describe('isBackAtStart', () => {
 describe('metresToStart', () => {
   it('is null without a fence and zero inside one', () => {
     expect(metresToStart(game(), START)).toBeNull();
-    expect(metresToStart(game({ startSpot: { ...START, at: 0 } }), START)).toBe(0);
+    expect(metresToStart(fenced({ startSpot: { ...START, at: 0 } }), START)).toBe(0);
   });
 
   it('rounds to 25 m, being wayfinding rather than a coordinate', () => {
-    const g = game({ startSpot: { ...START, at: 0 } });
+    const g = fenced({ startSpot: { ...START, at: 0 } });
     const away = metresToStart(g, { lat: 40.004, lng: -74 })!; // ~444 m out
     expect(away % 25).toBe(0);
     expect(away).toBeGreaterThan(300);
