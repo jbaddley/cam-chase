@@ -23,13 +23,18 @@ applications:
             - nvm install 20
             - corepack enable
             - corepack prepare pnpm@10.33.0 --activate
-            # --node-linker=hoisted gives a flat, npm-style node_modules for this
-            # CI install only (local dev keeps pnpm's default symlinked layout).
-            # Amplify's Next.js SSR runtime collects real `node_modules` folders,
-            # and cannot follow pnpm's symlinks into the .pnpm store — without this
-            # the deploy step fails with "node_modules is missing the 'next'
-            # dependency" even though the build compiled fine.
-            - pnpm install --frozen-lockfile --node-linker=hoisted
+            # Two things, both CI-only (local dev keeps pnpm's default layout):
+            #   --node-linker=hoisted → a flat, npm-style node_modules, because
+            #     Amplify's Next.js SSR runtime collects real node_modules folders
+            #     and cannot follow pnpm's symlinks into the .pnpm store (else the
+            #     deploy fails with "node_modules is missing the 'next' dependency").
+            #   --filter @photochase/web... → install only the web app's subgraph
+            #     (React 18 + the pure-TS workspace packages), NOT the mobile app,
+            #     which is on React 19. Hoisting the whole workspace otherwise pulls
+            #     React 19 to the top and Next/styled-jsx nest mismatched copies,
+            #     crashing prerender with "Cannot read properties of null
+            #     (reading 'useContext')".
+            - pnpm install --frozen-lockfile --node-linker=hoisted --filter "@photochase/web..."
         build:
           commands:
             - pnpm run build
