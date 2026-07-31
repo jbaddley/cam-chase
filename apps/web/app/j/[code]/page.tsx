@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import type { SpectatorView } from '@photochase/client';
 import type { MessageKey } from '@photochase/i18n';
 import { client } from '../../api.js';
@@ -33,8 +33,8 @@ const PHASE_KEY = {
  * app's deep-link handling, which does not exist yet — so nothing here promises
  * it.
  */
-export default function JoinLinkPage({ params }: { params: { code: string } }) {
-  const code = params.code.toUpperCase();
+export default function JoinLinkPage({ params }: { params: Promise<{ code: string }> }) {
+  const code = use(params).code.toUpperCase();
   const [status, setStatus] = useState<'loading' | 'found' | 'notfound'>('loading');
   const [view, setView] = useState<SpectatorView | null>(null);
   const t = useT();

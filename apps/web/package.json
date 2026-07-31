@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "lint": "eslint app e2e playwright.config.ts"
@@ -13,15 +13,15 @@
     "@photochase/client": "workspace:*",
     "@photochase/i18n": "workspace:*",
     "@photochase/shared": "workspace:*",
-    "next": "^14.2.15",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "next": "^16.2.12",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
     "@types/node": "^22.10.0",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "typescript": "^5.7.2"
   }
 }

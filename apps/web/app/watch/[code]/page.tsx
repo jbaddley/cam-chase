@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import type { SpectatorView } from '@photochase/client';
 import type { MessageKey } from '@photochase/i18n';
 import { client } from '../../api.js';
@@ -29,8 +29,8 @@ const PHASE_KEY = {
  * Live big-screen view for a game code. Polls the public spectator endpoint, so
  * it needs no sign-in and can be cast to any TV browser.
  */
-export default function BigScreenPage({ params }: { params: { code: string } }) {
-  const code = params.code.toUpperCase();
+export default function BigScreenPage({ params }: { params: Promise<{ code: string }> }) {
+  const code = use(params).code.toUpperCase();
   const [view, setView] = useState<SpectatorView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const t = useT();
