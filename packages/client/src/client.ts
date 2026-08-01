@@ -472,8 +472,15 @@ export class PhotoChaseClient {
     return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/share-cards`, input);
   }
 
-  /** Check the caller's team in at the return spot during a return phase. */
-  checkIn(gameId: string, input: { location: GeoPointInput }): Promise<{ round: string; at: number }> {
+  /**
+   * Check the caller's team in at the return spot during a return phase. `auto`
+   * marks a background attempt (the app polls location while a team walks back),
+   * which the server treats as bonus-safe — it never overwrites an earlier time.
+   */
+  checkIn(
+    gameId: string,
+    input: { location: GeoPointInput; auto?: boolean },
+  ): Promise<{ round: string; at: number }> {
     return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/checkins`, input);
   }
 

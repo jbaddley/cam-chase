@@ -112,6 +112,7 @@ export const en = {
   'config.judgeWeight': 'Judge vote weight',
   'config.geofencing': 'Geofencing',
   'config.geofencingHint': 'Fences check-ins to the meeting spot and scores a return-time bonus.',
+  'config.returnRadius': 'Return fence radius',
   'config.on': 'On',
   'config.off': 'Off',
   'config.locked': 'Locked on your plan',

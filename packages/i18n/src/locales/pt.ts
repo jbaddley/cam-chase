@@ -114,6 +114,7 @@ export const pt: Record<MessageKey, string> = {
   'config.judgeWeight': 'Peso do voto do juiz',
   'config.geofencing': 'Geocerca',
   'config.geofencingHint': 'Limita os check-ins ao ponto de encontro e concede um bônus por tempo de retorno.',
+  'config.returnRadius': 'Raio da geocerca de retorno',
   'config.on': 'Ativado',
   'config.off': 'Desativado',
   'config.locked': 'Bloqueado no seu plano',

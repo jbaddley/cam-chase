@@ -4,6 +4,7 @@ import { Body, Button, Chip, ChoiceRow, ErrorText, Field, Pill, Title } from '..
 import { ApiError, type EntitlementView, type HostParticipation } from '@photochase/client';
 import {
   COLOR_SPECIFICITIES,
+  DEFAULT_RETURN_RADIUS_M,
   FREE_CONFIG,
   HUNT_THEMES,
   TAG_SUB_MODES,
@@ -24,6 +25,8 @@ const PHOTO_CHOICES = [5, 8, 10, 15, 20];
 const MINUTE_CHOICES = [5, 10, 15, 20];
 const JUDGE_WEIGHT_CHOICES = [1, 2, 3, 4, 5];
 const GEOFENCE_CHOICES = ['off', 'on'] as const;
+/** Return-fence radii in metres — tight venue to wide park. */
+const RADIUS_CHOICES = [50, 75, 150, 300];
 const GAME_TYPES: GameType[] = ['round_robin', 'random', 'relay', 'decoy'];
 const MODES: GameMode[] = ['photo_chase', 'scavenger_hunt', 'color_hunt', 'photo_tag'];
 
@@ -321,7 +324,20 @@ export function HostScreen({
           onPick={(v) => setConfig((c) => ({ ...c, geofencing: v === 'on' }))}
           format={(v) => (v === 'on' ? t('config.on') : t('config.off'))}
         />
-        {config.geofencing ? <Body muted>{t('config.geofencingHint')}</Body> : null}
+        {config.geofencing ? (
+          <>
+            <Body muted>{t('config.geofencingHint')}</Body>
+            {/* How tight the fence is around the meeting spot. */}
+            <Choices
+              label={t('config.returnRadius')}
+              options={RADIUS_CHOICES}
+              value={config.returnRadiusM ?? DEFAULT_RETURN_RADIUS_M}
+              allowed={() => true}
+              onPick={(returnRadiusM) => setConfig((c) => ({ ...c, returnRadiusM }))}
+              format={(n) => `${n} m`}
+            />
+          </>
+        ) : null}
         {limits && !limits.configurableRounds ? <Body muted>{t('config.locked')}</Body> : null}
     </FormScreen>
   );

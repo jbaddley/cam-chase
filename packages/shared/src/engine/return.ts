@@ -106,7 +106,9 @@ export function resolveReturnFence(game: Game): Geofence | null {
     return { center: { lat: configured.lat, lng: configured.lng }, radiusM: configured.radiusM };
   }
   const spot = game.startSpot;
-  if (spot) return { center: { lat: spot.lat, lng: spot.lng }, radiusM: DEFAULT_RETURN_RADIUS_M };
+  if (spot) {
+    return { center: { lat: spot.lat, lng: spot.lng }, radiusM: game.config.returnRadiusM ?? DEFAULT_RETURN_RADIUS_M };
+  }
   return null;
 }
 

@@ -394,6 +394,23 @@ describe('HostScreen', () => {
       expect(createGame.mock.calls[0]![0]).toMatchObject({ geofencing: true });
     });
 
+    it('reveals the fence radius only once geofencing is on, and sends it', async () => {
+      getEntitlement.mockResolvedValue(entitlement({ allowGeofencing: true }, 'game_pack'));
+      createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });
+      render(<HostScreen onHosting={vi.fn()} onCancel={vi.fn()} />);
+
+      await screen.findByText(/game_pack/);
+      nameTeam();
+      // Hidden until geofencing is enabled.
+      expect(screen.queryByText('Return fence radius')).toBeNull();
+      fireEvent.click(option('Geofencing', 'On'));
+      fireEvent.click(option('Return fence radius', '150 m'));
+      fireEvent.click(action('Create game'));
+
+      await waitFor(() => expect(createGame).toHaveBeenCalled());
+      expect(createGame.mock.calls[0]![0]).toMatchObject({ geofencing: true, returnRadiusM: 150 });
+    });
+
     it('greys out On for a plan without it, so it cannot be enabled', async () => {
       getEntitlement.mockResolvedValue(entitlement({}, 'free')); // allowGeofencing: false
       createGame.mockResolvedValue({ gameId: 'g1', code: 'ABC123', teamId: 't1' });

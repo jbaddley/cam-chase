@@ -40,6 +40,12 @@ export const GameConfigSchema = z
     returnSpot: z
       .object({ lat: z.number(), lng: z.number(), radiusM: z.number().positive().max(5000) })
       .optional(),
+    /**
+     * How tight the return fence is around the point captured at Start. Optional:
+     * without it the default radius is used. A fully host-chosen `returnSpot`
+     * carries its own radius and ignores this.
+     */
+    returnRadiusM: z.number().int().positive().max(5000).optional(),
     aiJudging: z.boolean(),
   })
   .strict();

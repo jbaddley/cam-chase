@@ -87,6 +87,11 @@ describe('resolveReturnFence', () => {
     expect(resolveReturnFence(g)).toEqual({ center: START, radiusM: DEFAULT_RETURN_RADIUS_M });
   });
 
+  it('uses the host-chosen radius around the Start point when set', () => {
+    const g = fenced({ config: { ...DEFAULT_CONFIG, returnRadiusM: 150 }, startSpot: { ...START, at: 0 } });
+    expect(resolveReturnFence(g)).toEqual({ center: START, radiusM: 150 });
+  });
+
   it('has no fence when the host declined location', () => {
     expect(resolveReturnFence(game())).toBeNull();
   });

@@ -113,6 +113,7 @@ export const fr: Record<MessageKey, string> = {
   'config.judgeWeight': 'Poids du vote des juges',
   'config.geofencing': 'Géorepérage',
   'config.geofencingHint': 'Limite les arrivées au point de rendez-vous et accorde un bonus de temps de retour.',
+  'config.returnRadius': 'Rayon de la zone de retour',
   'config.on': 'Activé',
   'config.off': 'Désactivé',
   'config.locked': 'Indisponible avec votre offre',

@@ -113,6 +113,7 @@ export const es: Record<MessageKey, string> = {
   'config.judgeWeight': 'Peso del voto del juez',
   'config.geofencing': 'Geovalla',
   'config.geofencingHint': 'Limita los registros al punto de encuentro y otorga un bono por tiempo de regreso.',
+  'config.returnRadius': 'Radio de la geovalla',
   'config.on': 'Activado',
   'config.off': 'Desactivado',
   'config.locked': 'No disponible en tu plan',

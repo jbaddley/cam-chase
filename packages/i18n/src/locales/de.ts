@@ -113,6 +113,7 @@ export const de: Record<MessageKey, string> = {
   'config.judgeWeight': 'Gewicht der Jury-Stimme',
   'config.geofencing': 'Geofencing',
   'config.geofencingHint': 'Begrenzt Check-ins auf den Treffpunkt und vergibt einen Bonus für die Rückkehrzeit.',
+  'config.returnRadius': 'Radius des Rückkehr-Geofence',
   'config.on': 'An',
   'config.off': 'Aus',
   'config.locked': 'In deinem Tarif gesperrt',

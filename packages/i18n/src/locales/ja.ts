@@ -114,6 +114,7 @@ export const ja: Record<MessageKey, string> = {
   'config.judgeWeight': '審査員票の重み',
   'config.geofencing': 'ジオフェンス',
   'config.geofencingHint': 'チェックインを集合場所に限定し、帰還タイムのボーナスを付与します。',
+  'config.returnRadius': '帰還フェンスの半径',
   'config.on': 'オン',
   'config.off': 'オフ',
   'config.locked': 'このプランでは利用できません',
