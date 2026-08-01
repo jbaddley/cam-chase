@@ -58,7 +58,7 @@ describe('PhotoChaseClient', () => {
   });
 
   it('saveProfile PUTs /me/profile with the profile body', async () => {
-    const profile = { firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess' };
+    const profile = { firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess', units: 'imperial' as const };
     const { config, calls } = recorder(profile);
     const result = await new PhotoChaseClient(config).saveProfile(profile);
 

@@ -8,6 +8,7 @@ import {
   FREE_CONFIG,
   HUNT_THEMES,
   TAG_SUB_MODES,
+  formatDistance,
   type GameConfig,
   type GameMode,
   type GameType,
@@ -16,6 +17,7 @@ import {
   type TagSubMode,
 } from '@photochase/shared';
 import { client } from '../api.js';
+import { currentUnits } from '../profile.js';
 import { t } from '../i18n.js';
 import type { MessageKey } from '@photochase/i18n';
 import type { JoinedGame } from './JoinScreen.js';
@@ -334,7 +336,7 @@ export function HostScreen({
               value={config.returnRadiusM ?? DEFAULT_RETURN_RADIUS_M}
               allowed={() => true}
               onPick={(returnRadiusM) => setConfig((c) => ({ ...c, returnRadiusM }))}
-              format={(n) => `${n} m`}
+              format={(n) => formatDistance(n, currentUnits())}
             />
           </>
         ) : null}

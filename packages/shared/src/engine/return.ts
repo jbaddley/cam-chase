@@ -43,11 +43,32 @@ export const MAX_ACCURACY_SLACK_M = 100;
  */
 export const IMPLAUSIBLE_RETURN_DISTANCE_M = 5_000;
 
+/** Which distance units to read back to a player. */
+export type DistanceUnits = 'metric' | 'imperial';
+
 /**
- * A distance a person can read. Metres up to a kilometre, then kilometres to one
- * decimal — `941950 m to go` is technically true and completely useless.
+ * The units a region reads distances in, from a BCP 47 locale's region subtag.
+ * The three imperial holdouts are the US, Liberia and Myanmar; everywhere else
+ * is metric. A locale with no region (just `en`) falls back to metric.
  */
-export function formatDistance(metres: number): string {
+export function unitsForLocale(locale: string | undefined): DistanceUnits {
+  const region = (locale ?? '').split(/[-_]/)[1]?.toUpperCase();
+  return region === 'US' || region === 'LR' || region === 'MM' ? 'imperial' : 'metric';
+}
+
+/**
+ * A distance a person can read, in their units. Metres up to a kilometre then
+ * kilometres to one decimal; imperial reads feet up to a tenth of a mile then
+ * miles — `941950 m to go` is technically true and completely useless.
+ *
+ * Defaults to metric so a caller with no preference to hand behaves as before.
+ */
+export function formatDistance(metres: number, units: DistanceUnits = 'metric'): string {
+  if (units === 'imperial') {
+    if (metres < 160) return `${Math.round((metres * 3.28084) / 10) * 10} ft`;
+    const miles = metres / 1_609.344;
+    return `${miles < 10 ? miles.toFixed(1) : Math.round(miles)} mi`;
+  }
   if (metres < 1_000) return `${metres} m`;
   const km = metres / 1_000;
   return `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;

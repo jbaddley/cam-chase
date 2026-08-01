@@ -12,6 +12,9 @@ const ProfileInput = z.object({
   firstName: NAME,
   lastName: NAME,
   displayName: NAME,
+  // Optional so an older client that never sends it keeps working; metric is the
+  // safe default (the majority of the world, and what the app did before units).
+  units: z.enum(['metric', 'imperial']).default('metric'),
 });
 
 /**
@@ -24,7 +27,10 @@ export async function getMyProfile(
   userId: string,
 ): Promise<Result<UserProfile | null>> {
   if (!userId) return err('Not signed in.');
-  return ok(await repo.get(userId));
+  const profile = await repo.get(userId);
+  // A profile stored before units existed reads back as metric rather than
+  // as a broken record with no units at all.
+  return ok(profile ? { ...profile, units: profile.units ?? 'metric' } : null);
 }
 
 /**

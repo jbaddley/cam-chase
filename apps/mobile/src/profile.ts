@@ -1,5 +1,6 @@
 import { client } from './api.js';
 import type { ProfileView } from '@photochase/client';
+import { unitsForLocale, type DistanceUnits } from '@photochase/shared';
 
 /**
  * The signed-in player's profile, held in memory for the session.
@@ -33,4 +34,25 @@ export function setCurrentProfile(profile: ProfileView): void {
 /** Forget the cached profile (sign-out, or a test resetting state). */
 export function clearProfile(): void {
   current = null;
+}
+
+/**
+ * The distance units to read back to this player — their saved preference, or
+ * metric until a profile has loaded. Screens that show a distance use this.
+ */
+export function currentUnits(): DistanceUnits {
+  return current?.units ?? 'metric';
+}
+
+/**
+ * The units this device's region reads in, used as the default the first time a
+ * profile is completed. `Intl` gives a region-bearing locale on device and web;
+ * anything unreadable falls back to metric.
+ */
+export function deviceUnits(): DistanceUnits {
+  try {
+    return unitsForLocale(Intl.DateTimeFormat().resolvedOptions().locale);
+  } catch {
+    return 'metric';
+  }
 }

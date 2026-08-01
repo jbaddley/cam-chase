@@ -59,7 +59,7 @@ export function HomeScreen({
         ) : null}
         {onProfile ? (
           <Button onPress={onProfile} tone="secondary">
-            {t('profile.title')}
+            {t('settings.title')}
           </Button>
         ) : null}
       </ScrollView>

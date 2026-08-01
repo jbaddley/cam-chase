@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const saveProfile = vi.fn();
 const setCurrentProfile = vi.fn();
 vi.mock('../api.js', () => ({ client: { saveProfile: (input: unknown) => saveProfile(input) } }));
-vi.mock('../profile.js', () => ({ setCurrentProfile: (p: unknown) => setCurrentProfile(p) }));
+vi.mock('../profile.js', () => ({
+  setCurrentProfile: (p: unknown) => setCurrentProfile(p),
+  deviceUnits: () => 'metric',
+}));
 
 const { CompleteProfileScreen } = await import('./CompleteProfileScreen.js');
 
@@ -45,7 +48,8 @@ describe('CompleteProfileScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(saveProfile).toHaveBeenCalled());
-    expect(saveProfile.mock.calls[0]![0]).toEqual(saved);
+    // Units are seeded from the device (mocked to metric here).
+    expect(saveProfile.mock.calls[0]![0]).toEqual({ ...saved, units: 'metric' });
     expect(setCurrentProfile).toHaveBeenCalledWith(saved);
     expect(onDone).toHaveBeenCalledWith(saved);
   });

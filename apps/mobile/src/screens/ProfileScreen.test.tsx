@@ -17,7 +17,7 @@ afterEach(() => {
   [saveProfile, setCurrentProfile, currentProfile].forEach((m) => m.mockReset());
 });
 
-const PROFILE = { firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess' };
+const PROFILE = { firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess', units: 'metric' as const };
 
 describe('ProfileScreen', () => {
   it('shows the account name and the current display name', () => {
@@ -39,9 +39,21 @@ describe('ProfileScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(saveProfile).toHaveBeenCalled());
-    expect(saveProfile.mock.calls[0]![0]).toEqual({ firstName: 'Ada', lastName: 'Lovelace', displayName: 'Ada L.' });
+    expect(saveProfile.mock.calls[0]![0]).toEqual({ firstName: 'Ada', lastName: 'Lovelace', displayName: 'Ada L.', units: 'metric' });
     expect(setCurrentProfile).toHaveBeenCalledWith(next);
     expect(onBack).toHaveBeenCalled();
+  });
+
+  it('changes the distance units and saves them', async () => {
+    currentProfile.mockReturnValue(PROFILE); // metric
+    saveProfile.mockResolvedValue({ ...PROFILE, units: 'imperial' });
+    render(<ProfileScreen onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Imperial (ft, mi)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(saveProfile).toHaveBeenCalled());
+    expect(saveProfile.mock.calls[0]![0]).toMatchObject({ units: 'imperial' });
   });
 
   it('blocks an empty display name and flags the field', () => {

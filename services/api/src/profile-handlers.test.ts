@@ -8,17 +8,24 @@ function unwrap<T>(result: { ok: true; data: T } | { ok: false; error: string })
 }
 
 describe('saveMyProfile', () => {
-  it('stores the caller’s profile against the token’s user id', async () => {
+  it('stores the caller’s profile against the token’s user id, defaulting units', async () => {
     const repo = new InMemoryProfileRepository();
     const saved = unwrap(await saveMyProfile(repo, 'user-1', { firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess' }));
-    expect(saved).toEqual({ userId: 'user-1', firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess' });
+    // Units default to metric when the client sends none.
+    expect(saved).toEqual({ userId: 'user-1', firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess', units: 'metric' });
     expect(await repo.get('user-1')).toEqual(saved);
+  });
+
+  it('stores the chosen units', async () => {
+    const repo = new InMemoryProfileRepository();
+    const saved = unwrap(await saveMyProfile(repo, 'user-1', { firstName: 'Ada', lastName: 'L', displayName: 'A', units: 'imperial' }));
+    expect(saved.units).toBe('imperial');
   });
 
   it('trims the fields', async () => {
     const repo = new InMemoryProfileRepository();
     const saved = unwrap(await saveMyProfile(repo, 'user-1', { firstName: '  Ada ', lastName: ' Lovelace ', displayName: ' Countess ' }));
-    expect(saved).toEqual({ userId: 'user-1', firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess' });
+    expect(saved).toEqual({ userId: 'user-1', firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess', units: 'metric' });
   });
 
   it('rejects a blank field', async () => {

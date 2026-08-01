@@ -4,6 +4,7 @@ import { ApiError, type RegroupView } from '@photochase/client';
 import type { GameMode, GameState, TeamReturnStatus } from '@photochase/shared';
 import type { MessageKey } from '@photochase/i18n';
 import { client } from '../api.js';
+import { currentUnits } from '../profile.js';
 import { CaptureError } from '../capture.js';
 import { t } from '../i18n.js';
 import type { LocationSource } from '../location.js';
@@ -71,7 +72,7 @@ export function ReturnScreen({
     if (!auto) setFailure(null);
     try {
       const fix = await location.current();
-      await client.checkIn(gameId, { location: fix, ...(auto ? { auto: true } : {}) });
+      await client.checkIn(gameId, { location: fix, units: currentUnits(), ...(auto ? { auto: true } : {}) });
       refresh();
     } catch (e) {
       // Automatic failures stay silent. Surfacing them would flash "about 300 m

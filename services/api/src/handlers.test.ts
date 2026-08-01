@@ -494,6 +494,17 @@ describe('return check-in', () => {
     expect((await checkIn(repo, { gameId, userId: 'uA', location: { lat: 12, lng: 34 } })).ok).toBe(true);
   });
 
+  it('reads the distance back in the caller’s units', async () => {
+    const { gameId } = await gameReturning(SPOT);
+    const faraway = { lat: 41.5, lng: -75.5 };
+    const metric = await checkIn(repo, { gameId, userId: 'uA', location: faraway, units: 'metric' });
+    const imperial = await checkIn(repo, { gameId, userId: 'uA', location: faraway, units: 'imperial' });
+    expect(metric.ok).toBe(false);
+    expect(imperial.ok).toBe(false);
+    if (!metric.ok) expect(metric.error).toMatch(/km|m to go/);
+    if (!imperial.ok) expect(imperial.error).toMatch(/mi|ft to go/);
+  });
+
   it('does not fence a free game, even with a return spot set', async () => {
     // Geofencing is paid: a free game may carry a return spot but never fences
     // against it, so a check-in from far away is still accepted.

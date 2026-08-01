@@ -6,11 +6,15 @@
  * identity each time. The display name is what other players see; first and last
  * are for the account, not the scoreboard.
  */
+import type { DistanceUnits } from '@photochase/shared';
+
 export interface UserProfile {
   userId: string;
   firstName: string;
   lastName: string;
   displayName: string;
+  /** Distance units the player reads. Defaults to metric when unset (old profiles). */
+  units: DistanceUnits;
 }
 
 /**

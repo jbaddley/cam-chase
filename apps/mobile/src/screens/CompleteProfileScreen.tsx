@@ -4,7 +4,7 @@ import { FormScreen } from './FormScreen.js';
 import { Body, Button, Display, ErrorText, Field } from '../ui.js';
 import { ApiError, type ProfileView } from '@photochase/client';
 import { client } from '../api.js';
-import { setCurrentProfile } from '../profile.js';
+import { deviceUnits, setCurrentProfile } from '../profile.js';
 import { t } from '../i18n.js';
 
 /**
@@ -37,7 +37,8 @@ export function CompleteProfileScreen({ onDone }: { onDone: (profile: ProfileVie
     setBusy(true);
     setError(null);
     try {
-      const saved = await client.saveProfile({ firstName: first, lastName: last, displayName: display });
+      // Seed units from the device's region; the settings screen can change it.
+      const saved = await client.saveProfile({ firstName: first, lastName: last, displayName: display, units: deviceUnits() });
       setCurrentProfile(saved);
       onDone(saved);
     } catch (e) {

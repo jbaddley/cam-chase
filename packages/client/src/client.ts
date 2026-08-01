@@ -2,6 +2,7 @@ import type {
   AttributeGuess,
   AttributeSet,
   CatchStatus,
+  DistanceUnits,
   TagRole,
   TagSubMode,
   Flair,
@@ -235,11 +236,13 @@ export interface EntitlementView {
   features: Record<string, boolean>;
 }
 
-/** A player's own identity, captured at first sign-in and editable after. */
+/** A player's own identity and global preferences. */
 export interface ProfileView {
   firstName: string;
   lastName: string;
   displayName: string;
+  /** Distance units this player reads. */
+  units: DistanceUnits;
 }
 
 /**
@@ -479,7 +482,7 @@ export class PhotoChaseClient {
    */
   checkIn(
     gameId: string,
-    input: { location: GeoPointInput; auto?: boolean },
+    input: { location: GeoPointInput; auto?: boolean; units?: DistanceUnits },
   ): Promise<{ round: string; at: number }> {
     return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/checkins`, input);
   }

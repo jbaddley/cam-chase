@@ -1,24 +1,28 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { FormScreen } from './FormScreen.js';
-import { Body, Button, Display, ErrorText, Field } from '../ui.js';
+import { Body, Button, Chip, ChoiceRow, Display, ErrorText, Field } from '../ui.js';
 import { ApiError } from '@photochase/client';
+import type { DistanceUnits } from '@photochase/shared';
 import { client } from '../api.js';
 import { currentProfile, setCurrentProfile } from '../profile.js';
 import { t } from '../i18n.js';
 
+const UNIT_CHOICES: readonly DistanceUnits[] = ['metric', 'imperial'];
+
 /**
- * Edit the one piece of the profile that changes: the display name. First and
- * last belong to the account and are shown for context, not editing. The save is
- * a full-profile PUT that re-sends them unchanged — the server takes a whole
+ * Global settings: the display name other players see, and the units distances
+ * are read in. The save is a full-profile PUT — the server takes a whole
  * profile, and one shape is simpler than a patch.
  *
- * Not reachable during game entry on purpose (the plan): a display name is
- * chosen once and adjusted here, never renegotiated at the moment of joining.
+ * First and last belong to the account and are shown for context, not editing.
+ * Not reachable during game entry on purpose: these are chosen once and adjusted
+ * here, never renegotiated at the moment of joining.
  */
 export function ProfileScreen({ onBack }: { onBack: () => void }) {
   const profile = currentProfile();
   const [displayName, setDisplayName] = useState(profile?.displayName ?? '');
+  const [units, setUnits] = useState<DistanceUnits>(profile?.units ?? 'metric');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,6 +39,7 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
         firstName: profile.firstName,
         lastName: profile.lastName,
         displayName: display,
+        units,
       });
       setCurrentProfile(saved);
       onBack();
@@ -59,8 +64,8 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
       }
     >
       <View style={{ gap: 4, paddingBottom: 8 }}>
-        <Display>{t('profile.title')}</Display>
-        <Body muted>{t('profile.editPrompt')}</Body>
+        <Display>{t('settings.title')}</Display>
+        <Body muted>{t('settings.prompt')}</Body>
       </View>
 
       {profile ? <Body muted>{`${profile.firstName} ${profile.lastName}`}</Body> : null}
@@ -71,6 +76,14 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
         error={display === '' ? t('profile.required') : undefined}
         maxLength={40}
       />
+
+      <ChoiceRow label={t('settings.units')}>
+        {UNIT_CHOICES.map((u) => (
+          <Chip key={u} selected={units === u} onPress={() => setUnits(u)}>
+            {t(u === 'metric' ? 'units.metric' : 'units.imperial')}
+          </Chip>
+        ))}
+      </ChoiceRow>
 
       {error ? <ErrorText>{error}</ErrorText> : null}
     </FormScreen>

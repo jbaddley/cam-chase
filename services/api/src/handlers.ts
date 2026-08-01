@@ -1461,6 +1461,8 @@ const CheckinInput = z.object({
   location: z.object({ lat: z.number(), lng: z.number(), accuracyM: z.number().optional() }),
   /** True when a location fix triggered this rather than a button press. */
   auto: z.boolean().optional(),
+  /** The caller's distance units, so the "X to go" message reads in them. */
+  units: z.enum(['metric', 'imperial']).optional(),
 });
 
 /**
@@ -1491,7 +1493,7 @@ export async function checkIn(
 ): Promise<Result<{ round: 'round1' | 'round2'; at: number }>> {
   const parsed = CheckinInput.safeParse(raw);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? 'Invalid input');
-  const { gameId, userId, location } = parsed.data;
+  const { gameId, userId, location, units } = parsed.data;
 
   const game = await repo.get(gameId);
   if (!game) return err('Game not found.');
@@ -1517,10 +1519,10 @@ export async function checkIn(
     // host is the only person who can fix it, so name them.
     if (away >= IMPLAUSIBLE_RETURN_DISTANCE_M) {
       return err(
-        `You are ${formatDistance(away)} from the start point — the host needs to reset the meeting spot.`,
+        `You are ${formatDistance(away, units)} from the start point — the host needs to reset the meeting spot.`,
       );
     }
-    return err(`You are not at the start point yet — about ${formatDistance(away)} to go.`);
+    return err(`You are not at the start point yet — about ${formatDistance(away, units)} to go.`);
   }
 
   // The location itself is deliberately not stored. It has served its purpose

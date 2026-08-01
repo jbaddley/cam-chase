@@ -21,7 +21,7 @@ export function profileRepositoryContract(
 
     it('saves and reads back a profile', async () => {
       const repo = await makeRepo();
-      const profile: UserProfile = { userId: uid('user'), firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess' };
+      const profile: UserProfile = { userId: uid('user'), firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess' , units: 'metric' as const };
       await repo.save(profile);
       expect(await repo.get(profile.userId)).toEqual(profile);
     });
@@ -29,17 +29,17 @@ export function profileRepositoryContract(
     it('a save replaces the previous profile', async () => {
       const repo = await makeRepo();
       const userId = uid('user');
-      await repo.save({ userId, firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess' });
-      await repo.save({ userId, firstName: 'Ada', lastName: 'Lovelace', displayName: 'Ada L.' });
-      expect(await repo.get(userId)).toEqual({ userId, firstName: 'Ada', lastName: 'Lovelace', displayName: 'Ada L.' });
+      await repo.save({ userId, firstName: 'Ada', lastName: 'Lovelace', displayName: 'Countess' , units: 'metric' as const });
+      await repo.save({ userId, firstName: 'Ada', lastName: 'Lovelace', displayName: 'Ada L.' , units: 'metric' as const });
+      expect(await repo.get(userId)).toEqual({ userId, firstName: 'Ada', lastName: 'Lovelace', displayName: 'Ada L.' , units: 'metric' as const });
     });
 
     it('keeps profiles separate per user', async () => {
       const repo = await makeRepo();
       const a = uid('user');
       const b = uid('user');
-      await repo.save({ userId: a, firstName: 'Ada', lastName: 'L', displayName: 'A' });
-      await repo.save({ userId: b, firstName: 'Bea', lastName: 'M', displayName: 'B' });
+      await repo.save({ userId: a, firstName: 'Ada', lastName: 'L', displayName: 'A' , units: 'metric' as const });
+      await repo.save({ userId: b, firstName: 'Bea', lastName: 'M', displayName: 'B' , units: 'metric' as const });
       expect((await repo.get(a))?.displayName).toBe('A');
       expect((await repo.get(b))?.displayName).toBe('B');
     });

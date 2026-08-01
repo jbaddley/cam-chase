@@ -5,8 +5,10 @@ import {
   DEFAULT_RETURN_RADIUS_M,
   MAX_ACCURACY_SLACK_M,
   allTeamsReady,
+  formatDistance,
   isBackAtStart,
   metresToStart,
+  unitsForLocale,
   resolveReturnFence,
   returnDurations,
   returnRoundOf,
@@ -52,6 +54,32 @@ function fenced(overrides: Partial<Game> = {}): Game {
   const base = game(overrides);
   return { ...base, config: { ...base.config, geofencing: true } };
 }
+
+describe('unitsForLocale', () => {
+  it('reads imperial for the three holdouts and metric otherwise', () => {
+    expect(unitsForLocale('en-US')).toBe('imperial');
+    expect(unitsForLocale('en_LR')).toBe('imperial');
+    expect(unitsForLocale('my-MM')).toBe('imperial');
+    expect(unitsForLocale('en-GB')).toBe('metric');
+    expect(unitsForLocale('fr-FR')).toBe('metric');
+    expect(unitsForLocale('en')).toBe('metric'); // no region
+    expect(unitsForLocale(undefined)).toBe('metric');
+  });
+});
+
+describe('formatDistance', () => {
+  it('reads metres then kilometres in metric (the default)', () => {
+    expect(formatDistance(300)).toBe('300 m');
+    expect(formatDistance(2_500)).toBe('2.5 km');
+    expect(formatDistance(42_000)).toBe('42 km');
+  });
+
+  it('reads feet then miles in imperial', () => {
+    expect(formatDistance(50, 'imperial')).toBe('160 ft'); // ~164 ft, rounded to 10
+    expect(formatDistance(800, 'imperial')).toBe('0.5 mi');
+    expect(formatDistance(942_000, 'imperial')).toBe('585 mi');
+  });
+});
 
 describe('returnRoundOf', () => {
   // The active phases count, not only the *_return ones. A team that has taken
