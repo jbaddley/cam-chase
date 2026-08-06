@@ -13,8 +13,13 @@
  * verify — correct, since no signed app claims the domain yet.
  */
 
-// Read live, so fingerprints can be set on the host without a rebuild.
-export const dynamic = 'force-dynamic';
+// Baked at build time from the host's `ANDROID_SHA256_CERT_FINGERPRINTS`.
+// Amplify Hosting injects app environment variables into the build but NOT into
+// the Next.js SSR runtime, so a `force-dynamic` read runs in the runtime, sees
+// no env, and serves the placeholder. `force-static` runs GET at build instead,
+// where the env value is present. Changing the fingerprints therefore takes a
+// redeploy — which is the only way the value reaches this app anyway.
+export const dynamic = 'force-static';
 
 const PLACEHOLDER_FINGERPRINT = 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99';
 

@@ -10,8 +10,13 @@
  * associate with the domain yet.
  */
 
-// Read live, so the value can be set on the host without a rebuild.
-export const dynamic = 'force-dynamic';
+// Baked at build time from the host's `APPLE_APP_ID`. Amplify Hosting injects
+// app environment variables into the build but NOT into the Next.js SSR runtime,
+// so a `force-dynamic` read runs in the runtime, sees no env, and serves the
+// placeholder. `force-static` runs GET at build instead, where the env value is
+// present. Changing the App ID therefore takes a redeploy — which is the only
+// way the value reaches this app anyway.
+export const dynamic = 'force-static';
 
 const PLACEHOLDER_APP_ID = 'TEAMID.app.photochase.client';
 
