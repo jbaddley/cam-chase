@@ -130,12 +130,14 @@ function regroup() {
 }
 
 /**
- * A real JPEG the size of a photo, so the chase overlay has something with
- * actual dimensions to composite. A 2×2 red pixel scaled by `Image` — enough to
- * prove the geometry without bundling a fixture asset.
+ * A photo-shaped image, so the chase overlay has something with real dimensions
+ * to composite — a solid 128×128 crimson PNG, distinct from the camera so the
+ * overlay reads as a tint and the split as a filled pane. It has to be a real
+ * size: the 2×2 pixel this replaced decoded to nothing on Android, so the
+ * original silently never painted and the split looked like wasted space.
  */
 const FIXTURE_JPEG =
-  'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwcJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPDIzNP/AABEIAAIAAgMBIgACEQEDEQH/xAAfAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgv/xAC1EAACAQMDAgQDBQUEBAAAAX0BAgMABBEFEiExQQYTUWEHInEUMoGRoQgjQrHBFVLR8CQzYnKCCQoWFxgZGiUmJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/aAAwDAQACEQMRAD8A9mooooA//9k=';
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAA+klEQVR4nO3RQQ0AIAzAwIlADv5VIAYZe/SSCmhy887VYrN+EA8AgHYAALQDAKAdAADtAABoBwBAOwAA2gEA0A4AgHYAALQDAKAdAADtAABoBwBAOwAA2gEA0A4AgHYAALQDAKAdAADtAABoBwBAOwAA2gEA0A4AgHYAALQDAKAdAADtAABoBwBAOwAA2gEA0A4AgHYAALQDAKAdAADtAABoBwBAOwAA2gEA0A4AgHYAALQDAKAdAADtAABoBwBAOwAA2gEA0A4AgHYAALQDAKAdAADtAABoBwBAOwAA2gEA0A4AgHYAALQDAKAdAADtAABoBwBAOwAA2n3U4QRm+/rHUwAAAABJRU5ErkJggg==';
 
 /** Route → canned body. Unknown routes fail loudly rather than silently. */
 function respond(method: string, path: string, body: unknown): unknown {

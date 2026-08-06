@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type LayoutChangeEvent, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { type LayoutChangeEvent, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ApiError, type AssignmentView } from '@photochase/client';
 import { client } from '../api.js';
 import { CaptureError } from '../capture.js';
 import { t } from '../i18n.js';
-import { space } from '../theme.js';
+import { color, space, type as typeScale } from '../theme.js';
 import { useSignedPhoto } from '../useSignedPhoto.js';
-import { Body, Button, Chip, ChoiceRow, ErrorText, Heading, IconButton, Loading, Sheet } from '../ui.js';
+import { Button, Chip, ChoiceRow, ErrorText, IconButton, Loading, Sheet } from '../ui.js';
 import { useCameraRect, useViewfinder } from '../viewfinder.js';
 import { layoutViewport, placementFor, type Rect } from '../viewport.js';
 import { ChaseView, OVERLAY_LEVELS, type ChaseViewMode } from './ChaseView.js';
@@ -182,11 +182,14 @@ export function ChaseScreen({
 }
 
 /**
- * The header: what round you are on, how far through, and the way to the options.
+ * The header: what you are recreating, how far through, and the way to the
+ * options — a thin strip, not a slab.
  *
- * Everything the old inline panel carried lives here or in the sheet, because
- * nothing belongs on top of the picture (docs/10). The readout is chrome, the
- * gear is a secondary action, and the viewfinder is the content.
+ * This is a camera screen, so the picture gets the room and the chrome gets a
+ * sliver: the subject and progress share one line and the mode sits under them
+ * in a caption, where a full-size heading and three stacked lines used to push
+ * the viewfinder a third of the way down the screen. Everything else the old
+ * inline panel carried lives in the sheet (docs/10 — nothing over the picture).
  */
 function ChaseHeader({
   chased,
@@ -204,11 +207,17 @@ function ChaseHeader({
   return (
     <View style={styles.header}>
       <View style={styles.headerText}>
-        <Body muted>{t('chase.progress', { chased, total })}</Body>
-        <Heading>
-          {current ? t('chase.recreate', { number: current.order + 1 }) : t('chase.allDone')}
-        </Heading>
-        <Body muted>{summary}</Body>
+        <View style={styles.titleRow}>
+          <Text style={styles.subject} numberOfLines={1}>
+            {current ? t('chase.recreate', { number: current.order + 1 }) : t('chase.allDone')}
+          </Text>
+          <Text style={styles.progress} numberOfLines={1}>
+            {t('chase.progress', { chased, total })}
+          </Text>
+        </View>
+        <Text style={styles.summary} numberOfLines={1}>
+          {summary}
+        </Text>
       </View>
       {current ? (
         <IconButton
@@ -282,19 +291,25 @@ function ChaseOptions({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  /** Chrome: identity and secondary actions, never over the content. */
+  /** Chrome: a thin strip, never over the content and never more than it needs. */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: space.xl,
-    paddingBottom: space.md,
+    paddingTop: space.xs,
+    paddingBottom: space.sm,
     gap: space.md,
   },
-  headerText: { flex: 1, gap: space.xs },
+  headerText: { flex: 1, gap: 2 },
+  /** Subject and progress on one line; the mode a caption beneath. */
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
+  subject: { ...typeScale.body, fontWeight: '700', color: color.ink },
+  progress: { ...typeScale.label, color: color.inkMuted },
+  summary: { ...typeScale.label, color: color.inkMuted },
   /** The picture region: the band between the chrome, sized by the flex column.
       The squares are laid out from its measure; nothing is drawn in it directly. */
   region: { flex: 1 },
   /** One primary action, full width, in the lower third where a thumb reaches. */
-  action: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.lg },
+  action: { paddingHorizontal: space.xl, paddingTop: space.sm, paddingBottom: space.md },
 });
