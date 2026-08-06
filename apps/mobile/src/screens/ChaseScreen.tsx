@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { type LayoutChangeEvent, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { ApiError, type AssignmentView } from '@photochase/client';
 import { client } from '../api.js';
 import { CaptureError } from '../capture.js';
@@ -7,23 +7,30 @@ import { t } from '../i18n.js';
 import { space } from '../theme.js';
 import { useSignedPhoto } from '../useSignedPhoto.js';
 import { Body, Button, Chip, ChoiceRow, ErrorText, Heading, IconButton, Loading, Sheet } from '../ui.js';
-import { useCameraPlacement, useViewfinder } from '../viewfinder.js';
-import { placementFor } from '../viewport.js';
+import { useCameraRect, useViewfinder } from '../viewfinder.js';
+import { layoutViewport, placementFor, type Rect } from '../viewport.js';
 import { ChaseView, OVERLAY_LEVELS, type ChaseViewMode } from './ChaseView.js';
 import type { CaptureSource } from './CaptureScreen.js';
 
 /**
  * Round 2: recreate the photos assigned to your team, one at a time.
  *
- * Three zones, and nothing crosses between them (docs/10). The header carries the
- * readout and the way to the options; the middle is the viewfinder and the photo
- * and holds nothing else; one shutter sits in the lower third. The view options
- * live in a sheet, because they are set once or twice and then ignored, and a
- * control being ignored should not be occupying the picture.
+ * The screen is one chrome layout in every mode (docs/10), designed for the
+ * tightest case — two full squares side by side. A thin header carries the
+ * readout and the way to the options; a single shutter sits in the lower third;
+ * the whole band between them is the picture region and holds nothing else. Hide,
+ * overlay and split all use that same region, so the chrome never moves.
  *
- * This screen reached that shape by three wrong turns — a settings slab across the
- * frame, then chips across it, then a collapsed chip still on it. The frame was
- * never the place for them.
+ * The region is *measured*, not assumed, and that is the fix for the mode that
+ * was broken. The camera is a native layer positioned in window coordinates,
+ * outside the safe area; this screen lives inside it. So the region is measured
+ * twice off the same view — in UI space for the original drawn here, and in
+ * window space for the camera drawn there — and one `layoutViewport` call lays
+ * the squares out in each. Overlay then puts both on the identical pixels; split
+ * gives each its own half of a region that was sized to hold both. Before this,
+ * the camera laid out against the whole window while the header and shutter sat
+ * in those pixels, so a split hid the square under the chrome and an overlay
+ * could not line up.
  */
 export function ChaseScreen({
   gameId,
@@ -48,7 +55,33 @@ export function ChaseScreen({
   const [opacity, setOpacity] = useState<number>(0.4);
   const [options, setOptions] = useState(false);
 
-  useCameraPlacement(placementFor(mode, wide));
+  // The picture region, measured off the spacer between the chrome, in both
+  // coordinate spaces it has to serve: `ui` for the original this screen draws
+  // (inside the safe area), `window` for the camera the stage draws (outside it).
+  const [region, setRegion] = useState<{ ui: Rect; window: Rect } | null>(null);
+  const regionRef = useRef<View | null>(null);
+  const onRegion = useCallback((e: LayoutChangeEvent) => {
+    const { x, y, width, height } = e.nativeEvent.layout;
+    const ui: Rect = { left: x, top: y, width, height };
+    const node = regionRef.current;
+    // measureInWindow gives absolute window coordinates, crossing the safe-area
+    // inset the camera sits outside of. Absent under the DOM harness — fall back
+    // to the UI rect, where with no insets the two spaces coincide anyway.
+    if (node && typeof node.measureInWindow === 'function') {
+      node.measureInWindow((wx, wy, ww, wh) => setRegion({ ui, window: { left: wx, top: wy, width: ww, height: wh } }));
+    } else {
+      setRegion({ ui, window: ui });
+    }
+  }, []);
+
+  // The largest square(s) the region holds, laid out once per space. Until the
+  // region is measured, fall back to the whole window so the first frame — and
+  // every DOM test — still has somewhere to put the original.
+  const fallback: Rect = { left: 0, top: 0, width: window.width, height: window.height };
+  const placement = placementFor(mode, wide);
+  const viewport = layoutViewport(placement, region?.ui ?? fallback);
+  const cameraRect = region ? layoutViewport(placement, region.window).camera : null;
+  useCameraRect(cameraRect);
 
   useEffect(() => {
     let active = true;
@@ -107,6 +140,14 @@ export function ChaseScreen({
 
   return (
     <View style={styles.screen}>
+      {/* The original, in a full-screen layer so its rect lands on the same
+          pixels as the native camera window behind it. Non-interactive: the
+          shutter and gear above it stay tappable. Rendered first, so it is under
+          the chrome even where a square would otherwise reach it. */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <ChaseView uri={uri} mode={mode} opacity={opacity} camera={viewport.camera} other={viewport.other} />
+      </View>
+
       <ChaseHeader
         chased={chased}
         total={total}
@@ -115,11 +156,9 @@ export function ChaseScreen({
         onOpen={() => setOptions(true)}
       />
 
-      {/* Content: the camera square sits behind this, and the original is drawn
-          over or beside it. Nothing else is. */}
-      <View style={styles.content}>
-        <ChaseView uri={uri} mode={mode} opacity={opacity} landscape={wide} />
-      </View>
+      {/* The picture region: everything between the header and the shutter, and
+          nothing drawn in it here — the squares are laid out from its measure. */}
+      <View ref={regionRef} style={styles.region} onLayout={onRegion} collapsable={false} />
 
       <View style={styles.action}>
         {error ? <ErrorText>{error}</ErrorText> : null}
@@ -253,8 +292,9 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   headerText: { flex: 1, gap: space.xs },
-  /** The viewfinder and the photo. The camera square is positioned behind this. */
-  content: { flex: 1 },
+  /** The picture region: the band between the chrome, sized by the flex column.
+      The squares are laid out from its measure; nothing is drawn in it directly. */
+  region: { flex: 1 },
   /** One primary action, full width, in the lower third where a thumb reaches. */
   action: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.lg },
 });

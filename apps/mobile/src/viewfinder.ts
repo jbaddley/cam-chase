@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect } from 'react';
-import type { CameraPlacement } from './viewport.js';
+import type { Rect } from './viewport.js';
 
 /**
  * Whether the live camera preview should be running.
@@ -89,26 +89,36 @@ export function useViewfinderLayout(): { landscape: boolean } {
 }
 
 /**
- * Where the square preview should sit.
+ * Where the square preview should sit, as an exact screen-space rect.
  *
  * Every photo is square, so the preview is a square window rather than the whole
  * screen — and a screen showing the original *beside* the camera has to move that
- * window out of the way. Declared by the screen and obeyed by whoever owns the
- * camera, the same shape as {@link ViewfinderContext}, because the alternative is
- * a screen reaching into the camera to reposition it.
+ * window out of the way, and one overlaying it has to line up with it to the
+ * pixel. The screen is the only place that knows where its chrome sits, so it
+ * computes the rect (from the region left between header and shutter) and the
+ * camera owner obeys — the same shape as {@link ViewfinderContext}, because the
+ * alternative is a screen reaching into the camera to reposition it.
  *
- * The default is centred: a screen that never says anything gets the largest
- * square the window holds, which is what Round 1 wants.
+ * A screen that passes `null` (or never speaks) gets the default: the largest
+ * square centred in the whole window, which is what Round 1 wants. Passing a rect
+ * rather than a placement enum is the fix for the split/overlay being laid out
+ * against the full window while the chrome quietly ate part of it.
  */
-export const CameraPlacementContext = createContext<(placement: CameraPlacement) => void>(() => {});
+export const CameraRectContext = createContext<(rect: Rect | null) => void>(() => {});
 
-/** Ask for a placement for as long as this screen wants it. */
-export function useCameraPlacement(placement: CameraPlacement): void {
-  const setPlacement = useContext(CameraPlacementContext);
+/** Put the camera square at `rect` (screen space) for as long as this screen wants it. */
+export function useCameraRect(rect: Rect | null): void {
+  const setRect = useContext(CameraRectContext);
+  // Depend on the rect's fields, not its identity, so a fresh object each render
+  // (the layout recomputes one) does not churn the native side.
+  const left = rect?.left ?? null;
+  const top = rect?.top ?? null;
+  const width = rect?.width ?? null;
+  const height = rect?.height ?? null;
   useEffect(() => {
-    setPlacement(placement);
-    // Back to centred on the way out, so the next screen is not left holding a
-    // split layout it never asked for.
-    return () => setPlacement('center');
-  }, [setPlacement, placement]);
+    setRect(left === null ? null : { left, top: top!, width: width!, height: height! });
+    // Back to the default on the way out, so the next screen is not left holding
+    // a square it never asked for.
+    return () => setRect(null);
+  }, [setRect, left, top, width, height]);
 }

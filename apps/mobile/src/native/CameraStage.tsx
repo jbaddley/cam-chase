@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { BarcodeScanContext, CameraPlacementContext, DevScanContext, ViewfinderContext } from '../viewfinder.js';
-import { layoutViewport, type CameraPlacement } from '../viewport.js';
+import { BarcodeScanContext, CameraRectContext, DevScanContext, ViewfinderContext } from '../viewfinder.js';
+import { layoutViewport, type Rect } from '../viewport.js';
 import { ensureLocationPermission, makeCapture, type CameraHandle } from './capture.js';
 import type { CaptureSource } from '../screens/CaptureScreen.js';
 
@@ -29,7 +29,7 @@ export function CameraStage({ children }: { children: (capture: CaptureSource) =
   const [permission, requestPermission] = useCameraPermissions();
   const [wanted, setWanted] = useState(false);
   const [ready, setReady] = useState(false);
-  const [placement, setPlacement] = useState<CameraPlacement>('center');
+  const [cameraRect, setCameraRect] = useState<Rect | null>(null);
   const [scanning, setScanning] = useState(false);
   const window = useWindowDimensions();
   const camera = useRef<CameraView | null>(null);
@@ -91,10 +91,12 @@ export function CameraStage({ children }: { children: (capture: CaptureSource) =
   /**
    * The preview is a square window, not the whole screen, because every photo
    * this game takes is square — so the frame you see has to be the frame you get.
-   * It used to fill the window, which meant a screen showing the original beside
-   * the camera was showing you half of a wider shot and capturing all of it.
+   * A shooting screen places it precisely (Round 2 hands over the exact rect for
+   * its mode, computed against the space its chrome leaves); a screen that says
+   * nothing gets the largest square centred in the whole window, which is Round 1.
    */
-  const { camera: box } = layoutViewport(placement, window);
+  const box =
+    cameraRect ?? layoutViewport('center', { left: 0, top: 0, width: window.width, height: window.height }).camera;
 
   return (
     <View style={styles.stage}>
@@ -119,11 +121,11 @@ export function CameraStage({ children }: { children: (capture: CaptureSource) =
           `ViewfinderFrame`, which puts it behind the words and nowhere else. */}
       <View style={styles.overlay}>
         <ViewfinderContext.Provider value={setActive}>
-          <CameraPlacementContext.Provider value={setPlacement}>
+          <CameraRectContext.Provider value={setCameraRect}>
             <BarcodeScanContext.Provider value={subscribeScan}>
               <DevScanContext.Provider value={fireDevScan}>{children(capture)}</DevScanContext.Provider>
             </BarcodeScanContext.Provider>
-          </CameraPlacementContext.Provider>
+          </CameraRectContext.Provider>
         </ViewfinderContext.Provider>
       </View>
       {/* Only after a real refusal — `undetermined` means the sheet is still to

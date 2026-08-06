@@ -49,28 +49,40 @@ export interface Viewport {
 }
 
 /**
- * Lay out the viewport for a placement in a window.
+ * Lay out the viewport for a placement inside a box, in the box's own
+ * coordinates.
  *
- * Centred takes the largest square the window holds. A split halves the window
- * along its long axis and takes the largest square each half holds, so the two
- * panes match. Both are centred within their half, because a square pinned to an
- * edge reads as a cropping mistake.
+ * The box is the region the pictures may use — for Round 2 that is the space
+ * *between* the header and the shutter, not the whole screen, which is the bug
+ * this fixes: the camera used to lay out against the full window while the chrome
+ * sat in those same pixels, so a split put the square under the header and the
+ * shutter, and an overlay could not line up with an original measured from a
+ * different origin. Give both the camera and the original the identical box and
+ * the two can no longer disagree.
+ *
+ * Centred takes the largest square the box holds. A split halves the box along
+ * its long axis and takes the largest square each half holds, so the two panes
+ * match. Both are centred within their half, because a square pinned to an edge
+ * reads as a cropping mistake. Every rect returned is in the same coordinate
+ * space as `box` — pass a screen-space box and get screen-space rects.
  */
-export function layoutViewport(placement: CameraPlacement, window: Window): Viewport {
-  const { width, height } = window;
+export function layoutViewport(placement: CameraPlacement, box: Rect): Viewport {
+  const { left, top, width, height } = box;
 
   if (placement === 'center') {
     const side = Math.min(width, height);
-    return { camera: centred(side, 0, 0, width, height), other: null };
+    return { camera: centred(side, left, top, width, height), other: null };
   }
 
   if (placement === 'bottom') {
-    // Portrait split: original above, camera below.
+    // Portrait split: original above, camera below. Each square is the largest
+    // its half holds, so both are fully visible — capped by half the height when
+    // the box is tall, by the width when it is wide.
     const half = height / 2;
     const side = Math.min(width, half);
     return {
-      camera: centred(side, 0, half, width, half),
-      other: centred(side, 0, 0, width, half),
+      camera: centred(side, left, top + half, width, half),
+      other: centred(side, left, top, width, half),
     };
   }
 
@@ -78,8 +90,8 @@ export function layoutViewport(placement: CameraPlacement, window: Window): View
   const half = width / 2;
   const side = Math.min(half, height);
   return {
-    camera: centred(side, half, 0, half, height),
-    other: centred(side, 0, 0, half, height),
+    camera: centred(side, left + half, top, half, height),
+    other: centred(side, left, top, half, height),
   };
 }
 
