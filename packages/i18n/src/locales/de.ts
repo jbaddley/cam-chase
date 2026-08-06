@@ -292,4 +292,7 @@ export const de: Record<MessageKey, string> = {
   'host.meetingSpot': 'Treffpunkt',
   'chase.topAndBottom': 'Oben und unten',
   'chase.viewOptions': 'Anzeigeoptionen',
+  'chase.fullscreen': 'Vollbild',
+  'chase.exitFullscreen': 'Vollbild verlassen',
+  'chase.fullscreenHint': 'Zum Auslösen tippen · zum Verlassen halten',
 };

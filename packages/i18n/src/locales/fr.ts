@@ -292,4 +292,7 @@ export const fr: Record<MessageKey, string> = {
   'host.meetingSpot': 'Point de rendez-vous',
   'chase.topAndBottom': 'Haut et bas',
   'chase.viewOptions': 'Options d\'affichage',
+  'chase.fullscreen': 'Plein écran',
+  'chase.exitFullscreen': 'Quitter le plein écran',
+  'chase.fullscreenHint': 'Touchez n\'importe où pour photographier · maintenez pour quitter',
 };

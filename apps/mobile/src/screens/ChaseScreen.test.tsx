@@ -303,3 +303,58 @@ describe('ChaseScreen — seeing the original', () => {
     expect(requestDownload).toHaveBeenCalledTimes(2);
   });
 });
+
+/**
+ * Fullscreen. Players said the chrome was in the way and the readout mostly
+ * noise — you know what you are doing from the picture you are matching. So there
+ * is a mode with none of it: no header, no shutter, and (via the shell) no game
+ * bar, with a tap anywhere taking the shot. Structure only — that it *looks*
+ * edge-to-edge was checked on a device.
+ */
+describe('ChaseScreen — fullscreen', () => {
+  const goFullscreen = async () => {
+    fireEvent.click(await screen.findByTestId('chase-fullscreen'));
+  };
+
+  it('drops the header, the shutter and the options, leaving the picture', async () => {
+    listAssignments.mockResolvedValue([assignment(0)]);
+    render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
+
+    await screen.findByTestId('chase-original');
+    await goFullscreen();
+
+    // The readout, the shutter and the options gear are gone…
+    expect(screen.queryByText('Recreate photo #1')).toBeNull();
+    expect(screen.queryByText('Take chase photo')).toBeNull();
+    expect(screen.queryByTestId('chase-options')).toBeNull();
+    // …and the picture is still there, now the whole tap-to-shoot surface.
+    expect(screen.getByTestId('chase-original')).toBeTruthy();
+    expect(screen.getByTestId('chase-shoot')).toBeTruthy();
+  });
+
+  it('takes the shot on a tap anywhere', async () => {
+    listAssignments.mockResolvedValue([assignment(0)]);
+    captureChase.mockResolvedValue({ chasePhotoId: 'c0', key: 'k' });
+    render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
+
+    await screen.findByTestId('chase-original');
+    await goFullscreen();
+    fireEvent.click(screen.getByTestId('chase-shoot'));
+
+    await waitFor(() => expect(captureChase).toHaveBeenCalled());
+    expect(captureChase.mock.calls[0]![1]).toMatchObject({ teamId: 't1', assignmentId: 'a0' });
+  });
+
+  it('comes back to the chrome from the corner control', async () => {
+    listAssignments.mockResolvedValue([assignment(0)]);
+    render(<ChaseScreen gameId="g1" teamId="t1" capture={capture} />);
+
+    await screen.findByTestId('chase-original');
+    await goFullscreen();
+    fireEvent.click(screen.getByTestId('chase-shrink'));
+
+    // The shutter and the options are back — you are never trapped fullscreen.
+    expect(await screen.findByText('Take chase photo')).toBeTruthy();
+    expect(screen.getByTestId('chase-options')).toBeTruthy();
+  });
+});

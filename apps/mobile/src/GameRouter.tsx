@@ -1,6 +1,7 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { GameMode } from '@photochase/shared';
 import { StyleSheet, View } from 'react-native';
+import { HideChromeContext } from './chrome.js';
 import { CaptureScreen, type CaptureSource } from './screens/CaptureScreen.js';
 import { GameBar } from './screens/GameBar.js';
 import { ChaseScreen } from './screens/ChaseScreen.js';
@@ -45,6 +46,9 @@ export function GameRouter({
   onExit: () => void;
 }) {
   const { game, error, applyState } = useGamePhase(joined.gameId);
+  // A screen (Round 2 fullscreen) can ask to hide the bar so the picture owns
+  // the whole screen. Held here because the bar is drawn here.
+  const [chromeHidden, setChromeHidden] = useState(false);
   const onTeam = joined.teamId !== null;
   const isHost = joined.role === 'host';
   const mode: GameMode = game?.config.mode ?? 'photo_chase';
@@ -78,18 +82,26 @@ export function GameRouter({
     if (game?.state === 'archived') onExit();
   }, [game?.state, onExit]);
 
-  /** Every screen gets the bar, so there is always a way out. */
+  /**
+   * Every screen gets the bar, so there is always a way out — except when a
+   * screen has gone fullscreen and asked for it to step aside (see
+   * {@link HideChromeContext}). The provider wraps the screen so it can ask.
+   */
   const framed = (screen: ReactNode) => (
-    <View style={styles.screen}>
-      <GameBar
-        gameId={joined.gameId}
-        code={joined.code}
-        isHost={isHost}
-        inLobby={game?.state === 'lobby' || game === null}
-        onExit={onExit}
-      />
-      <View style={styles.body}>{screen}</View>
-    </View>
+    <HideChromeContext.Provider value={setChromeHidden}>
+      <View style={styles.screen}>
+        {chromeHidden ? null : (
+          <GameBar
+            gameId={joined.gameId}
+            code={joined.code}
+            isHost={isHost}
+            inLobby={game?.state === 'lobby' || game === null}
+            onExit={onExit}
+          />
+        )}
+        <View style={styles.body}>{screen}</View>
+      </View>
+    </HideChromeContext.Provider>
   );
 
   const lobby = (

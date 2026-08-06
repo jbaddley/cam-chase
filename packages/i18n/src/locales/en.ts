@@ -291,6 +291,9 @@ export const en = {
   'host.meetingSpot': 'Meeting spot',
   'chase.topAndBottom': 'Top and bottom',
   'chase.viewOptions': 'View options',
+  'chase.fullscreen': 'Fullscreen',
+  'chase.exitFullscreen': 'Exit fullscreen',
+  'chase.fullscreenHint': 'Tap anywhere to shoot · hold to exit',
 } as const;
 
 export type MessageKey = keyof typeof en;

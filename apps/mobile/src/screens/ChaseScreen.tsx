@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type LayoutChangeEvent, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { type LayoutChangeEvent, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ApiError, type AssignmentView } from '@photochase/client';
 import { client } from '../api.js';
 import { CaptureError } from '../capture.js';
+import { useHideChrome } from '../chrome.js';
 import { t } from '../i18n.js';
-import { color, space, type as typeScale } from '../theme.js';
+import { color, radius, space, type as typeScale } from '../theme.js';
 import { useSignedPhoto } from '../useSignedPhoto.js';
 import { Button, Chip, ChoiceRow, ErrorText, IconButton, Loading, Sheet } from '../ui.js';
 import { useCameraRect, useViewfinder } from '../viewfinder.js';
@@ -54,6 +55,11 @@ export function ChaseScreen({
   const [mode, setMode] = useState<ChaseViewMode>('overlay');
   const [opacity, setOpacity] = useState<number>(0.4);
   const [options, setOptions] = useState(false);
+  // Fullscreen: no header, no shutter, no game bar — the picture owns the whole
+  // screen and a tap anywhere takes the shot. `useHideChrome` asks the shell to
+  // pull its bar while this is on (and restores it on the way out).
+  const [fullscreen, setFullscreen] = useState(false);
+  useHideChrome(fullscreen);
 
   // The picture region, measured off the spacer between the chrome, in both
   // coordinate spaces it has to serve: `ui` for the original this screen draws
@@ -142,31 +148,63 @@ export function ChaseScreen({
     <View style={styles.screen}>
       {/* The original, in a full-screen layer so its rect lands on the same
           pixels as the native camera window behind it. Non-interactive: the
-          shutter and gear above it stay tappable. Rendered first, so it is under
-          the chrome even where a square would otherwise reach it. */}
+          controls above it stay tappable. Rendered first, so it is under the
+          chrome even where a square would otherwise reach it. */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <ChaseView uri={uri} mode={mode} opacity={opacity} camera={viewport.camera} other={viewport.other} />
       </View>
 
-      <ChaseHeader
-        chased={chased}
-        total={total}
-        current={current}
-        summary={summary}
-        onOpen={() => setOptions(true)}
-      />
+      {fullscreen ? (
+        /* The whole screen is the shutter: a tap anywhere shoots. The region is
+           measured off this surface, so the squares fill the screen the bar and
+           header have vacated. Exit is a small corner control (and a long hold),
+           because everything else is deliberately gone. */
+        <Pressable
+          ref={regionRef}
+          style={styles.region}
+          onLayout={onRegion}
+          onPress={() => void chase()}
+          onLongPress={() => setFullscreen(false)}
+          delayLongPress={450}
+          disabled={!current || busy}
+          accessibilityLabel={t('chase.take')}
+          testID="chase-shoot"
+        >
+          <View style={styles.fsExit}>
+            <IconButton
+              glyph="✕"
+              onPress={() => setFullscreen(false)}
+              accessibilityLabel={t('chase.exitFullscreen')}
+              testID="chase-shrink"
+            />
+          </View>
+          {error ? <Text style={styles.fsError}>{error}</Text> : null}
+          <Text style={styles.fsHint}>{busy ? t('chase.saving') : t('chase.fullscreenHint')}</Text>
+        </Pressable>
+      ) : (
+        <>
+          <ChaseHeader
+            chased={chased}
+            total={total}
+            current={current}
+            summary={summary}
+            onOpen={() => setOptions(true)}
+            onFullscreen={() => setFullscreen(true)}
+          />
 
-      {/* The picture region: everything between the header and the shutter, and
-          nothing drawn in it here — the squares are laid out from its measure. */}
-      <View ref={regionRef} style={styles.region} onLayout={onRegion} collapsable={false} />
+          {/* The picture region: everything between the header and the shutter,
+              and nothing drawn in it — the squares are laid out from its measure. */}
+          <View ref={regionRef} style={styles.region} onLayout={onRegion} collapsable={false} />
 
-      <View style={styles.action}>
-        {error ? <ErrorText>{error}</ErrorText> : null}
-        {failed ? <ErrorText>{t('chase.originalUnavailable')}</ErrorText> : null}
-        <Button onPress={chase} disabled={!current}>
-          {!current ? t('chase.done') : busy ? t('chase.saving') : t('chase.take')}
-        </Button>
-      </View>
+          <View style={styles.action}>
+            {error ? <ErrorText>{error}</ErrorText> : null}
+            {failed ? <ErrorText>{t('chase.originalUnavailable')}</ErrorText> : null}
+            <Button onPress={chase} disabled={!current}>
+              {!current ? t('chase.done') : busy ? t('chase.saving') : t('chase.take')}
+            </Button>
+          </View>
+        </>
+      )}
 
       <ChaseOptions
         visible={options}
@@ -197,12 +235,14 @@ function ChaseHeader({
   current,
   summary,
   onOpen,
+  onFullscreen,
 }: {
   chased: number;
   total: number;
   current: AssignmentView | null;
   summary: string;
   onOpen: () => void;
+  onFullscreen: () => void;
 }) {
   return (
     <View style={styles.header}>
@@ -220,12 +260,20 @@ function ChaseHeader({
         </Text>
       </View>
       {current ? (
-        <IconButton
-          glyph="⚙"
-          onPress={onOpen}
-          accessibilityLabel={t('chase.viewOptions')}
-          testID="chase-options"
-        />
+        <View style={styles.headerActions}>
+          <IconButton
+            glyph="⛶"
+            onPress={onFullscreen}
+            accessibilityLabel={t('chase.fullscreen')}
+            testID="chase-fullscreen"
+          />
+          <IconButton
+            glyph="⚙"
+            onPress={onOpen}
+            accessibilityLabel={t('chase.viewOptions')}
+            testID="chase-options"
+          />
+        </View>
       ) : null}
     </View>
   );
@@ -302,14 +350,44 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   headerText: { flex: 1, gap: 2 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   /** Subject and progress on one line; the mode a caption beneath. */
   titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
   subject: { ...typeScale.body, fontWeight: '700', color: color.ink },
   progress: { ...typeScale.label, color: color.inkMuted },
   summary: { ...typeScale.label, color: color.inkMuted },
   /** The picture region: the band between the chrome, sized by the flex column.
-      The squares are laid out from its measure; nothing is drawn in it directly. */
+      The squares are laid out from its measure; nothing is drawn in it directly.
+      In fullscreen this same region is the tap-to-shoot surface. */
   region: { flex: 1 },
   /** One primary action, full width, in the lower third where a thumb reaches. */
   action: { paddingHorizontal: space.xl, paddingTop: space.sm, paddingBottom: space.md },
+  /** Fullscreen: the one escape hatch, tucked in a corner and kept faint so it
+      is findable without competing with the picture. */
+  fsExit: { position: 'absolute', top: space.sm, right: space.sm, opacity: 0.7 },
+  /** A quiet caption over the picture: what a tap does, and how to leave. */
+  fsHint: {
+    position: 'absolute',
+    bottom: space.xl,
+    alignSelf: 'center',
+    ...typeScale.label,
+    color: '#fff',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+  },
+  fsError: {
+    position: 'absolute',
+    bottom: space.xxl * 2,
+    alignSelf: 'center',
+    ...typeScale.label,
+    color: '#fff',
+    backgroundColor: color.danger,
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
 });

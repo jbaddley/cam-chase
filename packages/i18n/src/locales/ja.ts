@@ -293,4 +293,7 @@ export const ja: Record<MessageKey, string> = {
   'host.meetingSpot': '集合場所',
   'chase.topAndBottom': '上下に並べる',
   'chase.viewOptions': '表示オプション',
+  'chase.fullscreen': '全画面',
+  'chase.exitFullscreen': '全画面を終了',
+  'chase.fullscreenHint': 'どこでもタップで撮影・長押しで終了',
 };

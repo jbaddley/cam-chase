@@ -293,4 +293,7 @@ export const pt: Record<MessageKey, string> = {
   'host.meetingSpot': 'Ponto de encontro',
   'chase.topAndBottom': 'Acima e abaixo',
   'chase.viewOptions': 'Opções de exibição',
+  'chase.fullscreen': 'Tela cheia',
+  'chase.exitFullscreen': 'Sair da tela cheia',
+  'chase.fullscreenHint': 'Toque em qualquer lugar para fotografar · segure para sair',
 };
