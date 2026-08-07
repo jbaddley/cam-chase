@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TeamScore } from '@photochase/shared';
+import { getLocale, setLocale } from '../i18n.js';
 
 const getResults = vi.fn();
 const setSharingConsent = vi.fn();
@@ -117,6 +118,28 @@ describe('ResultsScreen — per-mode column labels', () => {
     expect(screen.getByText('Guessed right')).toBeTruthy();
     expect(screen.getByText('Bluff bonus')).toBeTruthy();
     expect(screen.queryByText('Pose')).toBeNull();
+  });
+
+  // Bite-check: the per-mode labels reuse catalogue keys, so they must follow
+  // the viewer's locale. A Spanish player must see the Spanish column names —
+  // this fails the moment a label reverts to a hardcoded English literal.
+  it('localizes the per-mode labels rather than hardcoding English', async () => {
+    const original = getLocale();
+    setLocale('es');
+    try {
+      getResults.mockResolvedValue({ scoreboard: [score('t1', { location: 40, pose: 20, total: 60 })] });
+      render(<ResultsScreen gameId="g1" teams={TEAMS} mode="color_hunt" />);
+
+      await screen.findByText('Reds');
+      // score.guessedRight / score.bluffBonus in es.ts.
+      expect(screen.getByText('Aciertos')).toBeTruthy();
+      expect(screen.getByText('Bonus de engaño')).toBeTruthy();
+      // The English source strings must not leak through.
+      expect(screen.queryByText('Guessed right')).toBeNull();
+      expect(screen.queryByText('Bluff bonus')).toBeNull();
+    } finally {
+      setLocale(original);
+    }
   });
 });
 

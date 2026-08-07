@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { MessageKey } from '@photochase/i18n';
 import type { GameMode, TeamScore } from '@photochase/shared';
 import type { TeamSummary } from '@photochase/client';
 import { client } from '../api.js';
@@ -27,11 +28,22 @@ const BREAKDOWN: Array<{ key: keyof TeamScore; label: string }> = [
   { key: 'foulPenalty', label: 'Fouls' },
 ];
 
-/** Per-mode overrides for the columns whose meaning changes. */
-const MODE_LABELS: Partial<Record<GameMode, Partial<Record<keyof TeamScore, string>>>> = {
+/**
+ * Per-mode overrides for the columns whose meaning changes, resolved through
+ * `t()` at render so they follow the viewer's locale — the catalogue keys are
+ * already translated in every locale, so a Spanish player sees "Aciertos", not
+ * the English "Guessed right".
+ *
+ * `scavenger_hunt`'s "Items found" has no catalogue key yet, so it stays an
+ * English literal below until one lands (see docs/i18n-gap-audit.md). The base
+ * BREAKDOWN labels are likewise not yet keyed.
+ */
+const MODE_LABEL_KEYS: Partial<Record<GameMode, Partial<Record<keyof TeamScore, MessageKey>>>> = {
+  color_hunt: { location: 'score.guessedRight', pose: 'score.bluffBonus' },
+  photo_tag: { location: 'score.catches', pose: 'score.survival' },
+};
+const MODE_LABEL_FALLBACKS: Partial<Record<GameMode, Partial<Record<keyof TeamScore, string>>>> = {
   scavenger_hunt: { location: 'Items found' },
-  color_hunt: { location: 'Guessed right', pose: 'Bluff bonus' },
-  photo_tag: { location: 'Catches', pose: 'Survival' },
 };
 
 /** Final standings with each team's score breakdown, highest total first. */
@@ -110,12 +122,16 @@ export function ResultsScreen({
                 </View>
                 {i === 0 ? <WinnerTotal total={score.total} /> : <Text style={styles.total}>{score.total}</Text>}
               </View>
-              {BREAKDOWN.filter(({ key }) => score[key] !== 0).map(({ key, label }) => (
-                <View key={key} style={styles.row}>
-                  <Text style={styles.label}>{MODE_LABELS[mode]?.[key] ?? label}</Text>
-                  <Text style={styles.value}>{score[key]}</Text>
-                </View>
-              ))}
+              {BREAKDOWN.filter(({ key }) => score[key] !== 0).map(({ key, label }) => {
+                const overrideKey = MODE_LABEL_KEYS[mode]?.[key];
+                const text = overrideKey ? t(overrideKey) : MODE_LABEL_FALLBACKS[mode]?.[key] ?? label;
+                return (
+                  <View key={key} style={styles.row}>
+                    <Text style={styles.label}>{text}</Text>
+                    <Text style={styles.value}>{score[key]}</Text>
+                  </View>
+                );
+              })}
             </Card>
             </Maybe>
           </View>
