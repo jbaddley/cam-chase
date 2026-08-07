@@ -49,8 +49,7 @@
         {
           "locationAlwaysAndWhenInUsePermission": "PhotoChase records where a photo was taken so the game can score how close a recreation is. Location is only read during a round."
         }
-      ],
-      "./plugins/withCameraOrientation.js"
+      ]
     ],
     "extra": {
       "eas": {
