@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { ApiError, type RateableView } from '@photochase/client';
 import type { FoulReason } from '@photochase/shared';
 import { client } from '../api.js';
@@ -41,14 +41,17 @@ function Figure({
   uri,
   failed,
   testID,
+  capped,
 }: {
   label: string;
   uri: string | null;
   failed: boolean;
   testID: string;
+  /** Cap the width so a half-screen square does not overflow a short landscape. */
+  capped?: boolean;
 }) {
   return (
-    <View style={styles.figure}>
+    <View style={[styles.figure, capped && styles.figureCapped]}>
       <Text style={styles.caption} numberOfLines={1}>
         {label}
       </Text>
@@ -70,6 +73,10 @@ function Figure({
  * the match is a side-by-side; a hunt shows the single claimed photo.
  */
 function RatingPhotos({ gameId, view }: { gameId: string; view: RateableView }) {
+  const { width, height } = useWindowDimensions();
+  // Turned sideways, a half-width square is taller than the screen — cap it so
+  // the pair fits instead of overflowing off the bottom.
+  const wide = width > height;
   const hunt = Boolean(view.itemId);
   // Hooks run unconditionally; the original is skipped (null) for a hunt claim,
   // which is judged on its own, not against an original.
@@ -77,13 +84,13 @@ function RatingPhotos({ gameId, view }: { gameId: string; view: RateableView }) 
   const recreation = useSignedPhoto(gameId, view.chasePhotoId);
 
   return (
-    <View style={styles.pair}>
+    <View style={[styles.pair, wide && styles.pairWide]}>
       {hunt ? (
-        <Figure label="Claimed photo" uri={recreation.uri} failed={recreation.failed} testID="rate-photo-claim" />
+        <Figure label="Claimed photo" uri={recreation.uri} failed={recreation.failed} testID="rate-photo-claim" capped={wide} />
       ) : (
         <>
-          <Figure label="Original" uri={original.uri} failed={original.failed} testID="rate-photo-original" />
-          <Figure label="Recreation" uri={recreation.uri} failed={recreation.failed} testID="rate-photo-chase" />
+          <Figure label="Original" uri={original.uri} failed={original.failed} testID="rate-photo-original" capped={wide} />
+          <Figure label="Recreation" uri={recreation.uri} failed={recreation.failed} testID="rate-photo-chase" capped={wide} />
         </>
       )}
     </View>
@@ -213,7 +220,11 @@ export function RatingScreen({ gameId }: { gameId: string }) {
 const styles = StyleSheet.create({
   /** Original and recreation side by side, so a match reads as a comparison. */
   pair: { flexDirection: 'row', gap: space.sm },
+  /** Turned sideways the panes are capped, so centre the free space around them. */
+  pairWide: { justifyContent: 'center' },
   figure: { flex: 1, gap: space.xs },
+  /** A ceiling so a half-width square cannot grow taller than a short screen. */
+  figureCapped: { maxWidth: 300 },
   caption: { ...typeScale.label, color: color.inkMuted },
   /** A square, because scoring is shape-agnostic; cover fills it without letterbox. */
   frame: {
