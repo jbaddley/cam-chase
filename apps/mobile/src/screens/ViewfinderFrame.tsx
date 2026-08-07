@@ -98,7 +98,9 @@ const styles = StyleSheet.create({
   // Never more than half the frame sideways, or the readout crowds out the shot.
   infoLandscape: { flexShrink: 1, maxWidth: '50%' },
 
-  action: { gap: space.sm },
+  /** `alignItems: center` so the round shutter sits in the middle of the bottom
+      bar upright — a fixed-width circle would otherwise hug the left edge. */
+  action: { gap: space.sm, alignItems: 'center' },
   /** Centred against the right edge, where the thumb already is. */
-  actionLandscape: { justifyContent: 'center', flexShrink: 0, minWidth: 220 },
+  actionLandscape: { justifyContent: 'center', flexShrink: 0, minWidth: 120 },
 });
