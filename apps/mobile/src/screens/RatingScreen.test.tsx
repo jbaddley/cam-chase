@@ -6,20 +6,32 @@ const listRateable = vi.fn();
 const castVote = vi.fn();
 const flagFoul = vi.fn();
 const clearFoul = vi.fn();
+const requestDownload = vi.fn();
 vi.mock('../api.js', () => ({
   client: {
     listRateable: (id: string) => listRateable(id),
     castVote: (id: string, input: unknown) => castVote(id, input),
     flagFoul: (id: string, photoId: string, input: unknown) => flagFoul(id, photoId, input),
     clearFoul: (id: string, photoId: string, input: unknown) => clearFoul(id, photoId, input),
+    requestDownload: (id: string, photoId: string, opts?: unknown) => requestDownload(id, photoId, opts),
   },
 }));
 
 const { RatingScreen } = await import('./RatingScreen.js');
 
+// The photos are signed on mount, so a URL must be the default before the first
+// render — a distinct one per photo id so a test can tell the two panes apart.
+requestDownload.mockImplementation((_id: string, photoId: string) =>
+  Promise.resolve({ url: `https://signed.example/${photoId}.jpg` }),
+);
+
 afterEach(() => {
   cleanup();
   [listRateable, castVote, flagFoul, clearFoul].forEach((m) => m.mockReset());
+  requestDownload.mockReset();
+  requestDownload.mockImplementation((_id: string, photoId: string) =>
+    Promise.resolve({ url: `https://signed.example/${photoId}.jpg` }),
+  );
 });
 
 function rateable(overrides: Partial<RateableView> = {}): RateableView {
@@ -51,6 +63,28 @@ describe('RatingScreen', () => {
 
     // a2 has only one axis, so it is still outstanding.
     expect(await screen.findByText('1 / 2 rated')).toBeTruthy();
+  });
+
+  it('shows the original and the recreation, so the match can be seen', async () => {
+    listRateable.mockResolvedValue([rateable({ originalPhotoId: 'p1', chasePhotoId: 'c1' })]);
+    render(<RatingScreen gameId="g1" />);
+
+    const original = await screen.findByTestId('rate-photo-original');
+    const chase = await screen.findByTestId('rate-photo-chase');
+    // Each pane signs its own photo — the scoring controls are no longer blind.
+    expect(original.getAttribute('src')).toBe('https://signed.example/p1.jpg');
+    expect(chase.getAttribute('src')).toBe('https://signed.example/c1.jpg');
+  });
+
+  it('shows a single claimed photo for a hunt, not a pair', async () => {
+    listRateable.mockResolvedValue([rateable({ itemId: 'i1', itemLabel: 'A red door', chasePhotoId: 'c9' })]);
+    render(<RatingScreen gameId="g1" />);
+
+    expect((await screen.findByTestId('rate-photo-claim')).getAttribute('src')).toBe(
+      'https://signed.example/c9.jpg',
+    );
+    // A claim is judged on its own, so there is no original to compare against.
+    expect(screen.queryByTestId('rate-photo-original')).toBeNull();
   });
 
   it('casts a vote on the named axis', async () => {

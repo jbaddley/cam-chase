@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type RateableView } from '@photochase/client';
 import type { FoulReason } from '@photochase/shared';
 import { client } from '../api.js';
+import { color, radius, space, type as typeScale } from '../theme.js';
+import { useSignedPhoto } from '../useSignedPhoto.js';
 import { Body, Card, ChoiceRow, Chip, ErrorText, Heading, Pill, Screen, Title } from '../ui.js';
 
 type Axis = 'pose' | 'angle' | 'validity';
@@ -27,6 +30,65 @@ const HUNT_FOULS: Array<{ reason: FoulReason; label: string }> = [
 
 /** A hunt claim is judged on validity alone; a chase on pose and angle. */
 const axesFor = (r: RateableView): Axis[] => (r.itemId ? ['validity'] : ['pose', 'angle']);
+
+/**
+ * One captioned square. `cover` so a portrait and a landscape shot read as the
+ * same shape here, the way they will be scored — a rater comparing pose should
+ * not be thrown by one photo being letterboxed.
+ */
+function Figure({
+  label,
+  uri,
+  failed,
+  testID,
+}: {
+  label: string;
+  uri: string | null;
+  failed: boolean;
+  testID: string;
+}) {
+  return (
+    <View style={styles.figure}>
+      <Text style={styles.caption} numberOfLines={1}>
+        {label}
+      </Text>
+      <View style={styles.frame}>
+        {uri ? (
+          <Image testID={testID} source={{ uri }} resizeMode="cover" style={StyleSheet.absoluteFill} />
+        ) : (
+          <Text style={styles.placeholder}>{failed ? 'Unavailable' : '…'}</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * The photos being rated. You cannot score a pose or angle match you cannot see,
+ * and this screen used to ask you to — the scoring controls shipped without the
+ * pictures they are about. A chase shows the original beside the recreation, so
+ * the match is a side-by-side; a hunt shows the single claimed photo.
+ */
+function RatingPhotos({ gameId, view }: { gameId: string; view: RateableView }) {
+  const hunt = Boolean(view.itemId);
+  // Hooks run unconditionally; the original is skipped (null) for a hunt claim,
+  // which is judged on its own, not against an original.
+  const original = useSignedPhoto(gameId, hunt ? null : view.originalPhotoId);
+  const recreation = useSignedPhoto(gameId, view.chasePhotoId);
+
+  return (
+    <View style={styles.pair}>
+      {hunt ? (
+        <Figure label="Claimed photo" uri={recreation.uri} failed={recreation.failed} testID="rate-photo-claim" />
+      ) : (
+        <>
+          <Figure label="Original" uri={original.uri} failed={original.failed} testID="rate-photo-original" />
+          <Figure label="Recreation" uri={recreation.uri} failed={recreation.failed} testID="rate-photo-chase" />
+        </>
+      )}
+    </View>
+  );
+}
 
 /**
  * Rating phase: score other teams' work. In a chase that means pose and angle
@@ -118,6 +180,7 @@ export function RatingScreen({ gameId }: { gameId: string }) {
       {current ? (
         <Card>
           {current.itemLabel ? <Heading>Claimed: {current.itemLabel}</Heading> : null}
+          <RatingPhotos gameId={gameId} view={current} />
           {axesFor(current).map((axis) => (
             <ChoiceRow key={axis} label={AXIS_LABEL[axis]}>
               {STARS.map((n) => (
@@ -146,4 +209,22 @@ export function RatingScreen({ gameId }: { gameId: string }) {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  /** Original and recreation side by side, so a match reads as a comparison. */
+  pair: { flexDirection: 'row', gap: space.sm },
+  figure: { flex: 1, gap: space.xs },
+  caption: { ...typeScale.label, color: color.inkMuted },
+  /** A square, because scoring is shape-agnostic; cover fills it without letterbox. */
+  frame: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: color.surfaceSunken,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholder: { ...typeScale.label, color: color.inkMuted },
+});
 
