@@ -5,10 +5,12 @@ import { getLocale, setLocale } from '../i18n.js';
 
 const getResults = vi.fn();
 const setSharingConsent = vi.fn();
+const requestDownload = vi.fn();
 vi.mock('../api.js', () => ({
   client: {
     getResults: (id: string) => getResults(id),
     setSharingConsent: (id: string, consent: boolean) => setSharingConsent(id, consent),
+    requestDownload: (id: string, photoId: string, opts?: unknown) => requestDownload(id, photoId, opts),
   },
 }));
 
@@ -16,8 +18,10 @@ const { ResultsScreen } = await import('./ResultsScreen.js');
 
 afterEach(() => {
   cleanup();
-  [getResults, setSharingConsent].forEach((m) => m.mockReset());
+  [getResults, setSharingConsent, requestDownload].forEach((m) => m.mockReset());
+  requestDownload.mockResolvedValue({ url: 'https://signed.example/photo.jpg' });
 });
+requestDownload.mockResolvedValue({ url: 'https://signed.example/photo.jpg' });
 
 const TEAMS = [
   { teamId: 't1', name: 'Reds', memberCount: 2 },
@@ -51,6 +55,37 @@ describe('ResultsScreen', () => {
     // the order is read from the names.
     const names = screen.getAllByText(/^(Reds|Blues)$/).map((n) => n.textContent);
     expect(names).toEqual(['Blues', 'Reds']);
+  });
+
+  it('shows the category winners with the shots that took them', async () => {
+    getResults.mockResolvedValue({
+      scoreboard: [score('t1', { total: 100 }), score('t2', { total: 50 })],
+      highlights: [
+        {
+          category: 'best_overall_match',
+          label: 'Best overall match',
+          teamId: 't1',
+          teamName: 'Reds',
+          originalPhotoId: 'o1',
+          chasePhotoId: 'c1',
+        },
+      ],
+    });
+    render(<ResultsScreen gameId="g1" teams={TEAMS} />);
+
+    expect(await screen.findByText('Best overall match')).toBeTruthy();
+    const shot = await screen.findByTestId('result-chase-best_overall_match');
+    expect(shot.getAttribute('src')).toBe('https://signed.example/photo.jpg');
+    expect(requestDownload).toHaveBeenCalledWith('g1', 'c1', { variant: 'thumb' });
+  });
+
+  it('shows the standings alone when no finals votes made a highlight', async () => {
+    getResults.mockResolvedValue({ scoreboard: [score('t1', { total: 100 })], highlights: [] });
+    render(<ResultsScreen gameId="g1" teams={TEAMS} />);
+
+    await screen.findByText('100');
+    expect(screen.queryByText('Category winners')).toBeNull();
+    expect(requestDownload).not.toHaveBeenCalled();
   });
 
   it('resolves team ids to names from the polled state', async () => {

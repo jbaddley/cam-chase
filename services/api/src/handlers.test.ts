@@ -884,11 +884,15 @@ describe('finals voting', () => {
     await unwrap(castFinalsVote(repo, { gameId, voterUserId: 'uA', category: 'best_overall_match', teamId: teamB }));
     await unwrap(castFinalsVote(repo, { gameId, voterUserId: 'uJ', category: 'best_overall_match', teamId: teamA }));
 
-    const { scoreboard } = await unwrap(getResults(repo, gameId));
+    const { scoreboard, highlights } = await unwrap(getResults(repo, gameId));
     const scoreA = scoreboard.find((s) => s.teamId === teamA)!;
     const scoreB = scoreboard.find((s) => s.teamId === teamB)!;
     expect(scoreA.bestMatchBonus).toBeGreaterThan(0);
     expect(scoreB.bestMatchBonus).toBe(0);
+    // The results reel names the same winner and carries a shot to show for it.
+    const best = highlights.find((h) => h.category === 'best_overall_match');
+    expect(best?.teamId).toBe(teamA);
+    expect(best?.chasePhotoId).toBeTruthy();
   });
 
   it('awards a special-category bonus to its winner', async () => {

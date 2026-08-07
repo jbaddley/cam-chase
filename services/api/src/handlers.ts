@@ -30,6 +30,7 @@ import {
   planAssignments,
   resolveFinals,
   resolveReturnFence,
+  tallyCategoryWinners,
   resolveVoteWeight,
   returnDurations,
   returnRoundOf,
@@ -1625,10 +1626,21 @@ export async function castFinalsVote(repo: GameRepository, raw: unknown): Promis
 
 // --- getResults -------------------------------------------------------------
 
+/** A category the finals crowned, with the matchup that won it — for the reel. */
+export interface ResultHighlight {
+  category: string;
+  label: string;
+  teamId: string;
+  teamName: string;
+  /** The winning matchup: absent for a mode with no recreations (tag, colour). */
+  originalPhotoId?: string;
+  chasePhotoId?: string;
+}
+
 export async function getResults(
   repo: GameRepository,
   gameId: string,
-): Promise<Result<{ scoreboard: TeamScore[] }>> {
+): Promise<Result<{ scoreboard: TeamScore[]; highlights: ResultHighlight[] }>> {
   const game = await repo.get(gameId);
   if (!game) return err('Game not found.');
   if (!['rating', 'finals_voting', 'results'].includes(game.state)) {
@@ -1641,13 +1653,31 @@ export async function getResults(
 
   // Finals bonuses come from the actual weighted finals votes. With no finals
   // votes cast, no best-match or special bonus is awarded.
-  const finals = resolveFinals(
-    (game.finalsVotes ?? []).map((v) => ({
-      category: v.category,
-      teamId: v.teamId,
-      weight: weightOf(v.voterUserId),
-    })),
-  );
+  const weightedFinalsVotes = (game.finalsVotes ?? []).map((v) => ({
+    category: v.category,
+    teamId: v.teamId,
+    weight: weightOf(v.voterUserId),
+  }));
+  const finals = resolveFinals(weightedFinalsVotes);
+
+  // The category winners with the matchup that won them, so the results screen
+  // can show the shots that took each category rather than only the totals.
+  const categoryWinners = tallyCategoryWinners(weightedFinalsVotes);
+  const finalistByTeam = new Map(pickFinalists(game.assignments, game.votes).map((f) => [f.teamId, f]));
+  const teamNameById = new Map(game.teams.map((t) => [t.id, t.name]));
+  const highlights: ResultHighlight[] = finalsCategories(game)
+    .filter((c) => categoryWinners[c.id])
+    .map((c) => {
+      const teamId = categoryWinners[c.id]!;
+      const f = finalistByTeam.get(teamId);
+      return {
+        category: c.id,
+        label: c.label,
+        teamId,
+        teamName: teamNameById.get(teamId) ?? teamId,
+        ...(f ? { originalPhotoId: f.originalPhotoId, chasePhotoId: f.chasePhotoId } : {}),
+      };
+    });
 
   const teamIds = game.teams.map((t) => t.id);
 
@@ -1667,6 +1697,7 @@ export async function getResults(
         bestMatchTeamId: finals.bestMatchTeamId,
         specialWinners: finals.specialWinners,
       }),
+      highlights,
     });
   }
 
@@ -1703,6 +1734,7 @@ export async function getResults(
         bestMatchTeamId: finals.bestMatchTeamId,
         specialWinners: finals.specialWinners,
       }),
+      highlights,
     });
   }
 
@@ -1739,6 +1771,7 @@ export async function getResults(
         // game still runs the return loop but scores no timing bonus.
         returnDurations: game.config.geofencing ? returnDurations(game) : undefined,
       }),
+      highlights,
     });
   }
 
@@ -1777,5 +1810,5 @@ export async function getResults(
     // still runs the return loop but scores no timing bonus.
     returnDurations: game.config.geofencing ? returnDurations(game) : undefined,
   });
-  return ok({ scoreboard });
+  return ok({ scoreboard, highlights });
 }

@@ -199,6 +199,17 @@ export interface HuntView {
 }
 
 /** Finals categories open for voting, plus this caller's picks so far. */
+/** A finals category and the matchup that won it, for the results reel. */
+export interface ResultHighlight {
+  category: string;
+  label: string;
+  teamId: string;
+  teamName: string;
+  /** The winning matchup; absent for a mode with no recreations (tag, colour). */
+  originalPhotoId?: string;
+  chasePhotoId?: string;
+}
+
 export interface FinalsView {
   categories: Array<{ id: string; label: string }>;
   /**
@@ -577,7 +588,7 @@ export class PhotoChaseClient {
     return request(this.config, 'POST', `/games/${encodeURIComponent(gameId)}/finals`, input);
   }
 
-  getResults(gameId: string): Promise<{ scoreboard: TeamScore[] }> {
+  getResults(gameId: string): Promise<{ scoreboard: TeamScore[]; highlights: ResultHighlight[] }> {
     return request(this.config, 'GET', `/games/${encodeURIComponent(gameId)}/results`);
   }
 

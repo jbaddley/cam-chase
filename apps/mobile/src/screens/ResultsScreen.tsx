@@ -1,13 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { MessageKey } from '@photochase/i18n';
 import type { GameMode, TeamScore } from '@photochase/shared';
-import type { TeamSummary } from '@photochase/client';
+import type { ResultHighlight, TeamSummary } from '@photochase/client';
 import { client } from '../api.js';
 import { t } from '../i18n.js';
 import { useCountUp } from '../motion.js';
+import { useSignedPhoto } from '../useSignedPhoto.js';
 import { color, radius, space, type as typeScale } from '../theme.js';
-import { Button, Card, ErrorText, Loading, Pop, Screen, Title } from '../ui.js';
+import { Button, Card, ErrorText, Heading, Loading, Pop, Screen, Title } from '../ui.js';
 
 /**
  * Score components shown under each team's total, in scoring order.
@@ -57,6 +58,7 @@ export function ResultsScreen({
   mode?: GameMode;
 }) {
   const [scoreboard, setScoreboard] = useState<TeamScore[] | null>(null);
+  const [highlights, setHighlights] = useState<ResultHighlight[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [consent, setConsent] = useState<boolean | null>(null);
   const [consentError, setConsentError] = useState<string | null>(null);
@@ -65,8 +67,12 @@ export function ResultsScreen({
     let active = true;
     client
       .getResults(gameId)
-      .then(({ scoreboard: s }) => {
-        if (active) setScoreboard([...s].sort((a, b) => b.total - a.total));
+      .then(({ scoreboard: s, highlights: h }) => {
+        if (!active) return;
+        setScoreboard([...s].sort((a, b) => b.total - a.total));
+        // `?? []` so a server that predates highlights (or the moment before the
+        // deploy lands) shows the standings rather than crashing on undefined.
+        setHighlights(h ?? []);
       })
       .catch(() => {
         if (active) setError('Could not load the results.');
@@ -137,6 +143,17 @@ export function ResultsScreen({
           </View>
         ))}
         {winner ? <Text style={styles.flourish}>🏆 {nameOf(winner.teamId)} takes it</Text> : null}
+
+        {/* The shots that took each category, so the finish is something to look
+            at, not just a column of totals. Absent when nobody voted. */}
+        {highlights.length > 0 ? (
+          <View style={styles.highlights}>
+            <Heading>Category winners</Heading>
+            {highlights.map((h) => (
+              <Highlight key={h.category} gameId={gameId} h={h} />
+            ))}
+          </View>
+        ) : null}
       </ScrollView>
 
       <View style={styles.consent}>
@@ -175,8 +192,52 @@ function WinnerTotal({ total }: { total: number }) {
   return <Text style={styles.winnerTotal}>{useCountUp(total)}</Text>;
 }
 
+/** One category's winner: the label, the team, and the shot that took it. */
+function Highlight({ gameId, h }: { gameId: string; h: ResultHighlight }) {
+  const original = useSignedPhoto(gameId, h.originalPhotoId ?? null);
+  const recreation = useSignedPhoto(gameId, h.chasePhotoId ?? null);
+  return (
+    <Card>
+      <Text style={styles.highlightLabel}>{h.label}</Text>
+      <Heading>{h.teamName}</Heading>
+      {h.chasePhotoId ? (
+        <View style={styles.pair}>
+          <HighlightFigure uri={original.uri} failed={original.failed} testID={`result-original-${h.category}`} />
+          <HighlightFigure uri={recreation.uri} failed={recreation.failed} testID={`result-chase-${h.category}`} />
+        </View>
+      ) : null}
+    </Card>
+  );
+}
+
+function HighlightFigure({ uri, failed, testID }: { uri: string | null; failed: boolean; testID: string }) {
+  return (
+    <View style={styles.frame}>
+      {uri ? (
+        <Image testID={testID} source={{ uri }} resizeMode="cover" style={StyleSheet.absoluteFill} />
+      ) : (
+        <Text style={styles.placeholder}>{failed ? 'Unavailable' : '…'}</Text>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   list: { gap: space.md, paddingBottom: space.lg },
+  /** The category-winners reel, below the standings. */
+  highlights: { gap: space.md, paddingTop: space.md },
+  highlightLabel: { ...typeScale.label, color: color.inkMuted },
+  pair: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
+  frame: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: color.surfaceSunken,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholder: { ...typeScale.label, color: color.inkMuted },
   winnerWrap: { marginBottom: space.xs },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   nameGroup: { flexDirection: 'row', alignItems: 'center', gap: space.md, flexShrink: 1 },
