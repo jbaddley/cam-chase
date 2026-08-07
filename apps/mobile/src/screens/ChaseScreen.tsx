@@ -61,18 +61,21 @@ export function ChaseScreen({
   const [fullscreen, setFullscreen] = useState(false);
   useHideChrome(fullscreen);
 
-  // The picture region, measured off the spacer between the chrome, in both
-  // coordinate spaces it has to serve: `ui` for the original this screen draws
-  // (inside the safe area), `window` for the camera the stage draws (outside it).
+  // The picture region, measured in the two coordinate spaces it has to serve:
+  // `ui` for the original this screen draws, `window` for the camera the stage
+  // draws (outside the safe area). `ui` is the region's *own* box (0,0,w,h), not
+  // its offset in a parent, because the original is drawn in a layer *inside* the
+  // region view — so however the region is nested (a column in portrait, a row in
+  // landscape, a fullscreen surface), the original and the camera cannot drift.
   const [region, setRegion] = useState<{ ui: Rect; window: Rect } | null>(null);
   const regionRef = useRef<View | null>(null);
   const onRegion = useCallback((e: LayoutChangeEvent) => {
-    const { x, y, width, height } = e.nativeEvent.layout;
-    const ui: Rect = { left: x, top: y, width, height };
+    const { width, height } = e.nativeEvent.layout;
+    const ui: Rect = { left: 0, top: 0, width, height };
     const node = regionRef.current;
     // measureInWindow gives absolute window coordinates, crossing the safe-area
     // inset the camera sits outside of. Absent under the DOM harness — fall back
-    // to the UI rect, where with no insets the two spaces coincide anyway.
+    // to the UI box, where with no insets the two spaces coincide anyway.
     if (node && typeof node.measureInWindow === 'function') {
       node.measureInWindow((wx, wy, ww, wh) => setRegion({ ui, window: { left: wx, top: wy, width: ww, height: wh } }));
     } else {
@@ -144,16 +147,15 @@ export function ChaseScreen({
           : t('chase.topAndBottom')
         : t('chase.overlayAt', { percent: Math.round(opacity * 100) });
 
+  /** The original, drawn in a layer inside whatever region view is mounted. */
+  const picture = (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <ChaseView uri={uri} mode={mode} opacity={opacity} camera={viewport.camera} other={viewport.other} />
+    </View>
+  );
+
   return (
     <View style={styles.screen}>
-      {/* The original, in a full-screen layer so its rect lands on the same
-          pixels as the native camera window behind it. Non-interactive: the
-          controls above it stay tappable. Rendered first, so it is under the
-          chrome even where a square would otherwise reach it. */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <ChaseView uri={uri} mode={mode} opacity={opacity} camera={viewport.camera} other={viewport.other} />
-      </View>
-
       {fullscreen ? (
         /* The whole screen is the shutter: a tap anywhere shoots. The region is
            measured off this surface, so the squares fill the screen the bar and
@@ -170,6 +172,7 @@ export function ChaseScreen({
           accessibilityLabel={t('chase.take')}
           testID="chase-shoot"
         >
+          {picture}
           <View style={styles.fsExit}>
             <IconButton
               glyph="✕"
@@ -192,16 +195,22 @@ export function ChaseScreen({
             onFullscreen={() => setFullscreen(true)}
           />
 
-          {/* The picture region: everything between the header and the shutter,
-              and nothing drawn in it — the squares are laid out from its measure. */}
-          <View ref={regionRef} style={styles.region} onLayout={onRegion} collapsable={false} />
+          {/* The picture region and the shutter. Stacked in portrait; turned side
+              by side in landscape, so the short axis is not split between chrome
+              and picture — the shutter takes a column at the edge and the picture
+              keeps the height. */}
+          <View style={[styles.middle, wide && styles.middleRow]}>
+            <View ref={regionRef} style={styles.region} onLayout={onRegion} collapsable={false}>
+              {picture}
+            </View>
 
-          <View style={styles.action}>
-            {error ? <ErrorText>{error}</ErrorText> : null}
-            {failed ? <ErrorText>{t('chase.originalUnavailable')}</ErrorText> : null}
-            <Button onPress={chase} disabled={!current}>
-              {!current ? t('chase.done') : busy ? t('chase.saving') : t('chase.take')}
-            </Button>
+            <View style={[styles.action, wide && styles.actionSide]}>
+              {error ? <ErrorText>{error}</ErrorText> : null}
+              {failed ? <ErrorText>{t('chase.originalUnavailable')}</ErrorText> : null}
+              <Button onPress={chase} disabled={!current}>
+                {!current ? t('chase.done') : busy ? t('chase.saving') : t('chase.take')}
+              </Button>
+            </View>
           </View>
         </>
       )}
@@ -356,12 +365,16 @@ const styles = StyleSheet.create({
   subject: { ...typeScale.body, fontWeight: '700', color: color.ink },
   progress: { ...typeScale.label, color: color.inkMuted },
   summary: { ...typeScale.label, color: color.inkMuted },
-  /** The picture region: the band between the chrome, sized by the flex column.
-      The squares are laid out from its measure; nothing is drawn in it directly.
-      In fullscreen this same region is the tap-to-shoot surface. */
+  /** Region + shutter: stacked upright, side by side when turned. */
+  middle: { flex: 1, flexDirection: 'column' },
+  middleRow: { flexDirection: 'row' },
+  /** The picture region: it holds the picture layer and, in fullscreen, is the
+      tap-to-shoot surface. The squares are laid out from its own measured box. */
   region: { flex: 1 },
-  /** One primary action, full width, in the lower third where a thumb reaches. */
+  /** One primary action. Full width along the bottom in portrait; a column at the
+      trailing edge in landscape, so it does not eat the already-short height. */
   action: { paddingHorizontal: space.xl, paddingTop: space.sm, paddingBottom: space.md },
+  actionSide: { width: 360, alignSelf: 'stretch', justifyContent: 'center', paddingBottom: space.md },
   /** Fullscreen: the one escape hatch, tucked in a corner and kept faint so it
       is findable without competing with the picture. */
   fsExit: { position: 'absolute', top: space.sm, right: space.sm, opacity: 0.7 },
