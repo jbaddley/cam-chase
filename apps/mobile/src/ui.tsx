@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { color, radius, shadow, space, type } from './theme.js';
 
 /**
@@ -90,10 +90,16 @@ export function Pill({ children, tone = 'accent' }: { children: ReactNode; tone?
  * this and they had drifted into four different gaps.
  */
 export function Screen({ children, scroll = false }: { children: ReactNode; scroll?: boolean }) {
+  const { width, height } = useWindowDimensions();
+  // Turned sideways, a form or list stretched the full width runs to very long
+  // lines and buttons; cap it to a readable column, centred. Upright it fills.
+  const wide = width > height;
   if (scroll) {
-    return <ScrollView contentContainerStyle={styles.screenScroll}>{children}</ScrollView>;
+    return (
+      <ScrollView contentContainerStyle={[styles.screenScroll, wide && styles.screenReadable]}>{children}</ScrollView>
+    );
   }
-  return <View style={styles.screen}>{children}</View>;
+  return <View style={[styles.screen, wide && styles.screenReadable]}>{children}</View>;
 }
 
 /**
@@ -390,6 +396,9 @@ const styles = StyleSheet.create({
 
   screen: { flex: 1, padding: space.xl, gap: space.md, backgroundColor: color.surface },
   screenScroll: { padding: space.xl, gap: space.md, backgroundColor: color.surface, flexGrow: 1 },
+  /** Landscape: a readable column instead of full-bleed lines the width of a
+      tablet. Centred, so the two gutters are even. */
+  screenReadable: { maxWidth: 680, width: '100%', alignSelf: 'center' },
 
   chip: { ...chipBase, backgroundColor: color.surfaceSunken },
   chipSelected: { ...chipBase, backgroundColor: color.primary },
