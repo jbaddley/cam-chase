@@ -7,7 +7,7 @@ import { useHideChrome } from '../chrome.js';
 import { t } from '../i18n.js';
 import { color, radius, space, type as typeScale } from '../theme.js';
 import { useSignedPhoto } from '../useSignedPhoto.js';
-import { Button, Chip, ChoiceRow, ErrorText, IconButton, Loading, Sheet } from '../ui.js';
+import { Chip, ChoiceRow, ErrorText, IconButton, Loading, Sheet, ShutterButton } from '../ui.js';
 import { useCameraRect, useViewfinder } from '../viewfinder.js';
 import { layoutViewport, placementFor, type Rect } from '../viewport.js';
 import { ChaseView, OVERLAY_LEVELS, type ChaseViewMode } from './ChaseView.js';
@@ -182,7 +182,18 @@ export function ChaseScreen({
             />
           </View>
           {error ? <Text style={styles.fsError}>{error}</Text> : null}
-          <Text style={styles.fsHint}>{busy ? t('chase.saving') : t('chase.fullscreenHint')}</Text>
+          {/* The shutter, so there is a place to look and press; a tap anywhere
+              still shoots, and a hold still exits. Bottom-centre upright, at the
+              right edge when turned — where the thumb already is. */}
+          <View style={wide ? styles.fsShutterSide : styles.fsShutterBottom} pointerEvents="box-none">
+            <ShutterButton
+              onPress={chase}
+              disabled={!current}
+              busy={busy}
+              accessibilityLabel={busy ? t('chase.saving') : t('chase.take')}
+              testID="chase-shutter"
+            />
+          </View>
         </Pressable>
       ) : (
         <>
@@ -207,9 +218,13 @@ export function ChaseScreen({
             <View style={[styles.action, wide && styles.actionSide]}>
               {error ? <ErrorText>{error}</ErrorText> : null}
               {failed ? <ErrorText>{t('chase.originalUnavailable')}</ErrorText> : null}
-              <Button onPress={chase} disabled={!current}>
-                {!current ? t('chase.done') : busy ? t('chase.saving') : t('chase.take')}
-              </Button>
+              <ShutterButton
+                onPress={chase}
+                disabled={!current}
+                busy={busy}
+                accessibilityLabel={!current ? t('chase.done') : busy ? t('chase.saving') : t('chase.take')}
+                testID="chase-shutter"
+              />
             </View>
           </View>
         </>
@@ -371,10 +386,20 @@ const styles = StyleSheet.create({
   /** The picture region: it holds the picture layer and, in fullscreen, is the
       tap-to-shoot surface. The squares are laid out from its own measured box. */
   region: { flex: 1 },
-  /** One primary action. Full width along the bottom in portrait; a column at the
-      trailing edge in landscape, so it does not eat the already-short height. */
-  action: { paddingHorizontal: space.xl, paddingTop: space.sm, paddingBottom: space.md },
-  actionSide: { width: 360, alignSelf: 'stretch', justifyContent: 'center', paddingBottom: space.md },
+  /** The shutter's zone. A round button needs little room, so the picture gets
+      the rest: a slim strip along the bottom upright, a slim column at the
+      trailing edge when turned (which is what makes side-by-side big). */
+  action: { paddingTop: space.sm, paddingBottom: space.md, alignItems: 'center', gap: space.xs },
+  actionSide: {
+    width: 120,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+    paddingBottom: 0,
+    paddingHorizontal: space.sm,
+  },
+  /** Fullscreen shutter: bottom-centre upright, right-edge centred when turned. */
+  fsShutterBottom: { position: 'absolute', left: 0, right: 0, bottom: space.xl, alignItems: 'center' },
+  fsShutterSide: { position: 'absolute', top: 0, bottom: 0, right: space.xl, justifyContent: 'center' },
   /** Fullscreen: the one escape hatch, tucked in a corner and kept faint so it
       is findable without competing with the picture. */
   fsExit: { position: 'absolute', top: space.sm, right: space.sm, opacity: 0.7 },

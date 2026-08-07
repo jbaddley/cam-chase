@@ -354,7 +354,8 @@ describe('ChaseScreen — fullscreen', () => {
     fireEvent.click(screen.getByTestId('chase-shrink'));
 
     // The shutter and the options are back — you are never trapped fullscreen.
-    expect(await screen.findByText('Take chase photo')).toBeTruthy();
+    // The shutter is a circle; its name is the accessible label, not text.
+    expect(await screen.findByRole('button', { name: 'Take chase photo' })).toBeTruthy();
     expect(screen.getByTestId('chase-options')).toBeTruthy();
   });
 });

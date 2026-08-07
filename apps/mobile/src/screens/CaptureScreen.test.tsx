@@ -96,7 +96,8 @@ describe('CaptureScreen', () => {
 
     fireEvent.click(takeButton());
     await screen.findByText('1 / 1 photos');
-    expect(screen.getByText('All photos taken')).toBeTruthy();
+    // The shutter is a circle now; its state lives in the accessible name.
+    expect(screen.getByRole('button', { name: 'All photos taken' })).toBeTruthy();
 
     fireEvent.click(takeButton());
     await waitFor(() => expect(capturePhoto).toHaveBeenCalledTimes(1));
@@ -107,7 +108,7 @@ describe('CaptureScreen', () => {
     render(<CaptureScreen gameId="g1" teamId="t1" quota={5} capture={capture} />);
 
     fireEvent.click(takeButton());
-    await screen.findByText('Saving…');
+    await screen.findByRole('button', { name: 'Saving…' });
     fireEvent.click(takeButton());
 
     expect(capturePhoto).toHaveBeenCalledTimes(1);

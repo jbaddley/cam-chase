@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ApiError, type GeoPointInput } from '@photochase/client';
 import { client } from '../api.js';
 import { CaptureError } from '../capture.js';
-import { Body, Button, ErrorText, Title } from '../ui.js';
+import { Body, ErrorText, ShutterButton, Title } from '../ui.js';
 import { useViewfinder } from '../viewfinder.js';
 import { ViewfinderFrame } from './ViewfinderFrame.js';
 
@@ -69,9 +69,13 @@ export function CaptureScreen({
   return (
     <ViewfinderFrame
       action={
-        <Button onPress={take} disabled={done}>
-          {done ? 'All photos taken' : busy ? 'Saving…' : 'Take photo'}
-        </Button>
+        <ShutterButton
+          onPress={take}
+          disabled={done}
+          busy={busy}
+          accessibilityLabel={done ? 'All photos taken' : busy ? 'Saving…' : 'Take photo'}
+          testID="capture-shutter"
+        />
       }
     >
       <Title>Round 1</Title>

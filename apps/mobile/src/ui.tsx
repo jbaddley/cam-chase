@@ -151,6 +151,44 @@ export function IconButton({
 }
 
 /**
+ * The shutter: a round camera-style button, not a labelled bar.
+ *
+ * Every phone camera puts a circle here, so a photo game should too — it reads as
+ * "take the shot" without a word, and being small it leaves the picture the room
+ * a full-width bar used to steal. A white ring over a dark gap keeps it legible on
+ * a bright scene or a blank surface alike; the core is the brand yellow so it is
+ * unmistakably the primary action. The accessible label carries the state a
+ * caption used to, so it is still findable by name.
+ */
+export function ShutterButton({
+  onPress,
+  disabled = false,
+  busy = false,
+  accessibilityLabel,
+  testID,
+}: {
+  onPress: () => void;
+  disabled?: boolean;
+  /** Dims and blocks while a capture is in flight. */
+  busy?: boolean;
+  accessibilityLabel: string;
+  testID?: string;
+}) {
+  const off = disabled || busy;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={off}
+      accessibilityLabel={accessibilityLabel}
+      testID={testID}
+      style={({ pressed }) => [styles.shutter, pressed && styles.shutterPressed, off && styles.shutterOff]}
+    >
+      <View style={styles.shutterCore} />
+    </Pressable>
+  );
+}
+
+/**
  * A modal sheet for controls that are set occasionally and then left alone.
  *
  * The convention it exists to serve (docs/10): options like view modes and
@@ -442,6 +480,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconGlyph: { fontSize: 20, color: color.inkMuted },
+  /** The camera shutter: a white ring over a dark gap, a brand-yellow core.
+      Legible on a bright scene or a blank surface; small, so the picture keeps
+      the room. */
+  shutter: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 5,
+    borderColor: color.surface,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  shutterCore: { width: 52, height: 52, borderRadius: 26, backgroundColor: color.primary },
+  shutterPressed: { transform: [{ scale: 0.92 }], opacity: 0.9 },
+  shutterOff: { opacity: 0.4 },
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheetDismissArea: { flex: 1 },
   sheet: {
