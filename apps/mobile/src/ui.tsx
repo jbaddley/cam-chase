@@ -95,8 +95,12 @@ export function Screen({ children, scroll = false }: { children: ReactNode; scro
   // lines and buttons; cap it to a readable column, centred. Upright it fills.
   const wide = width > height;
   if (scroll) {
+    // The cap has to sit on a *child* of the scroll container: alignSelf on the
+    // contentContainer itself does not centre it. Upright, no wrapper.
     return (
-      <ScrollView contentContainerStyle={[styles.screenScroll, wide && styles.screenReadable]}>{children}</ScrollView>
+      <ScrollView contentContainerStyle={styles.screenScroll}>
+        {wide ? <View style={styles.screenReadable}>{children}</View> : children}
+      </ScrollView>
     );
   }
   return <View style={[styles.screen, wide && styles.screenReadable]}>{children}</View>;
@@ -397,8 +401,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, padding: space.xl, gap: space.md, backgroundColor: color.surface },
   screenScroll: { padding: space.xl, gap: space.md, backgroundColor: color.surface, flexGrow: 1 },
   /** Landscape: a readable column instead of full-bleed lines the width of a
-      tablet. Centred, so the two gutters are even. */
-  screenReadable: { maxWidth: 680, width: '100%', alignSelf: 'center' },
+      tablet. Centred, so the two gutters are even. `gap` so the wrapped scroll
+      content keeps the spacing the contentContainer gives it upright. */
+  screenReadable: { maxWidth: 680, width: '100%', alignSelf: 'center', gap: space.md },
 
   chip: { ...chipBase, backgroundColor: color.surfaceSunken },
   chipSelected: { ...chipBase, backgroundColor: color.primary },
