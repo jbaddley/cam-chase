@@ -92,7 +92,7 @@ export default function BigScreenPage({ params }: { params: Promise<{ code: stri
             <li key={team.teamId} style={styles.row}>
               <span>{team.name}</span>
               <span style={styles.muted}>
-                {team.memberCount} player{team.memberCount === 1 ? '' : 's'}
+                {t('lobby.playerCount', { count: team.memberCount })}
               </span>
             </li>
           ))}
