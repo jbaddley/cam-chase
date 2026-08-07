@@ -26,6 +26,7 @@ import {
   formatDistance,
   isBackAtStart,
   metresToStart,
+  pickFinalists,
   planAssignments,
   resolveFinals,
   resolveReturnFence,
@@ -1539,7 +1540,12 @@ export async function checkIn(
 /** The categories open for voting, plus what this caller has already picked. */
 export interface FinalsView {
   categories: Array<{ id: string; label: string }>;
-  teams: Array<{ teamId: string; name: string }>;
+  /**
+   * The teams on the ballot. Each carries its finalist matchup — the original it
+   * chased and its best recreation of it — so a voter sees each team's work
+   * instead of voting on a name. Absent for a team that submitted nothing.
+   */
+  teams: Array<{ teamId: string; name: string; originalPhotoId?: string; chasePhotoId?: string }>;
   /** category id → teamId this user voted for. */
   myVotes: Record<string, string>;
 }
@@ -1567,9 +1573,17 @@ export async function getFinals(
   for (const v of game.finalsVotes ?? []) {
     if (v.voterUserId === input.userId) myVotes[v.category] = v.teamId;
   }
+  // The matchup to show under each team: its best-rated recreation and the
+  // original it chased, so the ballot is something you can look at, not just read.
+  const finalists = new Map(pickFinalists(game.assignments, game.votes).map((f) => [f.teamId, f]));
   return ok({
     categories: finalsCategories(game),
-    teams: game.teams.map((t) => ({ teamId: t.id, name: t.name })),
+    teams: game.teams.map((t) => {
+      const f = finalists.get(t.id);
+      return f
+        ? { teamId: t.id, name: t.name, originalPhotoId: f.originalPhotoId, chasePhotoId: f.chasePhotoId }
+        : { teamId: t.id, name: t.name };
+    }),
     myVotes,
   });
 }

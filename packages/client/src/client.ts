@@ -201,7 +201,12 @@ export interface HuntView {
 /** Finals categories open for voting, plus this caller's picks so far. */
 export interface FinalsView {
   categories: Array<{ id: string; label: string }>;
-  teams: Array<{ teamId: string; name: string }>;
+  /**
+   * Teams on the ballot. Each carries its finalist matchup — the original it
+   * chased and its best recreation — so a voter judges the work, not a name.
+   * The photo ids are absent for a team that submitted nothing.
+   */
+  teams: Array<{ teamId: string; name: string; originalPhotoId?: string; chasePhotoId?: string }>;
   /** category id → teamId this user voted for. */
   myVotes: Record<string, string>;
 }

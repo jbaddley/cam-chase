@@ -845,6 +845,12 @@ describe('finals voting', () => {
     expect(view.categories.map((c) => c.id)).toEqual(['best_overall_match', 'Craziest Pose']);
     expect(view.teams).toHaveLength(2);
     expect(view.myVotes).toEqual({});
+    // Both teams submitted chases, so each carries its finalist matchup to show
+    // — a name over an empty row is what this fixes.
+    for (const team of view.teams) {
+      expect(team.chasePhotoId).toBeTruthy();
+      expect(team.originalPhotoId).toBeTruthy();
+    }
   });
 
   it('records a vote and reports it back to the voter', async () => {

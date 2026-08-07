@@ -4,10 +4,12 @@ import type { FinalsView } from '@photochase/client';
 
 const getFinals = vi.fn();
 const castFinalsVote = vi.fn();
+const requestDownload = vi.fn();
 vi.mock('../api.js', () => ({
   client: {
     getFinals: (id: string) => getFinals(id),
     castFinalsVote: (id: string, input: unknown) => castFinalsVote(id, input),
+    requestDownload: (id: string, photoId: string, opts?: unknown) => requestDownload(id, photoId, opts),
   },
 }));
 
@@ -17,7 +19,11 @@ afterEach(() => {
   cleanup();
   getFinals.mockReset();
   castFinalsVote.mockReset();
+  requestDownload.mockReset();
+  requestDownload.mockResolvedValue({ url: 'https://signed.example/photo.jpg' });
 });
+// In place before the first render, like the other photo screens.
+requestDownload.mockResolvedValue({ url: 'https://signed.example/photo.jpg' });
 
 const BALLOT: FinalsView = {
   categories: [
@@ -103,5 +109,37 @@ describe('FinalsScreen', () => {
     render(<FinalsScreen gameId="g1" myTeamId="t1" />);
 
     expect(await screen.findByText('Could not load the finals ballot.')).toBeTruthy();
+  });
+
+  // The whole point of the change: you can see what you are voting on. Without
+  // the matchups this was a name over an empty row.
+  it('shows each team’s matchup — its recreation beside the original', async () => {
+    getFinals.mockResolvedValue({
+      ...BALLOT,
+      teams: [
+        { teamId: 't1', name: 'Reds', originalPhotoId: 'o1', chasePhotoId: 'c1' },
+        { teamId: 't2', name: 'Blues', originalPhotoId: 'o2', chasePhotoId: 'c2' },
+      ],
+    });
+    render(<FinalsScreen gameId="g1" myTeamId="t1" />);
+
+    const shot = await screen.findByTestId('finals-chase-t2');
+    expect(shot.getAttribute('src')).toBe('https://signed.example/photo.jpg');
+    expect(screen.getByTestId('finals-original-t2')).toBeTruthy();
+    // Both panes of both teams are signed.
+    expect(requestDownload).toHaveBeenCalledWith('g1', 'c2', { variant: 'thumb' });
+  });
+
+  it('says so for a team that submitted nothing, without a broken image', async () => {
+    getFinals.mockResolvedValue({
+      ...BALLOT,
+      teams: [{ teamId: 't1', name: 'Reds' }, { teamId: 't2', name: 'Blues' }],
+    });
+    render(<FinalsScreen gameId="g1" myTeamId="t1" />);
+
+    await screen.findByText('0 / 2 categories voted');
+    expect(screen.getAllByText('No photos submitted.').length).toBe(2);
+    expect(screen.queryByTestId('finals-chase-t1')).toBeNull();
+    expect(requestDownload).not.toHaveBeenCalled();
   });
 });
